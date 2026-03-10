@@ -22,7 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Refresh
@@ -41,12 +41,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.codex.mobile.app.CodexAppGraph
-import dev.codex.mobile.core.designsystem.component.AvatarCluster
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.SectionHeader
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.model.ThreadStatus
+import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.util.relativeTimeLabel
 
 @Composable
 fun ThreadsScreen(
@@ -129,7 +131,7 @@ fun ThreadsScreen(
                         )
                     },
                     placeholder = {
-                        Text("Search threads or projects")
+                        Text("Search thread name or preview")
                     },
                     singleLine = true,
                 )
@@ -151,9 +153,9 @@ fun ThreadsScreen(
                             Text(
                                 text = when (filter) {
                                     ThreadFilter.All -> "All Threads"
-                                    ThreadFilter.Running -> "Running"
-                                    ThreadFilter.NeedsReview -> "Needs Review"
-                                    ThreadFilter.Failed -> "Failed"
+                                    ThreadFilter.Active -> "Active"
+                                    ThreadFilter.WaitingOnApproval -> "Needs Approval"
+                                    ThreadFilter.SystemError -> "System Error"
                                 },
                                 style = MaterialTheme.typography.labelLarge,
                                 color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -204,19 +206,13 @@ private fun ThreadCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
-                    imageVector = when (thread.status) {
-                        ThreadStatus.Running -> Icons.Rounded.Refresh
-                        ThreadStatus.NeedsReview -> Icons.Rounded.FolderOpen
-                        ThreadStatus.Failed -> Icons.Rounded.Error
-                        ThreadStatus.Completed -> Icons.Rounded.CheckCircle
-                        ThreadStatus.Idle -> Icons.Rounded.Refresh
-                    },
+                    imageVector = threadStatusIcon(thread.status),
                     contentDescription = null,
-                    tint = statusColor(thread.status),
+                    tint = threadStatusColor(thread.status),
                     modifier = Modifier.size(18.dp),
                 )
                 Text(
-                    text = thread.projectLabel.uppercase(),
+                    text = threadMetaLabel(thread),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
@@ -226,24 +222,24 @@ private fun ThreadCard(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = thread.timeLabel,
+                text = relativeTimeLabel(thread.updatedAtEpochSeconds),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Spacer(modifier = Modifier.height(10.dp))
         Text(
-            text = thread.title,
+            text = threadTitle(thread),
             style = MaterialTheme.typography.titleLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = thread.snippet,
+            text = thread.preview,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         Spacer(modifier = Modifier.height(14.dp))
@@ -252,26 +248,46 @@ private fun ThreadCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AvatarCluster(initials = thread.participantInitials)
+            Text(
+                text = if (thread.ephemeral) "Ephemeral thread" else "Stored thread metadata",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             StatusChip(
-                label = when (thread.status) {
-                    ThreadStatus.Running -> "Running"
-                    ThreadStatus.NeedsReview -> "Needs Review"
-                    ThreadStatus.Failed -> "Failed"
-                    ThreadStatus.Completed -> "Completed"
-                    ThreadStatus.Idle -> "Idle"
-                },
-                color = statusColor(thread.status),
+                label = threadStatusLabel(thread.status),
+                color = threadStatusColor(thread.status),
+                pulsingDot = thread.status.type == ThreadStatusType.Active && !thread.status.isWaitingOnApproval,
             )
         }
     }
 }
 
+private fun threadTitle(thread: ThreadSummary): String = thread.name?.takeIf { it.isNotBlank() } ?: "Untitled thread"
+
+private fun threadMetaLabel(thread: ThreadSummary): String = buildList {
+    add(thread.modelProvider.uppercase())
+    if (thread.ephemeral) add("EPHEMERAL")
+}.joinToString(" • ")
+
+private fun threadStatusLabel(status: ThreadStatus): String = when {
+    status.isWaitingOnApproval -> "Needs Approval"
+    status.type == ThreadStatusType.Active -> "Active"
+    status.type == ThreadStatusType.SystemError -> "Error"
+    status.type == ThreadStatusType.Idle -> "Idle"
+    else -> "Stored"
+}
+
 @Composable
-private fun statusColor(status: ThreadStatus): Color = when (status) {
-    ThreadStatus.Running -> MaterialTheme.colorScheme.primary
-    ThreadStatus.NeedsReview -> Color(0xFFD59734)
-    ThreadStatus.Failed -> MaterialTheme.colorScheme.error
-    ThreadStatus.Completed -> Color(0xFF2F9A58)
-    ThreadStatus.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
+private fun threadStatusColor(status: ThreadStatus): Color = when {
+    status.isWaitingOnApproval -> Color(0xFFD59734)
+    status.type == ThreadStatusType.Active -> MaterialTheme.colorScheme.primary
+    status.type == ThreadStatusType.SystemError -> MaterialTheme.colorScheme.error
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+private fun threadStatusIcon(status: ThreadStatus) = when {
+    status.isWaitingOnApproval -> Icons.Rounded.FolderOpen
+    status.type == ThreadStatusType.Active -> Icons.Rounded.Refresh
+    status.type == ThreadStatusType.SystemError -> Icons.Rounded.Error
+    else -> Icons.Rounded.ChatBubbleOutline
 }

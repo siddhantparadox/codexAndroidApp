@@ -7,7 +7,6 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.model.ThemePreference
-import dev.codex.mobile.core.model.isPending
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -27,7 +26,7 @@ class CodexRootViewModel(
     ) { preferences, approvals ->
         CodexRootUiState(
             themePreference = preferences.themePreference,
-            pendingApprovals = approvals.count { it.state.isPending },
+            pendingApprovals = approvals.size,
         )
     }.stateIn(
         scope = viewModelScope,

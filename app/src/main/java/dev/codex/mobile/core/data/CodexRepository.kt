@@ -1,8 +1,8 @@
 package dev.codex.mobile.core.data
 
 import dev.codex.mobile.core.model.AppPreferences
+import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
-import dev.codex.mobile.core.model.ApprovalState
 import dev.codex.mobile.core.model.HostProfile
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadSummary
@@ -32,11 +32,9 @@ interface CodexRepository {
 
     suspend fun setConnectionAlerts(enabled: Boolean)
 
-    suspend fun setSecureShell(enabled: Boolean)
-
     suspend fun resolveApproval(
         approvalId: String,
-        newState: ApprovalState,
+        decision: ApprovalDecision,
     )
 
     suspend fun sendReply(

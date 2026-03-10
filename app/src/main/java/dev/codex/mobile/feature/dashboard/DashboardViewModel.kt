@@ -7,8 +7,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.model.HostProfile
-import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.isActive
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.stateIn
 
 data class DashboardUiState(
     val activeHost: HostProfile? = null,
-    val runningThread: ThreadSummary? = null,
+    val activeThread: ThreadSummary? = null,
     val recentThreads: List<ThreadSummary> = emptyList(),
 )
 
@@ -29,7 +29,7 @@ class DashboardViewModel(
     ) { hosts, threads ->
         DashboardUiState(
             activeHost = hosts.firstOrNull { it.isActive } ?: hosts.firstOrNull(),
-            runningThread = threads.firstOrNull { it.status == ThreadStatus.Running },
+            activeThread = threads.firstOrNull { it.status.isActive },
             recentThreads = threads.take(3),
         )
     }.stateIn(

@@ -1,86 +1,95 @@
 package dev.codex.mobile.core.model
 
-enum class ThreadStatus {
-    Running,
-    NeedsReview,
-    Failed,
-    Completed,
+enum class ThreadStatusType {
+    NotLoaded,
     Idle,
+    Active,
+    SystemError,
 }
+
+data class ThreadStatus(
+    val type: ThreadStatusType,
+    val activeFlags: Set<String> = emptySet(),
+)
+
+val ThreadStatus.isActive: Boolean
+    get() = type == ThreadStatusType.Active
+
+val ThreadStatus.isWaitingOnApproval: Boolean
+    get() = isActive && "waitingOnApproval" in activeFlags
 
 data class ThreadSummary(
     val id: String,
-    val projectLabel: String,
-    val title: String,
-    val snippet: String,
-    val timeLabel: String,
+    val name: String?,
+    val preview: String,
+    val createdAtEpochSeconds: Long,
+    val updatedAtEpochSeconds: Long,
+    val modelProvider: String,
+    val ephemeral: Boolean,
     val status: ThreadStatus,
-    val participantInitials: List<String>,
-    val progressPercent: Int? = null,
-    val remainingLabel: String? = null,
 )
 
-sealed interface TimelineEntry {
+sealed interface ThreadItem {
     val id: String
     val timestampLabel: String
 
-    data class UserIntent(
+    data class UserMessage(
         override val id: String,
         override val timestampLabel: String,
         val text: String,
-    ) : TimelineEntry
+    ) : ThreadItem
+
+    data class AgentMessage(
+        override val id: String,
+        override val timestampLabel: String,
+        val text: String,
+        val phase: String? = null,
+    ) : ThreadItem
+
+    data class Plan(
+        override val id: String,
+        override val timestampLabel: String,
+        val text: String,
+    ) : ThreadItem
 
     data class Reasoning(
         override val id: String,
         override val timestampLabel: String,
         val summary: String,
-        val steps: List<ReasoningStep>,
-    ) : TimelineEntry
+    ) : ThreadItem
 
-    data class ExecutionLog(
+    data class CommandExecution(
         override val id: String,
         override val timestampLabel: String,
-        val lines: List<ExecutionLine>,
-    ) : TimelineEntry
+        val command: String,
+        val cwd: String? = null,
+        val status: ThreadItemStatus,
+        val aggregatedOutput: String? = null,
+        val exitCode: Int? = null,
+    ) : ThreadItem
 
-    data class ProposedChange(
+    data class FileChange(
         override val id: String,
         override val timestampLabel: String,
-        val title: String,
-        val createdCount: Int,
-        val modifiedCount: Int,
-    ) : TimelineEntry
-
-    data class Message(
-        override val id: String,
-        override val timestampLabel: String,
-        val author: String,
-        val text: String,
-    ) : TimelineEntry
+        val changes: List<FileChangeEntry>,
+        val status: ThreadItemStatus,
+    ) : ThreadItem
 }
 
-data class ReasoningStep(
-    val text: String,
-    val completed: Boolean,
-)
-
-enum class ExecutionKind {
-    Run,
-    Info,
-    Patch,
-    Write,
-    Warn,
+enum class ThreadItemStatus {
+    InProgress,
+    Completed,
+    Failed,
+    Declined,
 }
 
-data class ExecutionLine(
-    val lineNumber: Int,
-    val kind: ExecutionKind,
-    val text: String,
+data class FileChangeEntry(
+    val path: String,
+    val kind: String,
+    val diff: String,
 )
 
 data class ThreadDetail(
     val summary: ThreadSummary,
-    val hostName: String,
-    val modelLabel: String,
-    val timeline: List<TimelineEntry>,
+    val items: List<ThreadItem>,
 )

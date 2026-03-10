@@ -4,7 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -111,42 +110,6 @@ fun StatusChip(
             style = MaterialTheme.typography.labelLarge,
             color = color,
         )
-    }
-}
-
-@Composable
-fun InitialAvatar(
-    initials: String,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .size(28.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f), CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = initials,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-        )
-    }
-}
-
-@Composable
-fun AvatarCluster(
-    initials: List<String>,
-    modifier: Modifier = Modifier,
-) {
-    Row(modifier = modifier) {
-        initials.take(3).forEachIndexed { index, value ->
-            InitialAvatar(
-                initials = value,
-                modifier = Modifier.padding(start = if (index == 0) 0.dp else (-8).dp),
-            )
-        }
     }
 }
 

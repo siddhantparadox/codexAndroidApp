@@ -49,12 +49,6 @@ class SettingsViewModel(
         }
     }
 
-    fun setSecureShell(enabled: Boolean) {
-        viewModelScope.launch {
-            repository.setSecureShell(enabled)
-        }
-    }
-
     companion object {
         fun factory(repository: CodexRepository): ViewModelProvider.Factory = viewModelFactory {
             initializer { SettingsViewModel(repository) }

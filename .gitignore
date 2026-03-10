@@ -39,6 +39,9 @@ hs_err_pid*
 replay_pid*
 .tmp/
 
+# Local device screenshots
+design/device-*.png
+
 # OS-specific files
 .DS_Store
 Thumbs.db

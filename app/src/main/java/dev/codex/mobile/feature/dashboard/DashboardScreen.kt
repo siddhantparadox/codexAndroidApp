@@ -1,6 +1,5 @@
 package dev.codex.mobile.feature.dashboard
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -11,20 +10,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.LaptopMac
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.StopCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -34,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,7 +42,10 @@ import dev.codex.mobile.core.designsystem.component.SectionHeader
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.model.HostKind
 import dev.codex.mobile.core.model.ThreadStatus
+import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.util.relativeTimeLabel
 
 @Composable
 fun DashboardScreen(
@@ -73,17 +73,18 @@ fun DashboardScreen(
             uiState.activeHost?.let { host ->
                 ConnectionCard(
                     hostName = host.name,
-                    qualityLabel = host.qualityLabel,
+                    address = host.address,
+                    port = host.port,
                     hostKind = host.kind,
                     onClick = onOpenHostConnection,
                 )
             }
         }
         item {
-            uiState.runningThread?.let { runningThread ->
-                RunningThreadCard(
-                    thread = runningThread,
-                    onClick = { onOpenThread(runningThread.id) },
+            uiState.activeThread?.let { activeThread ->
+                ActiveThreadCard(
+                    thread = activeThread,
+                    onClick = { onOpenThread(activeThread.id) },
                 )
             }
         }
@@ -176,7 +177,8 @@ private fun DashboardHeader() {
 @Composable
 private fun ConnectionCard(
     hostName: String,
-    qualityLabel: String,
+    address: String,
+    port: Int,
     hostKind: HostKind,
     onClick: () -> Unit,
 ) {
@@ -209,7 +211,7 @@ private fun ConnectionCard(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
-                        text = "Laptop Connection".uppercase(),
+                        text = "Trusted LAN Endpoint".uppercase(),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -232,7 +234,7 @@ private fun ConnectionCard(
         }
         Spacer(modifier = Modifier.height(14.dp))
         Text(
-            text = "LAN Connection: $qualityLabel",
+            text = "$address:$port",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -240,23 +242,18 @@ private fun ConnectionCard(
 }
 
 @Composable
-private fun RunningThreadCard(
+private fun ActiveThreadCard(
     thread: ThreadSummary,
     onClick: () -> Unit,
 ) {
-    val progress by animateFloatAsState(
-        targetValue = (thread.progressPercent ?: 0) / 100f,
-        label = "runningProgress",
-    )
-
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SectionHeader(
-            title = "Now Running",
+            title = "Active Thread",
             trailing = {
-                Text(
-                    text = "Auto-syncing...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
+                StatusChip(
+                    label = threadStatusLabel(thread.status),
+                    color = threadStatusColor(thread.status),
+                    pulsingDot = !thread.status.isWaitingOnApproval,
                 )
             },
         )
@@ -265,87 +262,38 @@ private fun RunningThreadCard(
                 .fillMaxWidth()
                 .clickable(onClick = onClick),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        text = thread.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = thread.snippet,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = "${thread.progressPercent ?: 0}%",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.widthIn(min = 56.dp),
-                    maxLines = 1,
-                    softWrap = false,
-                    textAlign = TextAlign.End,
-                )
-            }
+            Text(
+                text = threadMetaLabel(thread),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = threadTitle(thread),
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = thread.preview,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
             Spacer(modifier = Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(10.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(progress)
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(MaterialTheme.colorScheme.primary),
-                )
-            }
-            Spacer(modifier = Modifier.height(14.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = thread.remainingLabel.orEmpty(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.StopCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        text = "Pause",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            }
+            Text(
+                text = if (thread.status.isWaitingOnApproval) {
+                    "Approval is blocking the current turn."
+                } else {
+                    "Open the live thread to steer or interrupt the turn."
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }
@@ -360,7 +308,7 @@ private fun RecentThreadRow(
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
+            .height(64.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -371,28 +319,22 @@ private fun RecentThreadRow(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                imageVector = Icons.Rounded.ChatBubbleOutline,
+                imageVector = threadStatusIcon(thread.status),
                 contentDescription = null,
-                tint = when (thread.status) {
-                    ThreadStatus.Running -> MaterialTheme.colorScheme.primary
-                    ThreadStatus.NeedsReview -> Color(0xFFCD9128)
-                    ThreadStatus.Failed -> MaterialTheme.colorScheme.error
-                    ThreadStatus.Completed -> Color(0xFF2B9957)
-                    ThreadStatus.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
-                },
+                tint = threadStatusColor(thread.status),
             )
         }
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = thread.title,
+                text = threadTitle(thread),
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = thread.snippet,
+                text = thread.preview,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -401,9 +343,39 @@ private fun RecentThreadRow(
         }
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = thread.timeLabel,
+            text = relativeTimeLabel(thread.updatedAtEpochSeconds),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+private fun threadTitle(thread: ThreadSummary): String = thread.name?.takeIf { it.isNotBlank() } ?: "Untitled thread"
+
+private fun threadMetaLabel(thread: ThreadSummary): String = buildList {
+    add(thread.modelProvider.uppercase())
+    if (thread.ephemeral) add("EPHEMERAL")
+}.joinToString(" • ")
+
+private fun threadStatusLabel(status: ThreadStatus): String = when {
+    status.isWaitingOnApproval -> "Needs Approval"
+    status.type == ThreadStatusType.Active -> "Active"
+    status.type == ThreadStatusType.SystemError -> "Error"
+    status.type == ThreadStatusType.Idle -> "Idle"
+    else -> "Stored"
+}
+
+@Composable
+private fun threadStatusColor(status: ThreadStatus): Color = when {
+    status.isWaitingOnApproval -> Color(0xFFD59734)
+    status.type == ThreadStatusType.Active -> MaterialTheme.colorScheme.primary
+    status.type == ThreadStatusType.SystemError -> MaterialTheme.colorScheme.error
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
+private fun threadStatusIcon(status: ThreadStatus) = when {
+    status.isWaitingOnApproval -> Icons.Rounded.FolderOpen
+    status.type == ThreadStatusType.Active -> Icons.Rounded.Refresh
+    status.type == ThreadStatusType.SystemError -> Icons.Rounded.Error
+    else -> Icons.Rounded.ChatBubbleOutline
 }

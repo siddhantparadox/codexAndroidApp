@@ -12,5 +12,4 @@ data class HostProfile(
     val port: Int,
     val kind: HostKind,
     val isActive: Boolean = false,
-    val qualityLabel: String = "Excellent",
 )

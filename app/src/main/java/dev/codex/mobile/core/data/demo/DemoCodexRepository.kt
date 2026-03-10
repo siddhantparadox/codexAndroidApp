@@ -2,20 +2,19 @@ package dev.codex.mobile.core.data.demo
 
 import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.model.AppPreferences
+import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
-import dev.codex.mobile.core.model.ApprovalRisk
-import dev.codex.mobile.core.model.ApprovalState
-import dev.codex.mobile.core.model.ExecutionKind
-import dev.codex.mobile.core.model.ExecutionLine
+import dev.codex.mobile.core.model.FileChangeEntry
 import dev.codex.mobile.core.model.HostKind
 import dev.codex.mobile.core.model.HostProfile
-import dev.codex.mobile.core.model.ReasoningStep
 import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.ThreadItem
+import dev.codex.mobile.core.model.ThreadItemStatus
 import dev.codex.mobile.core.model.ThreadStatus
+import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.ThemePreference
-import dev.codex.mobile.core.model.TimelineEntry
 import dev.codex.mobile.core.util.AppLog
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -32,12 +31,13 @@ private data class DemoStoreState(
 )
 
 class DemoCodexRepository : CodexRepository {
+    private val initialThreads: List<ThreadSummary> = demoThreads()
+
     private val store = MutableStateFlow(
         DemoStoreState(
             preferences = AppPreferences(
                 themePreference = ThemePreference.Dark,
                 connectionAlerts = true,
-                secureShellEnabled = true,
             ),
             hosts = listOf(
                 HostProfile(
@@ -56,8 +56,8 @@ class DemoCodexRepository : CodexRepository {
                     kind = HostKind.Desktop,
                 ),
             ),
-            threads = demoThreads(),
-            threadDetails = demoThreadDetails(),
+            threads = initialThreads,
+            threadDetails = demoThreadDetails(initialThreads),
             approvals = demoApprovals(),
         ),
     )
@@ -124,33 +124,55 @@ class DemoCodexRepository : CodexRepository {
         }
     }
 
-    override suspend fun setSecureShell(enabled: Boolean) {
-        AppLog.action(name = "set_secure_shell", detail = enabled.toString())
+    override suspend fun resolveApproval(
+        approvalId: String,
+        decision: ApprovalDecision,
+    ) {
+        AppLog.action(name = "resolve_approval", detail = "$approvalId->$decision")
         store.update { current ->
-            current.copy(
-                preferences = current.preferences.copy(secureShellEnabled = enabled),
-            )
-        }
-    }
+            val approval = current.approvals.firstOrNull { it.id == approvalId } ?: return@update current
+            val remainingApprovals = current.approvals.filterNot { it.id == approvalId }
+            val updatedDetails = current.threadDetails.mapValues { (threadId, detail) ->
+                if (threadId != approval.threadId) {
+                    detail
+                } else {
+                    detail.copy(
+                        items = detail.items.map { item ->
+                            when {
+                                item.id != approval.itemId -> item
+                                item is ThreadItem.CommandExecution -> item.copy(
+                                    status = decision.toThreadItemStatus(),
+                                )
 
-    override suspend fun resolveApproval(approvalId: String, newState: ApprovalState) {
-        AppLog.action(name = "resolve_approval", detail = "$approvalId->$newState")
-        store.update { current ->
-            val approvals = current.approvals.map { approval ->
-                if (approval.id == approvalId) approval.copy(state = newState) else approval
+                                item is ThreadItem.FileChange -> item.copy(
+                                    status = decision.toThreadItemStatus(),
+                                )
+
+                                else -> item
+                            }
+                        },
+                    )
+                }
+            }
+            val updatedThreads = current.threads.map { thread ->
+                if (thread.id != approval.threadId) {
+                    thread
+                } else {
+                    thread.copy(
+                        preview = previewForApprovalDecision(decision),
+                        updatedAtEpochSeconds = nowEpochSeconds(),
+                        status = statusForApprovalResolution(
+                            threadId = thread.id,
+                            approvals = remainingApprovals,
+                            decision = decision,
+                        ),
+                    )
+                }
             }
             current.copy(
-                approvals = approvals,
-                threads = current.threads.map { thread ->
-                    val hasPendingApproval = approvals.any { it.threadId == thread.id && it.state == ApprovalState.Pending }
-                    when {
-                        hasPendingApproval && thread.status == ThreadStatus.Completed ->
-                            thread.copy(status = ThreadStatus.NeedsReview)
-                        !hasPendingApproval && thread.status == ThreadStatus.NeedsReview ->
-                            thread.copy(status = ThreadStatus.Completed)
-                        else -> thread
-                    }
-                },
+                approvals = remainingApprovals,
+                threads = updatedThreads,
+                threadDetails = syncThreadSummaries(updatedDetails, updatedThreads),
             )
         }
     }
@@ -165,29 +187,29 @@ class DemoCodexRepository : CodexRepository {
         )
         store.update { current ->
             val detail = current.threadDetails[threadId] ?: return@update current
-            current.copy(
-                threadDetails = current.threadDetails + (
-                    threadId to detail.copy(
-                        timeline = detail.timeline + TimelineEntry.Message(
-                            id = "reply-${System.currentTimeMillis()}",
-                            timestampLabel = "Just now",
-                            author = "You",
-                            text = cleanMessage,
-                        ),
+            val updatedThreads = current.threads.map { summary ->
+                if (summary.id == threadId) {
+                    summary.copy(
+                        preview = cleanMessage,
+                        updatedAtEpochSeconds = nowEpochSeconds(),
+                        status = activeStatus(),
                     )
-                ),
-                threads = current.threads.map { summary ->
-                    if (summary.id == threadId) {
-                        summary.copy(
-                            snippet = cleanMessage,
-                            status = ThreadStatus.Running,
-                            progressPercent = 82,
-                            remainingLabel = "1.1s remaining",
-                        )
-                    } else {
-                        summary
-                    }
-                },
+                } else {
+                    summary
+                }
+            }
+            val updatedDetails = current.threadDetails + (
+                threadId to detail.copy(
+                    items = detail.items + ThreadItem.UserMessage(
+                        id = nextItemId("user"),
+                        timestampLabel = "Just now",
+                        text = cleanMessage,
+                    ),
+                )
+            )
+            current.copy(
+                threads = updatedThreads,
+                threadDetails = syncThreadSummaries(updatedDetails, updatedThreads),
             )
         }
 
@@ -195,29 +217,34 @@ class DemoCodexRepository : CodexRepository {
 
         store.update { current ->
             val detail = current.threadDetails[threadId] ?: return@update current
-            current.copy(
-                threadDetails = current.threadDetails + (
-                    threadId to detail.copy(
-                        timeline = detail.timeline + TimelineEntry.Message(
-                            id = "codex-${System.currentTimeMillis()}",
-                            timestampLabel = "Just now",
-                            author = "Codex",
-                            text = "Queued the follow-up and re-scoped the patch set to keep the approval surface small.",
+            val responseText = "Queued the follow-up and kept the next turn scoped to app-server supported actions."
+            val updatedThreads = current.threads.map { summary ->
+                if (summary.id == threadId) {
+                    summary.copy(
+                        preview = responseText,
+                        updatedAtEpochSeconds = nowEpochSeconds(),
+                        status = statusAfterAssistantReply(
+                            threadId = threadId,
+                            approvals = current.approvals,
                         ),
                     )
-                ),
-                threads = current.threads.map { summary ->
-                    if (summary.id == threadId) {
-                        summary.copy(
-                            snippet = "Queued the follow-up and tightened the patch set...",
-                            status = ThreadStatus.Running,
-                            progressPercent = 91,
-                            remainingLabel = "0.6s remaining",
-                        )
-                    } else {
-                        summary
-                    }
-                },
+                } else {
+                    summary
+                }
+            }
+            val updatedDetails = current.threadDetails + (
+                threadId to detail.copy(
+                    items = detail.items + ThreadItem.AgentMessage(
+                        id = nextItemId("agent"),
+                        timestampLabel = "Just now",
+                        text = responseText,
+                        phase = "commentary",
+                    ),
+                )
+            )
+            current.copy(
+                threads = updatedThreads,
+                threadDetails = syncThreadSummaries(updatedDetails, updatedThreads),
             )
         }
     }
@@ -225,123 +252,195 @@ class DemoCodexRepository : CodexRepository {
     override suspend fun interruptThread(threadId: String) {
         AppLog.action(name = "interrupt_thread", detail = threadId)
         store.update { current ->
+            val updatedThreads = current.threads.map { summary ->
+                if (summary.id == threadId) {
+                    summary.copy(
+                        preview = "Turn interrupted from mobile.",
+                        updatedAtEpochSeconds = nowEpochSeconds(),
+                        status = statusAfterInterrupt(
+                            threadId = threadId,
+                            approvals = current.approvals,
+                        ),
+                    )
+                } else {
+                    summary
+                }
+            }
             current.copy(
-                threads = current.threads.map { summary ->
-                    if (summary.id == threadId) {
-                        summary.copy(
-                            status = ThreadStatus.NeedsReview,
-                            progressPercent = null,
-                            remainingLabel = "Interrupted",
-                            snippet = "Interrupted from mobile. Waiting for next instruction.",
-                        )
-                    } else {
-                        summary
-                    }
-                },
+                threads = updatedThreads,
+                threadDetails = syncThreadSummaries(current.threadDetails, updatedThreads),
             )
         }
     }
 }
 
-private fun demoThreads(): List<ThreadSummary> = listOf(
+private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = listOf(
     ThreadSummary(
         id = "auth-refactor",
-        projectLabel = "Nexus Pipeline",
-        title = "Refactoring Auth Service",
-        snippet = "Processing middleware hooks and validation branches...",
-        timeLabel = "2m ago",
-        status = ThreadStatus.Running,
-        participantInitials = listOf("AC", "RM"),
-        progressPercent = 68,
-        remainingLabel = "2.4s remaining",
+        name = "Refactor auth service",
+        preview = "Waiting on a file-change approval for the auth middleware patch.",
+        createdAtEpochSeconds = now - 4 * 60 * 60,
+        updatedAtEpochSeconds = now - 2 * 60,
+        modelProvider = "openai",
+        ephemeral = false,
+        status = waitingOnApprovalStatus(),
     ),
     ThreadSummary(
         id = "auth-handshake",
-        projectLabel = "Core API",
-        title = "Authentication Handshake",
-        snippet = "Security validation required for new OAuth endpoint...",
-        timeLabel = "45m ago",
-        status = ThreadStatus.NeedsReview,
-        participantInitials = listOf("AC"),
+        name = "Validate OAuth handshake",
+        preview = "Waiting on approval before installing a new dependency for the OAuth callback flow.",
+        createdAtEpochSeconds = now - 5 * 60 * 60,
+        updatedAtEpochSeconds = now - 45 * 60,
+        modelProvider = "openai",
+        ephemeral = false,
+        status = waitingOnApprovalStatus(),
     ),
     ThreadSummary(
         id = "theme-sync",
-        projectLabel = "UI Kit",
-        title = "Theme Provider Sync",
-        snippet = "Runtime error: cannot read property 'color' of undefined...",
-        timeLabel = "1h ago",
-        status = ThreadStatus.Failed,
-        participantInitials = listOf("SK", "RM"),
+        name = "Recover theme provider sync",
+        preview = "The last validation command failed with a palette lookup error.",
+        createdAtEpochSeconds = now - 8 * 60 * 60,
+        updatedAtEpochSeconds = now - 60 * 60,
+        modelProvider = "openai",
+        ephemeral = false,
+        status = ThreadStatus(type = ThreadStatusType.SystemError),
     ),
     ThreadSummary(
         id = "analytics-dashboard",
-        projectLabel = "Data Visualization",
-        title = "Analytics Dashboard",
-        snippet = "Quarterly reports generated and exported successfully...",
-        timeLabel = "3h ago",
-        status = ThreadStatus.Completed,
-        participantInitials = listOf("LP"),
+        name = "Generate analytics dashboard review",
+        preview = "Stored thread with the last completed export summary.",
+        createdAtEpochSeconds = now - 12 * 60 * 60,
+        updatedAtEpochSeconds = now - 3 * 60 * 60,
+        modelProvider = "openai",
+        ephemeral = false,
+        status = ThreadStatus(type = ThreadStatusType.NotLoaded),
     ),
     ThreadSummary(
         id = "server-migration",
-        projectLabel = "DevOps",
-        title = "Server Migration Phase 4",
-        snippet = "Transferring legacy assets to edge storage...",
-        timeLabel = "5h ago",
-        status = ThreadStatus.Running,
-        participantInitials = listOf("AC"),
+        name = "Prepare storage migration",
+        preview = "Streaming the current rsync pass to the edge storage snapshot.",
+        createdAtEpochSeconds = now - 18 * 60 * 60,
+        updatedAtEpochSeconds = now - 5 * 60 * 60,
+        modelProvider = "openai",
+        ephemeral = true,
+        status = activeStatus(),
     ),
 )
 
-private fun demoThreadDetails(): Map<String, ThreadDetail> {
-    val runningSummary = demoThreads().first()
+private fun demoThreadDetails(threads: List<ThreadSummary>): Map<String, ThreadDetail> {
+    val threadsById = threads.associateBy { it.id }
     return mapOf(
         "auth-refactor" to ThreadDetail(
-            summary = runningSummary,
-            hostName = "MacBook Pro 16\"",
-            modelLabel = "GPT-5.4",
-            timeline = listOf(
-                TimelineEntry.UserIntent(
-                    id = "intent",
+            summary = requireNotNull(threadsById["auth-refactor"]),
+            items = listOf(
+                ThreadItem.UserMessage(
+                    id = "auth-refactor-user",
                     timestampLabel = "10:24 AM",
-                    text = "Refactor the authentication module to support multi-tenant JWT validation and consolidate common middleware.",
+                    text = "Refactor the authentication module to support multi-tenant JWT validation and keep the approval surface small.",
                 ),
-                TimelineEntry.Reasoning(
-                    id = "reasoning",
+                ThreadItem.Reasoning(
+                    id = "auth-refactor-reasoning",
                     timestampLabel = "10:25 AM",
-                    summary = "Analyzing the existing auth surface and narrowing the patch to keep the approval small.",
-                    steps = listOf(
-                        ReasoningStep(
-                            text = "Audit circular dependencies in src/lib/auth.ts",
-                            completed = true,
-                        ),
-                        ReasoningStep(
-                            text = "Define TenantConfig interface for dynamic provider resolution",
-                            completed = true,
-                        ),
-                        ReasoningStep(
-                            text = "Update middleware registry to inject tenant context",
-                            completed = false,
-                        ),
-                    ),
+                    summary = "Codex narrowed the patch to the auth middleware and paused before writing changes so the client can review the file-change item.",
                 ),
-                TimelineEntry.ExecutionLog(
-                    id = "log",
+                ThreadItem.FileChange(
+                    id = "file-change-auth-item",
                     timestampLabel = "10:27 AM",
-                    lines = listOf(
-                        ExecutionLine(1, ExecutionKind.Run, "npm list --depth=0"),
-                        ExecutionLine(2, ExecutionKind.Info, "Mapping dependencies for @codex/auth..."),
-                        ExecutionLine(3, ExecutionKind.Patch, "Applying hunk #1 to core/security.ts"),
-                        ExecutionLine(4, ExecutionKind.Write, "Created src/services/tenant-manager.ts"),
-                        ExecutionLine(5, ExecutionKind.Warn, "2 linting errors detected in auth-utils.ts"),
+                    changes = listOf(
+                        FileChangeEntry(
+                            path = "src/middleware/auth.ts",
+                            kind = "modified",
+                            diff = "Inject tenant context before JWT verification.",
+                        ),
+                        FileChangeEntry(
+                            path = "src/routes/user.ts",
+                            kind = "modified",
+                            diff = "Route middleware updated to use the consolidated auth pipeline.",
+                        ),
                     ),
+                    status = ThreadItemStatus.InProgress,
                 ),
-                TimelineEntry.ProposedChange(
-                    id = "proposal",
-                    timestampLabel = "Just now",
-                    title = "Multi-tenant Architecture Update",
-                    createdCount = 3,
-                    modifiedCount = 124,
+            ),
+        ),
+        "auth-handshake" to ThreadDetail(
+            summary = requireNotNull(threadsById["auth-handshake"]),
+            items = listOf(
+                ThreadItem.UserMessage(
+                    id = "auth-handshake-user",
+                    timestampLabel = "9:41 AM",
+                    text = "Validate the OAuth callback handshake and install any missing browser-side dependency only if it is required.",
+                ),
+                ThreadItem.CommandExecution(
+                    id = "command-install-item",
+                    timestampLabel = "9:48 AM",
+                    command = "npm install @stripe/stripe-js",
+                    cwd = "/projects/codex-mobile/api",
+                    status = ThreadItemStatus.InProgress,
+                    aggregatedOutput = "Preparing dependency graph before the install and waiting for approval.",
+                ),
+            ),
+        ),
+        "theme-sync" to ThreadDetail(
+            summary = requireNotNull(threadsById["theme-sync"]),
+            items = listOf(
+                ThreadItem.UserMessage(
+                    id = "theme-sync-user",
+                    timestampLabel = "8:09 AM",
+                    text = "Repair the theme provider sync and verify the palette contract in dark mode.",
+                ),
+                ThreadItem.CommandExecution(
+                    id = "theme-sync-command",
+                    timestampLabel = "8:16 AM",
+                    command = "pnpm test --filter theme-provider",
+                    cwd = "/projects/ui-kit",
+                    status = ThreadItemStatus.Failed,
+                    aggregatedOutput = "TypeError: Cannot read properties of undefined (reading 'color')",
+                    exitCode = 1,
+                ),
+                ThreadItem.AgentMessage(
+                    id = "theme-sync-agent",
+                    timestampLabel = "8:17 AM",
+                    text = "The current theme provider still dereferences a missing palette entry in dark mode.",
+                    phase = "final_answer",
+                ),
+            ),
+        ),
+        "analytics-dashboard" to ThreadDetail(
+            summary = requireNotNull(threadsById["analytics-dashboard"]),
+            items = listOf(
+                ThreadItem.UserMessage(
+                    id = "analytics-user",
+                    timestampLabel = "6:02 AM",
+                    text = "Generate the analytics dashboard review and summarize the export health before I open the laptop again.",
+                ),
+                ThreadItem.Plan(
+                    id = "analytics-plan",
+                    timestampLabel = "6:04 AM",
+                    text = "1. Validate the dashboard queries. 2. Check export freshness. 3. Summarize blockers only if any remain.",
+                ),
+                ThreadItem.AgentMessage(
+                    id = "analytics-agent",
+                    timestampLabel = "6:12 AM",
+                    text = "The export completed successfully and the dashboard review did not surface new blockers.",
+                    phase = "final_answer",
+                ),
+            ),
+        ),
+        "server-migration" to ThreadDetail(
+            summary = requireNotNull(threadsById["server-migration"]),
+            items = listOf(
+                ThreadItem.UserMessage(
+                    id = "migration-user",
+                    timestampLabel = "5:11 AM",
+                    text = "Prepare the next storage migration pass and stream only the essential execution details.",
+                ),
+                ThreadItem.CommandExecution(
+                    id = "migration-command",
+                    timestampLabel = "5:12 AM",
+                    command = "rsync -av legacy/ edge-storage:/snapshots/phase-4",
+                    cwd = "/projects/platform",
+                    status = ThreadItemStatus.InProgress,
+                    aggregatedOutput = "Transferred 182 assets so far and still streaming the current pass.",
                 ),
             ),
         ),
@@ -352,42 +451,114 @@ private fun demoApprovals(): List<ApprovalItem> = listOf(
     ApprovalItem(
         id = "command-install",
         threadId = "auth-handshake",
-        kind = ApprovalKind.Command,
-        title = "Command Approval",
-        subtitle = "npm install @stripe/stripe-js",
-        detail = "CWD: /projects/codex-mobile/api • Scope: System modification (packages)",
-        risk = ApprovalRisk.HighImpact,
-        state = ApprovalState.Pending,
-        primaryActionLabel = "Approve",
-        secondaryActionLabel = "Decline",
+        turnId = "turn-auth-handshake",
+        itemId = "command-install-item",
+        kind = ApprovalKind.CommandExecution,
+        command = "npm install @stripe/stripe-js",
+        cwd = "/projects/codex-mobile/api",
+        reason = "Codex needs approval before installing a new package.",
+        availableDecisions = listOf(
+            ApprovalDecision.Accept,
+            ApprovalDecision.AcceptForSession,
+            ApprovalDecision.Decline,
+            ApprovalDecision.Cancel,
+        ),
         requestTimeLabel = "Just now",
     ),
     ApprovalItem(
         id = "file-change-auth",
         threadId = "auth-refactor",
+        turnId = "turn-auth-refactor",
+        itemId = "file-change-auth-item",
         kind = ApprovalKind.FileChange,
-        title = "File-Change Approval",
-        subtitle = "Update Auth Middleware",
-        detail = "Modified 2 files • src/middleware/auth.ts, src/routes/user.ts",
-        risk = ApprovalRisk.MediumRisk,
-        state = ApprovalState.Pending,
-        primaryActionLabel = "Accept Diff",
-        secondaryActionLabel = "Review",
-        tertiaryActionLabel = "Archive",
+        filePaths = listOf(
+            "src/middleware/auth.ts",
+            "src/routes/user.ts",
+        ),
+        reason = "Codex wants permission to write the proposed auth refactor to the workspace.",
+        availableDecisions = listOf(
+            ApprovalDecision.Accept,
+            ApprovalDecision.AcceptForSession,
+            ApprovalDecision.Decline,
+            ApprovalDecision.Cancel,
+        ),
         requestTimeLabel = "2m ago",
     ),
-    ApprovalItem(
-        id = "deploy-stage",
-        threadId = "analytics-dashboard",
-        kind = ApprovalKind.Deployment,
-        title = "Deployment Request",
-        subtitle = "Deploy 'feature/redesign' to staging",
-        detail = "Requested by Alex Chen • Safe preview environment",
-        risk = ApprovalRisk.LowRisk,
-        state = ApprovalState.Archived,
-        primaryActionLabel = "Restore",
-        secondaryActionLabel = "Dismiss",
-        requestTimeLabel = "14m ago",
-        authorLabel = "Alex Chen",
-    ),
 )
+
+private fun syncThreadSummaries(
+    threadDetails: Map<String, ThreadDetail>,
+    threads: List<ThreadSummary>,
+): Map<String, ThreadDetail> {
+    val threadsById = threads.associateBy { it.id }
+    return threadDetails.mapValues { (threadId, detail) ->
+        val summary = threadsById[threadId] ?: detail.summary
+        detail.copy(summary = summary)
+    }
+}
+
+private fun nowEpochSeconds(): Long = System.currentTimeMillis() / 1_000
+
+private fun nextItemId(prefix: String): String = "$prefix-${System.currentTimeMillis()}"
+
+private fun activeStatus(): ThreadStatus = ThreadStatus(type = ThreadStatusType.Active)
+
+private fun waitingOnApprovalStatus(): ThreadStatus =
+    ThreadStatus(
+        type = ThreadStatusType.Active,
+        activeFlags = setOf("waitingOnApproval"),
+    )
+
+private fun statusForApprovalResolution(
+    threadId: String,
+    approvals: List<ApprovalItem>,
+    decision: ApprovalDecision,
+): ThreadStatus {
+    if (approvals.any { it.threadId == threadId }) {
+        return waitingOnApprovalStatus()
+    }
+    return when (decision) {
+        ApprovalDecision.Accept,
+        ApprovalDecision.AcceptForSession,
+        -> activeStatus()
+
+        ApprovalDecision.Decline,
+        ApprovalDecision.Cancel,
+        -> ThreadStatus(type = ThreadStatusType.Idle)
+    }
+}
+
+private fun statusAfterAssistantReply(
+    threadId: String,
+    approvals: List<ApprovalItem>,
+): ThreadStatus = if (approvals.any { it.threadId == threadId }) {
+    waitingOnApprovalStatus()
+} else {
+    ThreadStatus(type = ThreadStatusType.Idle)
+}
+
+private fun statusAfterInterrupt(
+    threadId: String,
+    approvals: List<ApprovalItem>,
+): ThreadStatus = if (approvals.any { it.threadId == threadId }) {
+    waitingOnApprovalStatus()
+} else {
+    ThreadStatus(type = ThreadStatusType.Idle)
+}
+
+private fun ApprovalDecision.toThreadItemStatus(): ThreadItemStatus = when (this) {
+    ApprovalDecision.Accept,
+    ApprovalDecision.AcceptForSession,
+    -> ThreadItemStatus.Completed
+
+    ApprovalDecision.Decline,
+    ApprovalDecision.Cancel,
+    -> ThreadItemStatus.Declined
+}
+
+private fun previewForApprovalDecision(decision: ApprovalDecision): String = when (decision) {
+    ApprovalDecision.Accept -> "Approval accepted from mobile. Codex can continue the turn."
+    ApprovalDecision.AcceptForSession -> "Approval accepted for the current session from mobile."
+    ApprovalDecision.Decline -> "Approval declined from mobile."
+    ApprovalDecision.Cancel -> "Approval cancelled from mobile."
+}

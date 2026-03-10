@@ -2,7 +2,6 @@ package dev.codex.mobile.feature.approvals
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,10 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.Icon
@@ -36,10 +34,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
+import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
-import dev.codex.mobile.core.model.ApprovalRisk
-import dev.codex.mobile.core.model.ApprovalState
+import dev.codex.mobile.core.model.label
 
 @Composable
 fun ApprovalsScreen(
@@ -49,12 +47,6 @@ fun ApprovalsScreen(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val tabs = listOf(
-        ApprovalState.Pending,
-        ApprovalState.Approved,
-        ApprovalState.Declined,
-        ApprovalState.Archived,
-    )
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -76,69 +68,51 @@ fun ApprovalsScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(
-                            imageVector = Icons.Rounded.History,
-                            contentDescription = "History",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Icon(
-                            imageVector = Icons.Rounded.NotificationsActive,
-                            contentDescription = "Notifications",
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Rounded.NotificationsActive,
+                        contentDescription = "Pending approvals",
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
                 }
                 Text(
-                    text = "Approval Queue".uppercase(),
+                    text = "Pending Approvals".uppercase(),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    tabs.forEach { tab ->
-                        val selected = uiState.selectedTab == tab
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    color = if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = CircleShape,
-                                )
-                                .clickable { viewModel.selectTab(tab) }
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                        ) {
-                            Text(
-                                text = tab.name.lowercase().replaceFirstChar(Char::uppercase),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
+                Text(
+                    text = if (uiState.approvals.isEmpty()) {
+                        "No active approval requests."
+                    } else {
+                        "${uiState.approvals.size} request(s) need a decision."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
-        items(uiState.approvals, key = { approval -> approval.id }) { approval ->
-            ApprovalCard(
-                approval = approval,
-                onPrimaryAction = {
-                    when (approval.kind) {
-                        ApprovalKind.Command -> viewModel.approve(approval.id)
-                        ApprovalKind.FileChange -> viewModel.approve(approval.id)
-                        ApprovalKind.Deployment -> viewModel.review(approval.id)
-                    }
-                },
-                onSecondaryAction = {
-                    when (approval.state) {
-                        ApprovalState.Pending -> viewModel.decline(approval.id)
-                        ApprovalState.Archived -> viewModel.review(approval.id)
-                        else -> viewModel.archive(approval.id)
-                    }
-                },
-                onTertiaryAction = { viewModel.archive(approval.id) },
-                onClick = { onOpenThread(approval.threadId) },
-            )
+        if (uiState.approvals.isEmpty()) {
+            item {
+                CodexCard {
+                    Text(
+                        text = "Approval queue is clear.",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "New command and file-change requests will appear here when app-server asks for a decision.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else {
+            items(uiState.approvals, key = { approval -> approval.id }) { approval ->
+                ApprovalCard(
+                    approval = approval,
+                    onDecision = { decision -> viewModel.resolveApproval(approval.id, decision) },
+                    onClick = { onOpenThread(approval.threadId) },
+                )
+            }
         }
     }
 }
@@ -146,9 +120,7 @@ fun ApprovalsScreen(
 @Composable
 private fun ApprovalCard(
     approval: ApprovalItem,
-    onPrimaryAction: () -> Unit,
-    onSecondaryAction: () -> Unit,
-    onTertiaryAction: () -> Unit,
+    onDecision: (ApprovalDecision) -> Unit,
     onClick: () -> Unit,
 ) {
     CodexCard(
@@ -171,13 +143,19 @@ private fun ApprovalCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Terminal,
+                        imageVector = when (approval.kind) {
+                            ApprovalKind.CommandExecution -> Icons.Rounded.Terminal
+                            ApprovalKind.FileChange -> Icons.Rounded.Description
+                        },
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = approval.title.uppercase(),
+                        text = when (approval.kind) {
+                            ApprovalKind.CommandExecution -> "Command Execution"
+                            ApprovalKind.FileChange -> "File Change"
+                        }.uppercase(),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
@@ -185,79 +163,90 @@ private fun ApprovalCard(
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
-                RiskPill(risk = approval.risk)
+                Text(
+                    text = approval.requestTimeLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = approval.subtitle,
+                    text = approvalHeadline(approval),
                     style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                approval.reason?.let { reason ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = reason,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = approval.detail,
+                    text = approvalDetail(approval),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
+                    maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Spacer(modifier = Modifier.height(18.dp))
-                ApprovalButton(
-                    label = approval.primaryActionLabel,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    onClick = onPrimaryAction,
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                ApprovalButton(
-                    label = approval.secondaryActionLabel,
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    onClick = onSecondaryAction,
-                )
-                if (approval.tertiaryActionLabel != null) {
-                    Spacer(modifier = Modifier.height(10.dp))
+                approval.availableDecisions.forEachIndexed { index, decision ->
                     ApprovalButton(
-                        label = approval.tertiaryActionLabel,
-                        containerColor = Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        onClick = onTertiaryAction,
+                        label = decision.label,
+                        containerColor = approvalDecisionBackground(decision),
+                        contentColor = approvalDecisionContent(decision),
+                        onClick = { onDecision(decision) },
                     )
+                    if (index != approval.availableDecisions.lastIndex) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
                 }
             }
         }
     }
 }
 
-@Composable
-private fun RiskPill(risk: ApprovalRisk) {
-    val background = when (risk) {
-        ApprovalRisk.HighImpact -> Color(0xFFFCE9C6)
-        ApprovalRisk.MediumRisk -> Color(0xFFDCEAF5)
-        ApprovalRisk.LowRisk -> Color(0xFFDFF4E5)
+private fun approvalHeadline(approval: ApprovalItem): String = when (approval.kind) {
+    ApprovalKind.CommandExecution -> approval.command ?: "Command approval requested"
+    ApprovalKind.FileChange -> {
+        val firstPath = approval.filePaths.firstOrNull() ?: "File changes pending"
+        if (approval.filePaths.size == 1) {
+            firstPath
+        } else {
+            "$firstPath +${approval.filePaths.size - 1} more"
+        }
     }
-    val contentColor = when (risk) {
-        ApprovalRisk.HighImpact -> Color(0xFFA66A00)
-        ApprovalRisk.MediumRisk -> Color(0xFF24617C)
-        ApprovalRisk.LowRisk -> Color(0xFF2F8F4E)
-    }
+}
 
-    Box(
-        modifier = Modifier
-            .background(background, CircleShape)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text = when (risk) {
-                ApprovalRisk.HighImpact -> "High Impact"
-                ApprovalRisk.MediumRisk -> "Medium Risk"
-                ApprovalRisk.LowRisk -> "Low Risk"
-            },
-            style = MaterialTheme.typography.labelSmall,
-            color = contentColor,
-        )
-    }
+private fun approvalDetail(approval: ApprovalItem): String = when (approval.kind) {
+    ApprovalKind.CommandExecution -> buildList {
+        approval.cwd?.let { add("CWD: $it") }
+        add("Tap to open the thread and inspect the related item.")
+    }.joinToString(" • ")
+
+    ApprovalKind.FileChange -> buildList {
+        add("Paths: ${approval.filePaths.joinToString()}")
+        if (approval.grantRoot) add("Root access requested")
+    }.joinToString(" • ")
+}
+
+@Composable
+private fun approvalDecisionBackground(decision: ApprovalDecision): Color = when (decision) {
+    ApprovalDecision.Accept -> MaterialTheme.colorScheme.primary
+    ApprovalDecision.AcceptForSession -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    ApprovalDecision.Decline -> MaterialTheme.colorScheme.surfaceVariant
+    ApprovalDecision.Cancel -> Color.Transparent
+}
+
+@Composable
+private fun approvalDecisionContent(decision: ApprovalDecision): Color = when (decision) {
+    ApprovalDecision.Accept -> MaterialTheme.colorScheme.onPrimary
+    ApprovalDecision.AcceptForSession -> MaterialTheme.colorScheme.primary
+    ApprovalDecision.Decline -> MaterialTheme.colorScheme.onSurface
+    ApprovalDecision.Cancel -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
 @Composable

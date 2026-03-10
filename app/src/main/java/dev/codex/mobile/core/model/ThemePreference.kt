@@ -9,5 +9,4 @@ enum class ThemePreference {
 data class AppPreferences(
     val themePreference: ThemePreference = ThemePreference.System,
     val connectionAlerts: Boolean = true,
-    val secureShellEnabled: Boolean = true,
 )

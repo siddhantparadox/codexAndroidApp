@@ -23,7 +23,6 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.NotificationsActive
-import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -136,7 +135,7 @@ fun SettingsScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = "Add, activate, and test laptop endpoints",
+                            text = "Add, activate, and inspect laptop app-server endpoints",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
@@ -182,19 +181,10 @@ fun SettingsScreen(
         item {
             TogglePreference(
                 title = "Connection Alerts",
-                subtitle = "Notify when a host disconnects or requests approval",
+                subtitle = "Notify when the active host disconnects or requests approval",
                 icon = Icons.Rounded.NotificationsActive,
                 checked = uiState.preferences.connectionAlerts,
                 onCheckedChange = viewModel::setConnectionAlerts,
-            )
-        }
-        item {
-            TogglePreference(
-                title = "Secure Shell (SSH)",
-                subtitle = "Prepare the demo for future secure transport",
-                icon = Icons.Rounded.Security,
-                checked = uiState.preferences.secureShellEnabled,
-                onCheckedChange = viewModel::setSecureShell,
             )
         }
         item {
@@ -206,7 +196,7 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = "All connections are limited to your trusted local network. Codex Mobile does not transmit host credentials to external services.",
+                    text = "This client is designed for trusted local-network app-server connections. Keep the host bound to a private endpoint and avoid exposing it directly to the public internet.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -283,21 +273,21 @@ private fun TogglePreference(
                 )
                 Spacer(modifier = Modifier.size(12.dp))
                 Column {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
-        }
             Switch(
                 checked = checked,
                 onCheckedChange = onCheckedChange,

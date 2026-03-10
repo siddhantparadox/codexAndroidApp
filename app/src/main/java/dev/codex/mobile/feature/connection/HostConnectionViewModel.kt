@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.codex.mobile.core.data.CodexRepository
-import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.HostProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,7 +17,6 @@ import kotlinx.coroutines.launch
 
 data class HostConnectionUiState(
     val hosts: List<HostProfile> = emptyList(),
-    val preferences: AppPreferences = AppPreferences(),
     val hostName: String = "",
     val address: String = "",
     val port: String = "4500",
@@ -31,12 +29,10 @@ class HostConnectionViewModel(
 
     val uiState: StateFlow<HostConnectionUiState> = combine(
         repository.observeHosts(),
-        repository.observePreferences(),
         formState,
-    ) { hosts, preferences, form ->
+    ) { hosts, form ->
         form.copy(
             hosts = hosts,
-            preferences = preferences,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -78,12 +74,6 @@ class HostConnectionViewModel(
     fun activateHost(hostId: String) {
         viewModelScope.launch {
             repository.setActiveHost(hostId)
-        }
-    }
-
-    fun setSecureShell(enabled: Boolean) {
-        viewModelScope.launch {
-            repository.setSecureShell(enabled)
         }
     }
 

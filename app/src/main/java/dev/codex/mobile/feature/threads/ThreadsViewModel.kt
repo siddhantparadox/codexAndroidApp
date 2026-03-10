@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.codex.mobile.core.data.CodexRepository
-import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.ThreadStatusType
+import dev.codex.mobile.core.model.isActive
+import dev.codex.mobile.core.model.isWaitingOnApproval
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,9 +19,9 @@ import kotlinx.coroutines.flow.update
 
 enum class ThreadFilter {
     All,
-    Running,
-    NeedsReview,
-    Failed,
+    Active,
+    WaitingOnApproval,
+    SystemError,
 }
 
 data class ThreadsUiState(
@@ -44,13 +46,13 @@ class ThreadsViewModel(
             selectedFilter = filter,
             threads = threads.filter { thread ->
                 val matchesQuery = searchQuery.isBlank() ||
-                    thread.title.contains(searchQuery, ignoreCase = true) ||
-                    thread.projectLabel.contains(searchQuery, ignoreCase = true)
+                    thread.name.orEmpty().contains(searchQuery, ignoreCase = true) ||
+                    thread.preview.contains(searchQuery, ignoreCase = true)
                 val matchesFilter = when (filter) {
                     ThreadFilter.All -> true
-                    ThreadFilter.Running -> thread.status == ThreadStatus.Running
-                    ThreadFilter.NeedsReview -> thread.status == ThreadStatus.NeedsReview
-                    ThreadFilter.Failed -> thread.status == ThreadStatus.Failed
+                    ThreadFilter.Active -> thread.status.isActive
+                    ThreadFilter.WaitingOnApproval -> thread.status.isWaitingOnApproval
+                    ThreadFilter.SystemError -> thread.status.type == ThreadStatusType.SystemError
                 }
                 matchesQuery && matchesFilter
             },

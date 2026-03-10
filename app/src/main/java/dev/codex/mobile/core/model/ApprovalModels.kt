@@ -1,40 +1,36 @@
 package dev.codex.mobile.core.model
 
 enum class ApprovalKind {
-    Command,
+    CommandExecution,
     FileChange,
-    Deployment,
 }
 
-enum class ApprovalRisk {
-    HighImpact,
-    MediumRisk,
-    LowRisk,
+enum class ApprovalDecision {
+    Accept,
+    AcceptForSession,
+    Decline,
+    Cancel,
 }
 
-enum class ApprovalState {
-    Pending,
-    Approved,
-    Declined,
-    Archived,
-    Reviewed,
-}
-
-val ApprovalState.isPending: Boolean
-    get() = this == ApprovalState.Pending
+val ApprovalDecision.label: String
+    get() = when (this) {
+        ApprovalDecision.Accept -> "Accept"
+        ApprovalDecision.AcceptForSession -> "Accept for Session"
+        ApprovalDecision.Decline -> "Decline"
+        ApprovalDecision.Cancel -> "Cancel"
+    }
 
 data class ApprovalItem(
     val id: String,
     val threadId: String,
+    val turnId: String,
+    val itemId: String,
     val kind: ApprovalKind,
-    val title: String,
-    val subtitle: String,
-    val detail: String,
-    val risk: ApprovalRisk,
-    val state: ApprovalState,
-    val primaryActionLabel: String,
-    val secondaryActionLabel: String,
-    val tertiaryActionLabel: String? = null,
-    val authorLabel: String? = null,
+    val command: String? = null,
+    val cwd: String? = null,
+    val filePaths: List<String> = emptyList(),
+    val reason: String? = null,
+    val grantRoot: Boolean = false,
+    val availableDecisions: List<ApprovalDecision>,
     val requestTimeLabel: String,
 )
