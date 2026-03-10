@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Codex Mobile - Home</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#61a8c2",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#141b1e",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+<!-- Top Header -->
+<header class="sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+<div class="flex items-center justify-between px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="bg-primary/20 p-2 rounded-lg">
+<span class="material-symbols-outlined text-primary">terminal</span>
+</div>
+<h1 class="text-xl font-bold tracking-tight">Codex Mobile</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 text-slate-500 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">search</span>
+</button>
+<div class="size-10 rounded-full bg-slate-200 dark:bg-slate-800 border-2 border-primary/30 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User profile avatar portrait" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCuwABIZaxu7lFcJH4koDdq3dtaEy4IcwLQLLib0dyWBSr6107xAdqIwivkav7gQX7_CArE89wvg4uknoGv5HB6GCTCH0pDeIG4maHgJSgBOaolkHzkttdaJ2ihiayjdm4xG0rlRRl_dIutmQSzA5PodgD7lwCzNKqiGcnn0iUXVq_WpJdXC2jySnToYYiCW733BaNmH1a7niytOBwJLLjeDlOqd4AycvjAsdkVF6IpMbyWdf-0zyrJqUk07oA95mhOXhWdFC76fkIY"/>
+</div>
+</div>
+</div>
+</header>
+<main class="flex-1 px-6 py-4 space-y-8 max-w-2xl mx-auto w-full">
+<!-- Connection Status -->
+<section>
+<div class="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<div class="size-12 rounded-lg bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-3xl">laptop_mac</span>
+</div>
+<div>
+<p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Laptop Connection</p>
+<h2 class="text-lg font-bold">MacBook Pro 16"</h2>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-xs font-bold">
+<span class="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            ACTIVE
+                        </span>
+</div>
+</div>
+<div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+<span class="material-symbols-outlined text-sm">lan</span>
+<span>LAN Connection: <span class="text-primary font-medium">Excellent</span></span>
+</div>
+</div>
+</section>
+<!-- Now Running -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="text-sm font-bold uppercase tracking-widest text-slate-400">Now Running</h3>
+<span class="text-xs text-primary font-medium">Auto-syncing...</span>
+</div>
+<div class="bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<div>
+<h4 class="text-base font-bold text-slate-900 dark:text-slate-100">Refactoring Auth Service</h4>
+<p class="text-sm text-slate-500">Processing middleware hooks...</p>
+</div>
+<span class="text-lg font-bold text-primary">68%</span>
+</div>
+<div class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mb-3">
+<div class="h-full bg-primary rounded-full transition-all duration-500" style="width: 68%;"></div>
+</div>
+<div class="flex justify-between items-center">
+<div class="flex items-center gap-1.5 text-xs text-slate-400">
+<span class="material-symbols-outlined text-xs">timer</span>
+<span>2.4s remaining</span>
+</div>
+<button class="text-xs font-bold text-primary hover:underline">PAUSE</button>
+</div>
+</div>
+</section>
+<!-- Recent Threads -->
+<section class="space-y-4">
+<div class="flex items-center justify-between">
+<h3 class="text-sm font-bold uppercase tracking-widest text-slate-400">Recent Threads</h3>
+<button class="text-xs font-bold text-primary">VIEW ALL</button>
+</div>
+<div class="space-y-3">
+<!-- Thread Item 1 -->
+<div class="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+<div class="size-10 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:bg-primary/20 group-hover:text-primary">
+<span class="material-symbols-outlined">chat_bubble</span>
+</div>
+<div class="flex-1 min-w-0">
+<h5 class="text-sm font-semibold truncate">API Endpoint optimization</h5>
+<p class="text-xs text-slate-500 truncate">Alex: "The caching layer needs a revisit..."</p>
+</div>
+<span class="text-[10px] font-medium text-slate-400">2m ago</span>
+</div>
+<!-- Thread Item 2 -->
+<div class="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+<div class="size-10 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:bg-primary/20 group-hover:text-primary">
+<span class="material-symbols-outlined">bug_report</span>
+</div>
+<div class="flex-1 min-w-0">
+<h5 class="text-sm font-semibold truncate">Production: Memory Leak in v2.4</h5>
+<p class="text-xs text-slate-500 truncate">System: Alert triggered in us-east-1</p>
+</div>
+<span class="text-[10px] font-medium text-slate-400">45m ago</span>
+</div>
+<!-- Thread Item 3 -->
+<div class="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+<div class="size-10 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-slate-500 group-hover:bg-primary/20 group-hover:text-primary">
+<span class="material-symbols-outlined">account_tree</span>
+</div>
+<div class="flex-1 min-w-0">
+<h5 class="text-sm font-semibold truncate">PR #892: UI Redesign System</h5>
+<p class="text-xs text-slate-500 truncate">Sarah requested changes to the tailwind config</p>
+</div>
+<span class="text-[10px] font-medium text-slate-400">2h ago</span>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation Bar (Android Native Style) -->
+<nav class="sticky bottom-0 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+<div class="flex justify-around items-center px-4 py-2">
+<a class="flex flex-col items-center gap-1 p-2 min-w-[64px]" href="#">
+<div class="bg-primary/20 text-primary rounded-full px-5 py-1 flex items-center justify-center mb-1">
+<span class="material-symbols-outlined fill-1">home</span>
+</div>
+<span class="text-[10px] font-bold text-primary tracking-wide">HOME</span>
+</a>
+<a class="flex flex-col items-center gap-1 p-2 min-w-[64px] text-slate-400 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined mb-1">forum</span>
+<span class="text-[10px] font-bold tracking-wide">THREADS</span>
+</a>
+<a class="flex flex-col items-center gap-1 p-2 min-w-[64px] text-slate-400 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined mb-1">task_alt</span>
+<span class="text-[10px] font-bold tracking-wide">TASKS</span>
+</a>
+<a class="flex flex-col items-center gap-1 p-2 min-w-[64px] text-slate-400 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined mb-1">settings</span>
+<span class="text-[10px] font-bold tracking-wide">SETTINGS</span>
+</a>
+</div>
+<!-- Android gesture indicator -->
+<div class="flex justify-center pb-2">
+<div class="w-20 h-1 bg-slate-300 dark:bg-slate-700 rounded-full"></div>
+</div>
+</nav>
+</body></html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#61a8c2",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#141b1e",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Codex Mobile - Threads</title>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<div class="relative flex min-h-screen flex-col overflow-x-hidden">
+<!-- Top Navigation & Search -->
+<header class="sticky top-0 z-20 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+<div class="flex items-center justify-between px-4 py-4">
+<div class="flex items-center gap-3">
+<div class="size-10 rounded-full bg-primary/20 flex items-center justify-center border border-primary/30">
+<span class="material-symbols-outlined text-primary text-2xl">terminal</span>
+</div>
+<h1 class="text-xl font-bold tracking-tight">Threads</h1>
+</div>
+<button class="size-10 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-800 hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined">add</span>
+</button>
+</div>
+<div class="px-4 pb-4">
+<label class="relative flex items-center w-full">
+<span class="material-symbols-outlined absolute left-3 text-slate-500">search</span>
+<input class="w-full h-11 bg-slate-200/50 dark:bg-slate-800/50 border-none rounded-xl pl-11 pr-4 focus:ring-2 focus:ring-primary placeholder:text-slate-500 text-sm" placeholder="Search threads or projects" type="text"/>
+</label>
+</div>
+<!-- Filters -->
+<div class="flex gap-2 px-4 pb-4 overflow-x-auto no-scrollbar">
+<button class="whitespace-nowrap px-4 py-1.5 rounded-full bg-primary text-white text-xs font-semibold">All Threads</button>
+<button class="whitespace-nowrap px-4 py-1.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-medium">Running</button>
+<button class="whitespace-nowrap px-4 py-1.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-medium">Needs Review</button>
+<button class="whitespace-nowrap px-4 py-1.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-medium">Failed</button>
+</div>
+</header>
+<!-- Main Content: Recent Threads -->
+<main class="flex-1 px-4 py-6 space-y-4">
+<h2 class="text-xs font-bold uppercase tracking-widest text-slate-500 px-1">Recent Activity</h2>
+<div class="space-y-3">
+<!-- Thread Item: Running -->
+<div class="p-4 rounded-xl bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 shadow-sm active:scale-[0.98] transition-transform">
+<div class="flex justify-between items-start mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">cycle</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-slate-500">Nexus Pipeline</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">2m ago</span>
+</div>
+<h3 class="text-base font-semibold mb-1">Optimization Engine V2</h3>
+<p class="text-sm text-slate-600 dark:text-slate-400 line-clamp-1 mb-3">Refining logic for concurrent data processing nodes...</p>
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-white dark:border-slate-900 bg-slate-300 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User avatar profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA2r2zEISe0y1clRH9KrJ0Ccq47d2z3UrzmLEzcKVLbm5HQNGaPegmpzd0dpjMpxrm1d2jyOXJTrJEqUAhougH3tLl5yVWpIHsSIAkz1D-qHJA6TwyvOgx6ImTdFmplaIezmSyVBrrieOnPLaOR3Vxl4HqrZYLzeB3Po8wL82s3M5YcL4hJS8achgIAFRRtd_W0LYRRU8iGKP0Y52nRJfRoGxhLosH7veAy2ALpFzDV1D0NQShoMI5R5i_3V3jqqSWWXfcLOtrDYaYf"/>
+</div>
+<div class="size-6 rounded-full border-2 border-white dark:border-slate-900 bg-slate-300 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User avatar profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwDK6ff2vZrurIPI8-IelEwa2ed44RmhZS5XGwABUwH9Cac6QVLgNPTPDjdYs7VLa_ZyLsINb6EWUkcOlhdll1_JF2MxOcw_14WaqPOks62GJSrTm5Ej953M3EECijGq3Xk1iimdFcao2BPLuItUBiLcImPonalrJMBxW7vSIYSgJficnlwBQadALDFUQCl0ktTSSzFX47g0S9MmFC_gq8_lBiai3cMUEYqvDczy8HvL_4pbSpGP_4geOaopriTpVAcDSp5HoTI8O0"/>
+</div>
+</div>
+<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">RUNNING</span>
+</div>
+</div>
+<!-- Thread Item: Needs Review -->
+<div class="p-4 rounded-xl bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 shadow-sm active:scale-[0.98] transition-transform">
+<div class="flex justify-between items-start mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-amber-500 text-sm">folder_open</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-slate-500">Core API</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">45m ago</span>
+</div>
+<h3 class="text-base font-semibold mb-1">Authentication Handshake</h3>
+<p class="text-sm text-slate-600 dark:text-slate-400 line-clamp-1 mb-3">Security validation required for new OAuth endpoint...</p>
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-white dark:border-slate-900 bg-slate-300 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User avatar profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD1_d5eQHMmL6zt6khP0PnaNHutu3zzSbIxMCuejNY7rO7tt-7n5bZLY0ofuQMbR-rkrWiV1OANZ-tuoFGPfM26OSPX9So2Ny-ZXsuzTSthtVQw0X6F1ufPJZGbd5GsRF2-Hs4_j-bhhVeQanYJE4iYMphhouDiYTwvPRX37ze_gDToFyOXztYcreqfxkoNQRnhcDeOFBNSYkOkFipLcqtHmNqhs2OsuMvnO2ayHLwr02CFACjHMmfwQNjBBjbAI7ws5Y154IhGBtYR"/>
+</div>
+</div>
+<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">NEEDS REVIEW</span>
+</div>
+</div>
+<!-- Thread Item: Failed -->
+<div class="p-4 rounded-xl bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 shadow-sm active:scale-[0.98] transition-transform">
+<div class="flex justify-between items-start mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-red-500 text-sm">error</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-slate-500">UI Kit</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">1h ago</span>
+</div>
+<h3 class="text-base font-semibold mb-1">Theme Provider Sync</h3>
+<p class="text-sm text-slate-600 dark:text-slate-400 line-clamp-1 mb-3">Runtime error: cannot read property 'color' of undefined...</p>
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-white dark:border-slate-900 bg-slate-300 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User avatar profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGwRk9WoOELBX5OZpOpz77ayS1n0nlUaajbWsz0Qp32E3t0jiegGP6UiDP1u9uPflig5G7RYFbAn6BfdNIiDR5g_lXyfxpexexcYr8AwjRmj8DWQx_aIJHajyFEVTyiIqr2e56y4lxwbH884OK6C62LfnCO0evDhZ8_LfNtLIzWxAmuXa_tGNLfj0R0aIPfPTEdIA_FAfrSFBWCTnJgtvv70d1clUgytWbuPzGYa9GYvp4T9nC_tLJ6c2I7Lp_W33J6UrGeUBVhNsG"/>
+</div>
+<div class="size-6 rounded-full border-2 border-white dark:border-slate-900 bg-slate-300 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User avatar profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCXSBMNtnqQe6lb_zkmwr_oUPqS4eJQWn6rEihdQKkBYeCzMCpiCQZrW550prIbVWUEosC5soF43YPSoAkvoWBejGch21AdlVC4GCQmo0tRzf_foJNF98ZIQgF0QtmiTPUjRr8MuuBbYwqIOkiqODFhMvMZfiuTK0DAyOntxjRFkIlA7_gp5cvbg-w2Ruz8SwL9_vTg-7jf3Ly-lIRVIzrzV1GD0I3OZ5SCpp5Td_C3tmIvrTOQ77BELDEesXA37y_T4GmYcH76vCIg"/>
+</div>
+</div>
+<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-600 border border-red-500/20">FAILED</span>
+</div>
+</div>
+<!-- Thread Item: Completed (Green) -->
+<div class="p-4 rounded-xl bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 shadow-sm active:scale-[0.98] transition-transform">
+<div class="flex justify-between items-start mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-green-500 text-sm">check_circle</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-slate-500">Data Visualization</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">3h ago</span>
+</div>
+<h3 class="text-base font-semibold mb-1">Analytics Dashboard</h3>
+<p class="text-sm text-slate-600 dark:text-slate-400 line-clamp-1 mb-3">Quarterly reports generated and exported successfully...</p>
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-white dark:border-slate-900 bg-slate-300 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User avatar profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDT-rsPSuvQPO-sW8_-uo932UWAkAUWC2-BnMLF-NKuWGlUuJ9be18C4q4WyrLejdH83LIpEhMgfHS6wGEHXjCCNc6N0X4mys8Hyafixc5AaP09Z-h3d9md8jk4DT2HeduCBpl1-bt2JyxTHj5MgnA11jC5G9TWB3NLsRoBV1ollfsE3fs-rB4D5BOtydXrVpDniOBEMPTKzN-DX6cmdBDkN5QSKZ1f_-iCHyhTXs8kN-zFm_aXXIOE9h7aKsHfmsq9QdD6YZ2qVU0V"/>
+</div>
+</div>
+<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-600 border border-green-500/20">COMPLETED</span>
+</div>
+</div>
+<!-- Thread Item: Running -->
+<div class="p-4 rounded-xl bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 shadow-sm active:scale-[0.98] transition-transform opacity-80">
+<div class="flex justify-between items-start mb-2">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-sm">cycle</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter text-slate-500">DevOps</span>
+</div>
+<span class="text-[10px] text-slate-400 font-medium">5h ago</span>
+</div>
+<h3 class="text-base font-semibold mb-1">Server Migration Phase 4</h3>
+<p class="text-sm text-slate-600 dark:text-slate-400 line-clamp-1 mb-3">Transferring legacy assets to edge storage...</p>
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="size-6 rounded-full border-2 border-white dark:border-slate-900 bg-slate-300 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User avatar profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAVX4-yqowLCREb7sR9t_sKZkh9C9mO3vXxqSQPqUNb8vVLdOj2NQAcbr-f-gWOo-c4voU3y-0hb-BXAeSm0pXfNftZ-sc9SOxf7LPgdNkrKFAP_2y9Dtko_HvpFwbH_60A3dGYx-oqp3TBGBmUkaAuJHjw317_HfkOhC1uZhLPN0_9--iYwVcFaVzdCnq2ihdWyo-SQ6LVrYDO-jXMzVDtNQeUpRStYv7jMcjW0eXnemUR-oQnaDq3SGDNSGYDWhpqrh1ZeKffO8C5"/>
+</div>
+</div>
+<span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">RUNNING</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation -->
+<nav class="sticky bottom-0 z-30 bg-background-light dark:bg-background-dark border-t border-slate-200 dark:border-slate-800">
+<div class="flex justify-around items-center px-2 py-3">
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">folder</span>
+<span class="text-[10px] font-medium">Projects</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">chat_bubble</span>
+<span class="text-[10px] font-medium">Threads</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<span class="text-[10px] font-medium">Analytics</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-medium">Settings</span>
+</a>
+</div>
+</nav>
+</div>
+<style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</body></html>

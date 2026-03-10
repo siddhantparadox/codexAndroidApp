@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#1e6d8a",
+                        "background-light": "#F6F5F2",
+                        "background-dark": "#121c20",
+                        "charcoal": "#121617",
+                        "muted-teal": "#667c85",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "2xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F6F5F2;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light text-charcoal antialiased">
+<!-- Main Container -->
+<div class="relative flex min-h-screen w-full flex-col max-w-md mx-auto bg-background-light shadow-2xl overflow-hidden">
+<!-- Top Header -->
+<header class="flex items-center justify-between p-6 pb-2">
+<div class="flex items-center gap-3">
+<div class="size-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+<span class="material-symbols-outlined text-primary text-2xl">terminal</span>
+</div>
+<h1 class="text-charcoal text-xl font-bold tracking-tight">Codex Mobile</h1>
+</div>
+<button class="size-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors">
+<span class="material-symbols-outlined text-charcoal">settings</span>
+</button>
+</header>
+<!-- Connection Status Card -->
+<section class="p-6">
+<div class="relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-slate-200/60">
+<div class="flex justify-between items-start">
+<div class="space-y-1">
+<p class="text-muted-teal text-xs font-semibold uppercase tracking-wider">Connected Device</p>
+<h2 class="text-charcoal text-lg font-bold">MacBook Pro 16"</h2>
+<div class="flex items-center gap-2 mt-1">
+<span class="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+<p class="text-muted-teal text-sm font-medium">LAN: Excellent</p>
+</div>
+</div>
+<div class="size-12 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100">
+<span class="material-symbols-outlined text-primary">laptop_mac</span>
+</div>
+</div>
+<button class="mt-6 w-full py-2.5 px-4 bg-slate-50 hover:bg-slate-100 text-charcoal text-sm font-semibold rounded-lg transition-all border border-slate-200">
+                    Manage Connection
+                </button>
+</div>
+</section>
+<!-- Activity Section -->
+<section class="px-6 pb-4">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-charcoal text-sm font-bold uppercase tracking-widest">Now Running</h3>
+<span class="text-primary text-xs font-bold bg-primary/10 px-2 py-1 rounded">Active</span>
+</div>
+<div class="bg-white rounded-2xl p-6 shadow-sm border border-slate-200/60">
+<div class="flex justify-between items-end mb-3">
+<div class="space-y-0.5">
+<p class="text-charcoal text-base font-semibold">Refactoring Auth Service</p>
+<p class="text-muted-teal text-xs">2.4s remaining • v2.0.4</p>
+</div>
+<p class="text-primary text-xl font-bold">68%</p>
+</div>
+<div class="relative w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+<div class="absolute top-0 left-0 h-full bg-primary rounded-full" style="width: 68%;"></div>
+</div>
+</div>
+</section>
+<!-- Recent Threads -->
+<section class="px-6 flex-1">
+<div class="flex items-center justify-between mb-4 mt-2">
+<h3 class="text-charcoal text-sm font-bold uppercase tracking-widest">Recent Threads</h3>
+<button class="text-primary text-xs font-bold">See All</button>
+</div>
+<div class="space-y-3 pb-24">
+<!-- Thread Item 1 -->
+<div class="group flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-primary/30 transition-all">
+<div class="size-10 rounded-lg bg-slate-50 flex items-center justify-center text-muted-teal">
+<span class="material-symbols-outlined">chat_bubble</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-charcoal text-sm font-semibold truncate">Optimize database queries for V3</p>
+<p class="text-muted-teal text-xs">Updated 12m ago • 4 replies</p>
+</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+<!-- Thread Item 2 -->
+<div class="group flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-primary/30 transition-all">
+<div class="size-10 rounded-lg bg-slate-50 flex items-center justify-center text-muted-teal">
+<span class="material-symbols-outlined">bug_report</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-charcoal text-sm font-semibold truncate">Memory leak in production</p>
+<p class="text-muted-teal text-xs">Updated 1h ago • 12 replies</p>
+</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+<!-- Thread Item 3 -->
+<div class="group flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-100 shadow-sm hover:border-primary/30 transition-all">
+<div class="size-10 rounded-lg bg-slate-50 flex items-center justify-center text-muted-teal">
+<span class="material-symbols-outlined">lightbulb</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-charcoal text-sm font-semibold truncate">New design system exploration</p>
+<p class="text-muted-teal text-xs">Updated 4h ago • 2 replies</p>
+</div>
+<span class="material-symbols-outlined text-slate-300 group-hover:text-primary transition-colors">chevron_right</span>
+</div>
+</div>
+</section>
+<!-- Floating Action Button -->
+<button class="absolute bottom-24 right-6 size-14 bg-primary text-white rounded-full shadow-lg shadow-primary/40 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 w-full max-w-md bg-white border-t border-slate-100 px-6 py-3 pb-8 flex justify-between items-center z-50">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined fill-1">home</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Home</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-muted-teal" href="#">
+<span class="material-symbols-outlined">forum</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Threads</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-muted-teal" href="#">
+<span class="material-symbols-outlined">devices</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Devices</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-muted-teal" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Profile</span>
+</a>
+</nav>
+</div>
+</body></html>

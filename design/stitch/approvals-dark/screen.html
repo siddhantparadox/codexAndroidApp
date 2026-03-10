@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#61a8c2",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#141b1e",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #61a8c244;
+            border-radius: 10px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+<!-- Header -->
+<header class="sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-primary/10">
+<div class="flex items-center justify-between p-4">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-2xl">shield_person</span>
+<h1 class="text-xl font-bold tracking-tight">Approvals</h1>
+</div>
+<div class="flex gap-2">
+<button class="p-2 rounded-full hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined">search</span>
+</button>
+<button class="p-2 rounded-full hover:bg-primary/10 transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full"></span>
+</button>
+</div>
+</div>
+<!-- Tabs -->
+<div class="flex px-4 overflow-x-auto no-scrollbar">
+<button class="px-4 py-3 text-sm font-bold border-b-2 border-primary text-primary whitespace-nowrap">
+                Pending (2)
+            </button>
+<button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 border-b-2 border-transparent hover:text-primary transition-colors whitespace-nowrap">
+                Review History
+            </button>
+<button class="px-4 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 border-b-2 border-transparent hover:text-primary transition-colors whitespace-nowrap">
+                Automated
+            </button>
+</div>
+</header>
+<!-- Content -->
+<main class="flex-1 p-4 space-y-4 custom-scrollbar overflow-y-auto pb-24">
+<!-- Queue Header -->
+<div class="flex items-center justify-between mb-2">
+<h2 class="text-xs font-bold uppercase tracking-widest text-slate-500">Action Required</h2>
+<span class="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">High Trust Mode</span>
+</div>
+<!-- Card 1: Command Execution -->
+<div class="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-primary/10 rounded-xl overflow-hidden shadow-sm">
+<div class="p-4 space-y-3">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-amber-500/10 rounded-lg">
+<span class="material-symbols-outlined text-amber-500">terminal</span>
+</div>
+<div>
+<h3 class="font-bold text-slate-900 dark:text-slate-100">Command Request</h3>
+<p class="text-xs text-slate-500">Requested by Codex Agent • 2m ago</p>
+</div>
+</div>
+<span class="text-[10px] font-bold px-2 py-1 rounded bg-amber-500/10 text-amber-500 uppercase tracking-tighter">Impact: Medium</span>
+</div>
+<div class="bg-slate-950 rounded-lg p-3 font-mono text-sm border border-slate-800">
+<span class="text-primary">$</span> <span class="text-slate-100">rm -rf ./temp_logs</span>
+</div>
+<p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Clearing temporary diagnostic logs to free up workspace storage. This action is irreversible.
+                </p>
+<div class="grid grid-cols-2 gap-2 pt-2">
+<button class="flex items-center justify-center gap-2 py-2.5 bg-primary text-background-dark font-bold rounded-lg hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-sm">check_circle</span> Accept
+                    </button>
+<button class="flex items-center justify-center gap-2 py-2.5 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-lg hover:bg-slate-300 dark:hover:bg-slate-700 transition-colors">
+<span class="material-symbols-outlined text-sm">cancel</span> Decline
+                    </button>
+<button class="flex items-center justify-center gap-2 py-2.5 border border-primary/20 text-primary font-bold rounded-lg hover:bg-primary/5 transition-colors">
+<span class="material-symbols-outlined text-sm">wysiwyg</span> Session
+                    </button>
+<button class="flex items-center justify-center gap-2 py-2.5 text-slate-500 font-bold rounded-lg hover:text-red-400 transition-colors">
+<span class="material-symbols-outlined text-sm">close</span> Cancel
+                    </button>
+</div>
+</div>
+</div>
+<!-- Card 2: File Update -->
+<div class="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-primary/10 rounded-xl overflow-hidden shadow-sm">
+<div class="p-4 space-y-3">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary">description</span>
+</div>
+<div>
+<h3 class="font-bold text-slate-900 dark:text-slate-100">File update</h3>
+<p class="text-xs text-slate-500">Requested by System • 15m ago</p>
+</div>
+</div>
+<div class="flex gap-2 text-[10px] font-bold">
+<span class="text-emerald-500">+12 lines</span>
+<span class="text-red-500">-4 lines</span>
+</div>
+</div>
+<div class="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-950/50 rounded-lg border border-slate-200 dark:border-slate-800">
+<span class="material-symbols-outlined text-primary text-base">javascript</span>
+<span class="text-sm font-medium text-slate-700 dark:text-slate-300">src/components/App.tsx</span>
+<button class="ml-auto text-primary text-xs font-bold hover:underline">View Diff</button>
+</div>
+<p class="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Refactoring navigation logic to improve performance and accessibility.
+                </p>
+<div class="flex gap-3 pt-2">
+<button class="flex-1 flex items-center justify-center gap-2 py-3 bg-primary text-background-dark font-bold rounded-lg shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-sm">done_all</span> Accept Change
+                    </button>
+<button class="px-6 flex items-center justify-center py-3 bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-lg">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Visual Background Decoration -->
+<div class="relative h-32 w-full rounded-xl overflow-hidden mt-8">
+<div class="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent"></div>
+<div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(circle at 2px 2px, #61a8c2 1px, transparent 0); background-size: 24px 24px;"></div>
+<div class="relative h-full flex flex-col items-center justify-center text-center p-4">
+<p class="text-xs font-medium text-primary uppercase tracking-widest">Workspace Health</p>
+<p class="text-sm text-slate-500">98% of requests approved this week</p>
+</div>
+<img class="hidden" data-alt="Abstract subtle tech pattern with dots and gradients" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCay6rjC2IvIkfIa01enLVf41vQJLJunTuVw_7bOWt64VrgtHs1Lty4iwww-8UaxSOD0NgAkxsQ5OxpxGlZBm234ylG_oCniqbfSxbIHxcsecz70JldsWM0nCF-QBS4sLsWKrC_dGJvZhEBs1c40c98ElxDFkH_7aOYD9-wlnI736C7_Gq5UUpBcyUwvgpMuITGOYR2ddYb780AfYFAB7uKhA7F3PzQJScXYZn3_s70P5gwpETBovmovu4rjZJQKqVKyxJWqf0ilapC"/>
+</div>
+</main>
+<!-- Bottom Nav Bar -->
+<nav class="fixed bottom-0 left-0 right-0 bg-background-light dark:bg-slate-900/95 backdrop-blur-lg border-t border-primary/10 px-6 pb-6 pt-3 flex justify-between items-center">
+<a class="flex flex-col items-center gap-1 text-slate-400 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">home</span>
+<span class="text-[10px] font-bold">Home</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-primary transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">verified_user</span>
+<span class="text-[10px] font-bold">Approvals</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">folder_open</span>
+<span class="text-[10px] font-bold">Files</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-bold">Settings</span>
+</a>
+</nav>
+</body></html>

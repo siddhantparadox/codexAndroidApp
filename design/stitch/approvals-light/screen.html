@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300;400;500;600;700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#1e6d8a",
+                        "background-light": "#F6F5F2",
+                        "background-dark": "#121c20",
+                        "surface": "#ffffff",
+                        "border-muted": "#e2e8f0",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-tab {
+            border-bottom: 3px solid #1e6d8a;
+            color: #1e6d8a;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
+<div class="relative flex min-h-screen w-full flex-col max-w-md mx-auto bg-background-light shadow-2xl">
+<header class="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-slate-600">arrow_back</span>
+<div>
+<h1 class="text-lg font-bold tracking-tight">Codex Mobile</h1>
+<p class="text-xs text-slate-500 font-medium uppercase tracking-wider">Approval Queue</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="p-2 rounded-full hover:bg-slate-100 transition-colors">
+<span class="material-symbols-outlined text-slate-600">history</span>
+</button>
+<button class="p-2 rounded-full hover:bg-slate-100 transition-colors text-primary">
+<span class="material-symbols-outlined">notifications_active</span>
+</button>
+</div>
+</header>
+<nav class="bg-white border-b border-slate-100">
+<div class="flex px-4 overflow-x-auto no-scrollbar">
+<a class="flex-none px-4 py-4 text-sm font-bold active-tab" href="#">Pending (4)</a>
+<a class="flex-none px-4 py-4 text-sm font-semibold text-slate-500 hover:text-primary" href="#">Approved</a>
+<a class="flex-none px-4 py-4 text-sm font-semibold text-slate-500 hover:text-primary" href="#">Rejected</a>
+<a class="flex-none px-4 py-4 text-sm font-semibold text-slate-500 hover:text-primary" href="#">Archived</a>
+</div>
+</nav>
+<main class="flex-1 p-4 space-y-4">
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+<div class="p-4 border-b border-slate-100 flex items-center justify-between bg-primary/5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">terminal</span>
+<span class="text-xs font-bold text-primary uppercase tracking-widest">Command Approval</span>
+</div>
+<span class="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">HIGH IMPACT</span>
+</div>
+<div class="p-4">
+<div class="bg-slate-900 rounded-lg p-3 mb-4 font-mono text-sm text-emerald-400">
+<span class="text-slate-500 select-none">$</span> npm install @stripe/stripe-js
+                    </div>
+<div class="space-y-2 mb-6">
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-slate-400 text-sm">folder_open</span>
+<span class="text-slate-500">CWD:</span>
+<span class="text-slate-700 font-medium truncate">/projects/codex-mobile/api</span>
+</div>
+<div class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-slate-400 text-sm">shield</span>
+<span class="text-slate-500">Scope:</span>
+<span class="text-slate-700 font-medium">System Modification (Packages)</span>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="flex-1 bg-primary text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-lg">check_circle</span>
+                            Approve
+                        </button>
+<button class="flex-1 bg-white border border-slate-200 text-slate-700 font-bold py-3 rounded-lg flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-lg">cancel</span>
+                            Decline
+                        </button>
+</div>
+</div>
+</div>
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+<div class="p-4 border-b border-slate-100 flex items-center justify-between bg-primary/5">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">difference</span>
+<span class="text-xs font-bold text-primary uppercase tracking-widest">File-Change Approval</span>
+</div>
+<span class="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">MEDIUM RISK</span>
+</div>
+<div class="p-4">
+<p class="text-sm font-bold text-slate-800 mb-1">Update Auth Middleware</p>
+<p class="text-xs text-slate-500 mb-4">Modified 2 files • src/middleware/auth.ts, src/routes/user.ts</p>
+<div class="space-y-1 mb-6">
+<div class="flex items-center gap-2 text-xs font-mono p-2 bg-emerald-50 text-emerald-700 rounded border border-emerald-100">
+<span class="font-bold">+</span>
+<span>if (!user.verified) throw new ForbiddenError();</span>
+</div>
+<div class="flex items-center gap-2 text-xs font-mono p-2 bg-rose-50 text-rose-700 rounded border border-rose-100">
+<span class="font-bold">-</span>
+<span>if (user.status === 'pending') return next();</span>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="flex-1 bg-primary text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-lg">verified</span>
+                            Accept Diff
+                        </button>
+<button class="flex-1 bg-white border border-slate-200 text-slate-700 font-bold py-3 rounded-lg flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-lg">edit_note</span>
+                            Review
+                        </button>
+</div>
+</div>
+</div>
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden opacity-75 grayscale-[0.2]">
+<div class="p-4 border-b border-slate-100 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-400 text-xl">cloud_sync</span>
+<span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Deployment Request</span>
+</div>
+</div>
+<div class="p-4">
+<p class="text-sm font-bold text-slate-700 mb-3">Deploy 'feature/redesign' to Staging</p>
+<div class="flex items-center gap-3 mb-4">
+<div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-sm">person</span>
+</div>
+<div>
+<p class="text-xs font-bold text-slate-800">Requested by Alex Chen</p>
+<p class="text-[10px] text-slate-500">14 minutes ago</p>
+</div>
+</div>
+<button class="w-full bg-slate-100 text-slate-600 font-bold py-2 rounded-lg text-sm">
+                        View Details
+                    </button>
+</div>
+</div>
+</main>
+<footer class="sticky bottom-0 bg-white border-t border-slate-100 flex items-center justify-around py-3">
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">folder</span>
+<span class="text-[10px] font-bold">PROJECT</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-[10px] font-bold">QUEUE</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">code</span>
+<span class="text-[10px] font-bold">CHANGES</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-bold">SETTINGS</span>
+</a>
+</footer>
+</div>
+</body></html>

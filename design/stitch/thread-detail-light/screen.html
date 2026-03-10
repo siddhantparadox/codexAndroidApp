@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Codex Mobile - Thread Detail</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#1e6d8a",
+                        "background-light": "#F6F5F2",
+                        "background-dark": "#121c20",
+                        "neutral-surface": "#ffffff",
+                        "border-subtle": "#e5e7eb",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F6F5F2;
+        }
+        .mono-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light text-slate-900">
+<div class="relative flex min-h-screen flex-col max-w-md mx-auto bg-background-light shadow-2xl">
+<!-- Top App Bar -->
+<header class="sticky top-0 z-10 flex items-center bg-white/80 backdrop-blur-md px-4 py-3 border-b border-slate-200">
+<div class="flex items-center justify-center size-10 rounded-full hover:bg-slate-100 cursor-pointer">
+<span class="material-symbols-outlined text-slate-700">arrow_back</span>
+</div>
+<div class="flex-1 px-3">
+<h1 class="text-slate-900 text-base font-bold leading-tight tracking-tight">Thread: Codex Mobile</h1>
+<p class="text-slate-500 text-xs font-medium">Active • Refactor Auth</p>
+</div>
+<div class="flex items-center gap-1">
+<button class="flex size-10 items-center justify-center rounded-full hover:bg-slate-100">
+<span class="material-symbols-outlined text-slate-700">share</span>
+</button>
+<button class="flex size-10 items-center justify-center rounded-full hover:bg-slate-100">
+<span class="material-symbols-outlined text-slate-700">more_vert</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 overflow-y-auto pb-32">
+<!-- Refined Activity Timeline -->
+<div class="px-6 py-6">
+<!-- User Intent -->
+<div class="relative flex gap-4 pb-8">
+<div class="absolute left-[11px] top-8 bottom-0 w-0.5 bg-slate-200"></div>
+<div class="z-10 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-white">
+<span class="material-symbols-outlined text-[16px]">person</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="text-slate-900 font-semibold text-sm">User Intent</span>
+<span class="text-slate-400 text-xs font-normal">2m ago</span>
+</div>
+<p class="text-slate-700 text-sm mt-1 leading-relaxed">
+                            Refactor the authentication module to support OAuth2 providers and move state management from Context to a dedicated store.
+                        </p>
+</div>
+</div>
+<!-- Agent Reasoning -->
+<div class="relative flex gap-4 pb-8">
+<div class="absolute left-[11px] top-8 bottom-0 w-0.5 bg-slate-200"></div>
+<div class="z-10 flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600">
+<span class="material-symbols-outlined text-[16px]">psychology</span>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="text-slate-900 font-semibold text-sm">Agent Reasoning</span>
+<span class="text-slate-400 text-xs font-normal">1m ago</span>
+</div>
+<p class="text-slate-700 text-sm mt-1 leading-relaxed italic">
+                            Scanning dependencies in <code class="bg-slate-100 px-1 rounded text-primary">src/auth</code>. Identifying entry points for state migration.
+                        </p>
+</div>
+</div>
+<!-- Technical Log -->
+<div class="relative flex gap-4 pb-8">
+<div class="absolute left-[11px] top-8 bottom-0 w-0.5 bg-slate-200"></div>
+<div class="z-10 flex size-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600">
+<span class="material-symbols-outlined text-[16px]">terminal</span>
+</div>
+<div class="flex flex-col w-full">
+<div class="flex items-center gap-2">
+<span class="text-slate-900 font-semibold text-sm">Execution Output</span>
+<span class="text-slate-400 text-xs font-normal">Just now</span>
+</div>
+<div class="mt-2 rounded-lg bg-slate-900 p-4 text-xs mono-font leading-relaxed text-slate-300 overflow-x-auto shadow-sm">
+<div class="flex gap-2">
+<span class="text-emerald-400">[LOG]</span>
+<span>indexing files...</span>
+</div>
+<div class="flex gap-2">
+<span class="text-sky-400">[INFO]</span>
+<span>Found 12 occurrences of 'AuthProvider'</span>
+</div>
+<div class="flex gap-2">
+<span class="text-amber-400">[EXEC]</span>
+<span>updating imports in src/navigation/AppNavigator.tsx</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Proposed Changes Card -->
+<div class="relative flex gap-4">
+<div class="z-10 flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+<span class="material-symbols-outlined text-[16px]">rule</span>
+</div>
+<div class="flex flex-col w-full">
+<div class="flex items-center gap-2">
+<span class="text-slate-900 font-semibold text-sm">Proposed Changes</span>
+</div>
+<div class="mt-3 flex flex-col rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+<div class="h-32 bg-slate-100 bg-cover bg-center" data-alt="Code diff visualization with syntax highlighting" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC8W6xgDQfrQqm3U1JsDXrfThaHqAEQPefzYOMi8j2oU569GP-Wuy5rs3PAX7XRcQSiPTZmW7dzhEwVaXPviftaaN0pSo_x8SoDEnnTYAsOpO3M7yOwpCpi3Sf_XOo5yEVlSTKNMbSEVpE5UUd9_J3eNmIyRE3KRgyXb0T5BW_brdPMywkSDrPjGCT34auyQa-awViwNcoKJTShCbWWELXAC9kGqcAu9f48_fjt-U4Dnja1KFxeLc35c6V9gi8VYBVThBSUxqIr7qqF')"></div>
+<div class="p-4">
+<div class="flex justify-between items-start mb-2">
+<h4 class="text-slate-900 font-bold text-sm">AppNavigator.tsx</h4>
+<div class="flex gap-1 text-[10px] font-bold">
+<span class="text-emerald-600">+12</span>
+<span class="text-rose-500">-4</span>
+</div>
+</div>
+<p class="text-slate-500 text-xs leading-relaxed mb-4">
+                                    Replaces legacy Context API with global state manager for optimized hydration and OAuth2 redirect handling.
+                                </p>
+<div class="flex gap-2">
+<button class="flex-1 bg-primary text-white text-xs font-bold py-2 rounded-lg hover:bg-primary/90 transition-colors">
+                                        Review Diff
+                                    </button>
+<button class="px-3 border border-slate-200 text-slate-700 text-xs font-bold py-2 rounded-lg hover:bg-slate-50">
+                                        Files
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Composer -->
+<footer class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-xl border-t border-slate-200 p-4 pb-8">
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-2">
+<div class="relative flex-1">
+<input class="w-full bg-slate-100 border-none rounded-full px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 placeholder-slate-400" placeholder="Add instructions or feedback..." type="text"/>
+</div>
+<button class="size-11 flex items-center justify-center bg-primary text-white rounded-full shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+<div class="flex items-center justify-between px-2">
+<div class="flex gap-3">
+<button class="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 transition-colors">
+<span class="material-symbols-outlined text-[18px]">attach_file</span>
+<span class="text-xs font-semibold uppercase tracking-wider">Attach</span>
+</button>
+<button class="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 transition-colors">
+<span class="material-symbols-outlined text-[18px]">history</span>
+<span class="text-xs font-semibold uppercase tracking-wider">History</span>
+</button>
+</div>
+<button class="flex items-center gap-1.5 text-rose-600 hover:text-rose-700 bg-rose-50 px-3 py-1.5 rounded-full transition-colors">
+<span class="material-symbols-outlined text-[18px]">stop_circle</span>
+<span class="text-xs font-bold">INTERRUPT</span>
+</button>
+</div>
+</div>
+</footer>
+</div>
+</body></html>

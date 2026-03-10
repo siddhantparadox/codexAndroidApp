@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "primary": "#1e6d8a",
+                "background-light": "#F6F5F2",
+                "background-dark": "#121c20",
+              },
+              fontFamily: {
+                "display": ["Inter", "sans-serif"]
+              },
+              borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+            },
+          },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F6F5F2;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light text-slate-900 font-display">
+<div class="relative flex h-auto min-h-screen w-full flex-col max-w-md mx-auto bg-background-light shadow-2xl">
+<!-- Header -->
+<div class="flex items-center bg-background-light px-4 py-4 justify-between sticky top-0 z-10 backdrop-blur-md bg-white/80 border-b border-primary/10">
+<div class="text-primary flex size-10 items-center justify-center rounded-lg hover:bg-primary/10 transition-colors cursor-pointer">
+<span class="material-symbols-outlined">menu</span>
+</div>
+<h2 class="text-slate-900 text-xl font-bold leading-tight tracking-tight flex-1 ml-4">Codex Mobile</h2>
+<div class="text-primary flex size-10 items-center justify-center rounded-full overflow-hidden border-2 border-primary/20">
+<img class="w-full h-full object-cover" data-alt="User avatar profile picture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDxZ77Z9pTycsJoXOqaJHuNKOFFLsx-tINcMlNuyyS4OlTnVq5WQ7Ohe0MxciHVEWeRMhLZZPb2rr8XhKZh0sEpbkUSLRABExwsigBMlL5LNFWPrqlag78T6nUZIZroviOFPKu7vmXTKOWvU20IRbqrKEXRVaM7j_mXmTBFEtexxTQ60HXmW9pArHcvVQCJWIheF5ukpoy4EJ1K1eHVBxxfLl5cK2wpZdVErYAzMQFwE15wE31LSNEVbzEpGvMmwqIiYw0e14WfG6Y0"/>
+</div>
+</div>
+<!-- Search Section -->
+<div class="px-4 py-4 bg-background-light">
+<label class="flex flex-col min-w-40 h-12 w-full">
+<div class="flex w-full flex-1 items-stretch rounded-xl h-full shadow-sm">
+<div class="text-slate-500 flex border-none bg-white items-center justify-center pl-4 rounded-l-xl border-r-0">
+<span class="material-symbols-outlined text-xl">search</span>
+</div>
+<input class="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-r-xl text-slate-900 focus:outline-0 focus:ring-0 border-none bg-white focus:border-none h-full placeholder:text-slate-400 px-4 pl-2 text-base font-normal leading-normal" placeholder="Search threads, tasks, or logs..."/>
+</div>
+</label>
+</div>
+<!-- Filter Chips -->
+<div class="flex gap-2 px-4 pb-4 overflow-x-auto no-scrollbar">
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-1 rounded-full bg-primary text-white px-4 shadow-md shadow-primary/20">
+<span class="text-sm font-semibold">All</span>
+</button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-1 rounded-full bg-white border border-primary/10 text-slate-700 px-4 hover:bg-primary/5">
+<span class="material-symbols-outlined text-blue-500 text-lg">play_circle</span>
+<span class="text-sm font-medium">Running</span>
+</button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-1 rounded-full bg-white border border-primary/10 text-slate-700 px-4 hover:bg-primary/5">
+<span class="material-symbols-outlined text-amber-500 text-lg">rate_review</span>
+<span class="text-sm font-medium">Review</span>
+</button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-1 rounded-full bg-white border border-primary/10 text-slate-700 px-4 hover:bg-primary/5">
+<span class="material-symbols-outlined text-red-500 text-lg">error</span>
+<span class="text-sm font-medium">Failed</span>
+</button>
+<button class="flex h-9 shrink-0 items-center justify-center gap-x-1 rounded-full bg-white border border-primary/10 text-slate-700 px-4 hover:bg-primary/5">
+<span class="material-symbols-outlined text-emerald-500 text-lg">check_circle</span>
+<span class="text-sm font-medium">Completed</span>
+</button>
+</div>
+<!-- Thread List -->
+<div class="flex flex-col flex-1 pb-24">
+<!-- Thread Item 1 (Running) -->
+<div class="flex flex-col gap-3 bg-white mx-4 my-2 p-4 rounded-xl shadow-sm border border-primary/5 hover:border-primary/20 transition-all cursor-pointer group">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="flex items-center justify-center rounded-lg bg-blue-50 text-blue-600 size-10 group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined">terminal</span>
+</div>
+<div>
+<h3 class="text-slate-900 text-base font-bold leading-tight">Initial Beta Deployment</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="flex h-2 w-2 rounded-full bg-blue-500 animate-pulse"></span>
+<span class="text-blue-600 text-[10px] font-bold uppercase tracking-wider">Running</span>
+</div>
+</div>
+</div>
+<span class="text-slate-400 text-xs font-medium">2m ago</span>
+</div>
+<p class="text-slate-600 text-sm font-normal leading-relaxed line-clamp-2">Synthesizing codebase architecture for review. Optimization pass 2/4 complete. Latency check within normal parameters...</p>
+<div class="flex items-center gap-2 mt-1">
+<div class="flex -space-x-2">
+<img class="inline-block h-6 w-6 rounded-full ring-2 ring-white" data-alt="Team member 1 profile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCFt1K1cFyf1VUU_qoj8geihFaNZNLmYMdHSDDEcFlxVyKOuI0YIXc-97Ndm4ldTh7TNOP8QCNbuAgnCm-tLlkoqj5mId6AfVxbDqzUt_lLZ9mzY27XqK4dAqh7g_uCjarzRg58-MTimPc4m3mPicOfpqCyIhEzz64viF75je8unsUentVwNpSYityj1khjEJ265gCvSKKB3WpReOfrohwE1-OPAbRq5RqxdPKeT_gBHCrVjX0bL0UiD53usPoRRvgHVqiDbLD6El5z"/>
+<img class="inline-block h-6 w-6 rounded-full ring-2 ring-white" data-alt="Team member 2 profile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAh5DBtANSesGEovON66aVWw0u3b9zjHAHWCnHfuu_eEHC0XxrqDcDZhN0Mfob5XSFyVAJZpE4SvaeUmWLs58aSpaD-g7Kq7cs6Am-R1D9t5QJAnYf58GkO_vKSgIfQD3R3e1LQvraNSrpzdCIvOMY04qz9MPTvKFtoFAr3L6BIPOrgFB43hF63lqOQoO9aSyadF4oRHApp-rjb1mYJXaMCDANCRJkMc6zj1Cgegr0pLAO94VEwg8jdy0gUMGE9qngDtD5i9T_DU7R1"/>
+</div>
+<span class="text-slate-400 text-[11px]">+3 others</span>
+</div>
+</div>
+<!-- Thread Item 2 (Needs Review) -->
+<div class="flex flex-col gap-3 bg-white mx-4 my-2 p-4 rounded-xl shadow-sm border border-primary/5 hover:border-primary/20 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="flex items-center justify-center rounded-lg bg-amber-50 text-amber-600 size-10">
+<span class="material-symbols-outlined">data_object</span>
+</div>
+<div>
+<h3 class="text-slate-900 text-base font-bold leading-tight">API Schema Validation</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="flex h-2 w-2 rounded-full bg-amber-500"></span>
+<span class="text-amber-600 text-[10px] font-bold uppercase tracking-wider">Needs Review</span>
+</div>
+</div>
+</div>
+<span class="text-slate-400 text-xs font-medium">45m ago</span>
+</div>
+<p class="text-slate-600 text-sm font-normal leading-relaxed line-clamp-2">3 edge cases identified in user authentication flow. Manual override required for legacy token compatibility.</p>
+</div>
+<!-- Thread Item 3 (Failed) -->
+<div class="flex flex-col gap-3 bg-white mx-4 my-2 p-4 rounded-xl shadow-sm border border-primary/5 hover:border-primary/20 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="flex items-center justify-center rounded-lg bg-red-50 text-red-600 size-10">
+<span class="material-symbols-outlined">bug_report</span>
+</div>
+<div>
+<h3 class="text-slate-900 text-base font-bold leading-tight">Database Migration #402</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="flex h-2 w-2 rounded-full bg-red-500"></span>
+<span class="text-red-600 text-[10px] font-bold uppercase tracking-wider">Failed</span>
+</div>
+</div>
+</div>
+<span class="text-slate-400 text-xs font-medium">1h ago</span>
+</div>
+<p class="text-slate-600 text-sm font-normal leading-relaxed line-clamp-2">Connection timeout at shard 04. Automatic rollback initiated. Error code: E_DB_CONN_TIMEOUT.</p>
+</div>
+<!-- Thread Item 4 (Completed) -->
+<div class="flex flex-col gap-3 bg-white mx-4 my-2 p-4 rounded-xl shadow-sm border border-primary/5 hover:border-primary/20 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 size-10">
+<span class="material-symbols-outlined">cloud_done</span>
+</div>
+<div>
+<h3 class="text-slate-900 text-base font-bold leading-tight">Asset Optimization</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+<span class="text-emerald-600 text-[10px] font-bold uppercase tracking-wider">Completed</span>
+</div>
+</div>
+</div>
+<span class="text-slate-400 text-xs font-medium">3h ago</span>
+</div>
+<p class="text-slate-600 text-sm font-normal leading-relaxed line-clamp-2">All image assets compressed and distributed to edge CDN nodes. 42% reduction in initial load payload size.</p>
+</div>
+<!-- Thread Item 5 (Completed) -->
+<div class="flex flex-col gap-3 bg-white mx-4 my-2 p-4 rounded-xl shadow-sm border border-primary/5 hover:border-primary/20 transition-all cursor-pointer">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-3">
+<div class="flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 size-10">
+<span class="material-symbols-outlined">security</span>
+</div>
+<div>
+<h3 class="text-slate-900 text-base font-bold leading-tight">Security Audit Patch</h3>
+<div class="flex items-center gap-2 mt-1">
+<span class="flex h-2 w-2 rounded-full bg-emerald-500"></span>
+<span class="text-emerald-600 text-[10px] font-bold uppercase tracking-wider">Completed</span>
+</div>
+</div>
+</div>
+<span class="text-slate-400 text-xs font-medium">5h ago</span>
+</div>
+<p class="text-slate-600 text-sm font-normal leading-relaxed line-clamp-2">SSL/TLS configuration updated. Deprecated ciphers removed from web server profiles.</p>
+</div>
+</div>
+<!-- Floating Action Button -->
+<button class="fixed bottom-24 right-6 size-14 rounded-2xl bg-primary text-white shadow-xl shadow-primary/30 flex items-center justify-center active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-3xl">add</span>
+</button>
+<!-- Bottom Navigation Bar -->
+<div class="fixed bottom-0 left-0 right-0 max-w-md mx-auto flex gap-2 border-t border-primary/5 bg-white/90 backdrop-blur-lg px-4 pb-6 pt-3 z-20">
+<a class="flex flex-1 flex-col items-center justify-end gap-1 rounded-full text-primary" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-2xl font-fill">forum</span>
+</div>
+<p class="text-xs font-semibold leading-normal tracking-tight">Threads</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-400 hover:text-primary transition-colors" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-2xl">folder</span>
+</div>
+<p class="text-xs font-medium leading-normal tracking-tight">Projects</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-400 hover:text-primary transition-colors" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-2xl">group</span>
+</div>
+<p class="text-xs font-medium leading-normal tracking-tight">Teams</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-400 hover:text-primary transition-colors" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-2xl">settings</span>
+</div>
+<p class="text-xs font-medium leading-normal tracking-tight">Settings</p>
+</a>
+</div>
+</div>
+</body></html>

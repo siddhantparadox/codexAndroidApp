@@ -37,6 +37,7 @@ key.properties
 *.log
 hs_err_pid*
 replay_pid*
+.tmp/
 
 # OS-specific files
 .DS_Store
