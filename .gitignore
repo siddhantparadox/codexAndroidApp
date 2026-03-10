@@ -1,0 +1,44 @@
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Kotlin / JVM
+.kotlin/
+out/
+
+# Android local machine config
+local.properties
+captures/
+
+# Native / NDK / CMake
+.cxx/
+.externalNativeBuild/
+cmake-build-*/
+
+# Generated Android artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Signing files and local secrets
+*.jks
+*.keystore
+*.p12
+*.pem
+key.properties
+
+# Logs and crash dumps
+*.log
+hs_err_pid*
+replay_pid*
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+Desktop.ini

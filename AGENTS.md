@@ -11,6 +11,16 @@ tooling, and team conventions evolve.
 - Prefer modern Android patterns and official Android guidance unless the
   project explicitly adopts a different approach.
 
+## Testing and Device Setup
+
+- Real Android phone testing is the primary target for this project.
+- Prefer real-device setup, run, debug, and verification workflows over
+  emulator-first workflows.
+- Do not assume emulator availability or require emulator-only steps unless a
+  task specifically depends on it.
+- When giving setup or testing instructions, provide physical-device guidance
+  first and emulator guidance only as a secondary fallback.
+
 ## Kotlin Conventions
 
 - Follow the official Kotlin coding conventions.
