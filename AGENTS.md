@@ -11,6 +11,17 @@ tooling, and team conventions evolve.
 - Prefer modern Android patterns and official Android guidance unless the
   project explicitly adopts a different approach.
 
+## UI and Design Tools
+
+- Use Stitch MCP for UI and UX exploration, screen ideation, and design
+  generation whenever it is relevant to the task.
+- Prefer using Stitch MCP when creating new screens, refining visual direction,
+  exploring layout variants, or generating high-quality UI concepts for the
+  app.
+- Keep generated UI aligned with the product spec, Android-native patterns,
+  accessibility requirements, and the project's premium minimal design
+  direction.
+
 ## Testing and Device Setup
 
 - Real Android phone testing is the primary target for this project.
