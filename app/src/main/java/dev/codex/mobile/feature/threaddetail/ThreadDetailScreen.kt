@@ -13,9 +13,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -23,18 +23,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.StopCircle
-import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,15 +46,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.StatusChip
-import dev.codex.mobile.core.model.FileChangeEntry
-import dev.codex.mobile.core.model.ThreadDetail
-import dev.codex.mobile.core.model.ThreadItem
-import dev.codex.mobile.core.model.ThreadItemStatus
+import dev.codex.mobile.core.util.AppLog
+import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.core.model.isWaitingOnApproval
+import kotlinx.coroutines.flow.first
 
 @Composable
 fun ThreadDetailScreen(
@@ -64,6 +64,8 @@ fun ThreadDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val detail = uiState.detail
+    val listState = remember(detail?.summary?.id) { LazyListState() }
+    var hasInitialScroll by remember(detail?.summary?.id) { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (detail == null) {
@@ -72,7 +74,41 @@ fun ThreadDetailScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
+            val approvalsByItem = uiState.approvals
+                .filter { approval -> detail.items.any { item -> item.id == approval.itemId } }
+                .groupBy { approval -> approval.itemId }
+            val orphanApprovals = uiState.approvals.filter { approval ->
+                detail.items.none { item -> item.id == approval.itemId }
+            }
+            val latestTranscriptEntryId = detail.items.lastOrNull()?.id ?: orphanApprovals.lastOrNull()?.id
+            val activityRowCount = if (detail.activities.isEmpty()) 0 else 1
+            val transcriptRowCount = if (detail.items.isEmpty()) 1 else detail.items.size
+            val totalTranscriptRows = 1 + activityRowCount + transcriptRowCount + orphanApprovals.size
+
+            LaunchedEffect(detail.summary.id, latestTranscriptEntryId, totalTranscriptRows) {
+                if (latestTranscriptEntryId == null || totalTranscriptRows <= 0) return@LaunchedEffect
+                val laidOutRowCount = snapshotFlow { listState.layoutInfo.totalItemsCount }
+                    .first { itemCount -> itemCount >= totalTranscriptRows }
+                val targetIndex = totalTranscriptRows - 1
+                AppLog.action(
+                    name = "thread_autoscroll_prepare",
+                    detail = "thread=${detail.summary.id} rows=$totalTranscriptRows laidOut=$laidOutRowCount target=$targetIndex initial=$hasInitialScroll",
+                )
+                if (!hasInitialScroll) {
+                    listState.scrollToItem(targetIndex)
+                    hasInitialScroll = true
+                } else if (listState.isNearBottom(totalTranscriptRows)) {
+                    listState.animateScrollToItem(targetIndex)
+                }
+                val visibleItems = listState.layoutInfo.visibleItemsInfo
+                AppLog.action(
+                    name = "thread_autoscroll_result",
+                    detail = "thread=${detail.summary.id} first=${listState.firstVisibleItemIndex} last=${visibleItems.lastOrNull()?.index ?: -1} target=$targetIndex total=${listState.layoutInfo.totalItemsCount}",
+                )
+            }
+
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     start = 20.dp,
@@ -88,11 +124,35 @@ fun ThreadDetailScreen(
                         onNavigateBack = onNavigateBack,
                     )
                 }
+                if (detail.activities.isNotEmpty()) {
+                    item {
+                        ThreadActivityPanel(activities = detail.activities)
+                    }
+                }
+                if (detail.items.isEmpty()) {
+                    item {
+                        EmptyTranscriptState()
+                    }
+                } else {
+                    items(
+                        items = detail.items,
+                        key = { item -> item.id },
+                    ) { entry ->
+                        ThreadTranscriptEntry(
+                            entry = entry,
+                            approvals = approvalsByItem[entry.id].orEmpty(),
+                            onDecision = viewModel::resolveApproval,
+                        )
+                    }
+                }
                 items(
-                    items = detail.items,
-                    key = { item -> item.id },
-                ) { entry ->
-                    ThreadItemCard(entry = entry)
+                    items = orphanApprovals,
+                    key = { approval -> approval.id },
+                ) { approval ->
+                    InlineApprovalCard(
+                        approval = approval,
+                        onDecision = viewModel::resolveApproval,
+                    )
                 }
             }
         }
@@ -144,6 +204,22 @@ private fun EmptyThreadState(
 }
 
 @Composable
+private fun EmptyTranscriptState() {
+    CodexCard {
+        Text(
+            text = "This thread has no transcript items yet.",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "New user messages, Codex replies, tool calls, and approvals will appear here as the thread runs.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun ThreadDetailHeader(
     summary: ThreadSummary,
     onNavigateBack: () -> Unit,
@@ -188,188 +264,6 @@ private fun ThreadDetailHeader(
     }
 }
 
-@Composable
-private fun ThreadItemCard(entry: ThreadItem) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = itemLabel(entry).uppercase() + " • ${entry.timestampLabel}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        when (entry) {
-            is ThreadItem.UserMessage -> TextCard(text = entry.text)
-            is ThreadItem.AgentMessage -> TextCard(text = entry.text)
-            is ThreadItem.Plan -> TextCard(text = entry.text)
-            is ThreadItem.Reasoning -> ReasoningCard(entry)
-            is ThreadItem.CommandExecution -> CommandExecutionCard(entry)
-            is ThreadItem.FileChange -> FileChangeCard(entry.changes, entry.status)
-        }
-    }
-}
-
-private fun itemLabel(entry: ThreadItem): String = when (entry) {
-    is ThreadItem.UserMessage -> "User Message"
-    is ThreadItem.AgentMessage -> "Agent Message"
-    is ThreadItem.Plan -> "Plan"
-    is ThreadItem.Reasoning -> "Reasoning"
-    is ThreadItem.CommandExecution -> "Command Execution"
-    is ThreadItem.FileChange -> "File Change"
-}
-
-@Composable
-private fun TextCard(text: String) {
-    CodexCard {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyLarge,
-        )
-    }
-}
-
-@Composable
-private fun ReasoningCard(entry: ThreadItem.Reasoning) {
-    CodexCard {
-        Row(verticalAlignment = Alignment.Top) {
-            Icon(
-                imageVector = Icons.Rounded.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
-            )
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = entry.summary,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun CommandExecutionCard(entry: ThreadItem.CommandExecution) {
-    CodexCard(contentPadding = PaddingValues(14.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Terminal,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-                androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = entry.command,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(12.dp))
-            StatusChip(
-                label = threadItemStatusLabel(entry.status),
-                color = threadItemStatusColor(entry.status),
-            )
-        }
-        entry.cwd?.let { cwd ->
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = "CWD: $cwd",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        entry.aggregatedOutput?.let { output ->
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = output,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        entry.exitCode?.let { exitCode ->
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = "Exit code: $exitCode",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun FileChangeCard(
-    changes: List<FileChangeEntry>,
-    status: ThreadItemStatus,
-) {
-    CodexCard(contentPadding = PaddingValues(14.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Description,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-                androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "${changes.size} proposed change(s)",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(12.dp))
-            StatusChip(
-                label = threadItemStatusLabel(status),
-                color = threadItemStatusColor(status),
-            )
-        }
-        changes.forEach { change ->
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.Top) {
-                Icon(
-                    imageVector = Icons.Rounded.RadioButtonUnchecked,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp),
-                )
-                androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = change.path,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = "${change.kind} • ${change.diff}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-    }
-}
-
 private fun threadTitle(summary: ThreadSummary): String = summary.name?.takeIf { it.isNotBlank() } ?: "Untitled thread"
 
 private fun threadMetaLabel(summary: ThreadSummary): String = buildList {
@@ -391,21 +285,6 @@ private fun threadStatusColor(status: ThreadStatus): Color = when {
     status.type == ThreadStatusType.Active -> MaterialTheme.colorScheme.primary
     status.type == ThreadStatusType.SystemError -> MaterialTheme.colorScheme.error
     else -> MaterialTheme.colorScheme.onSurfaceVariant
-}
-
-private fun threadItemStatusLabel(status: ThreadItemStatus): String = when (status) {
-    ThreadItemStatus.InProgress -> "In Progress"
-    ThreadItemStatus.Completed -> "Completed"
-    ThreadItemStatus.Failed -> "Failed"
-    ThreadItemStatus.Declined -> "Declined"
-}
-
-@Composable
-private fun threadItemStatusColor(status: ThreadItemStatus): Color = when (status) {
-    ThreadItemStatus.InProgress -> MaterialTheme.colorScheme.primary
-    ThreadItemStatus.Completed -> Color(0xFF2F9A58)
-    ThreadItemStatus.Failed -> MaterialTheme.colorScheme.error
-    ThreadItemStatus.Declined -> Color(0xFFD59734)
 }
 
 @Composable
@@ -458,4 +337,10 @@ private fun ComposerBar(
             )
         }
     }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListState.isNearBottom(totalRows: Int): Boolean {
+    if (totalRows <= 1) return true
+    val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return true
+    return lastVisibleIndex >= totalRows - 3
 }

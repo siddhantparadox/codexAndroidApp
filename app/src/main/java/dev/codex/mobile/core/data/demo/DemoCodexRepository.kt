@@ -1,10 +1,14 @@
 package dev.codex.mobile.core.data.demo
 
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.model.AccountState
+import dev.codex.mobile.core.model.AccountStatus
 import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
+import dev.codex.mobile.core.model.ConnectionPhase
+import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.FileChangeEntry
 import dev.codex.mobile.core.model.HostKind
 import dev.codex.mobile.core.model.HostProfile
@@ -25,6 +29,17 @@ import kotlinx.coroutines.flow.update
 private data class DemoStoreState(
     val preferences: AppPreferences = AppPreferences(),
     val hosts: List<HostProfile> = emptyList(),
+    val connection: ConnectionState = ConnectionState(
+        activeHostId = "work-laptop",
+        phase = ConnectionPhase.Connected,
+        message = "ws://192.168.1.15:4500",
+    ),
+    val account: AccountState = AccountState(
+        status = AccountStatus.ChatGpt,
+        email = "demo@example.com",
+        planType = "pro",
+        requiresOpenaiAuth = true,
+    ),
     val threads: List<ThreadSummary> = emptyList(),
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
     val approvals: List<ApprovalItem> = emptyList(),
@@ -65,6 +80,10 @@ class DemoCodexRepository : CodexRepository {
     override fun observePreferences(): Flow<AppPreferences> = store.map { it.preferences }
 
     override fun observeHosts(): Flow<List<HostProfile>> = store.map { it.hosts }
+
+    override fun observeConnection(): Flow<ConnectionState> = store.map { it.connection }
+
+    override fun observeAccount(): Flow<AccountState> = store.map { it.account }
 
     override fun observeThreads(): Flow<List<ThreadSummary>> = store.map { it.threads }
 
@@ -177,6 +196,12 @@ class DemoCodexRepository : CodexRepository {
         }
     }
 
+    override suspend fun createThread(): String? = store.value.threads.firstOrNull()?.id
+
+    override suspend fun openThread(threadId: String) {
+        AppLog.action(name = "open_thread", detail = threadId)
+    }
+
     override suspend fun sendReply(threadId: String, message: String) {
         val cleanMessage = message.trim()
         if (cleanMessage.isEmpty()) return
@@ -202,7 +227,6 @@ class DemoCodexRepository : CodexRepository {
                 threadId to detail.copy(
                     items = detail.items + ThreadItem.UserMessage(
                         id = nextItemId("user"),
-                        timestampLabel = "Just now",
                         text = cleanMessage,
                     ),
                 )
@@ -236,7 +260,6 @@ class DemoCodexRepository : CodexRepository {
                 threadId to detail.copy(
                     items = detail.items + ThreadItem.AgentMessage(
                         id = nextItemId("agent"),
-                        timestampLabel = "Just now",
                         text = responseText,
                         phase = "commentary",
                     ),
@@ -335,17 +358,14 @@ private fun demoThreadDetails(threads: List<ThreadSummary>): Map<String, ThreadD
             items = listOf(
                 ThreadItem.UserMessage(
                     id = "auth-refactor-user",
-                    timestampLabel = "10:24 AM",
                     text = "Refactor the authentication module to support multi-tenant JWT validation and keep the approval surface small.",
                 ),
                 ThreadItem.Reasoning(
                     id = "auth-refactor-reasoning",
-                    timestampLabel = "10:25 AM",
                     summary = "Codex narrowed the patch to the auth middleware and paused before writing changes so the client can review the file-change item.",
                 ),
                 ThreadItem.FileChange(
                     id = "file-change-auth-item",
-                    timestampLabel = "10:27 AM",
                     changes = listOf(
                         FileChangeEntry(
                             path = "src/middleware/auth.ts",
@@ -367,12 +387,10 @@ private fun demoThreadDetails(threads: List<ThreadSummary>): Map<String, ThreadD
             items = listOf(
                 ThreadItem.UserMessage(
                     id = "auth-handshake-user",
-                    timestampLabel = "9:41 AM",
                     text = "Validate the OAuth callback handshake and install any missing browser-side dependency only if it is required.",
                 ),
                 ThreadItem.CommandExecution(
                     id = "command-install-item",
-                    timestampLabel = "9:48 AM",
                     command = "npm install @stripe/stripe-js",
                     cwd = "/projects/codex-mobile/api",
                     status = ThreadItemStatus.InProgress,
@@ -385,12 +403,10 @@ private fun demoThreadDetails(threads: List<ThreadSummary>): Map<String, ThreadD
             items = listOf(
                 ThreadItem.UserMessage(
                     id = "theme-sync-user",
-                    timestampLabel = "8:09 AM",
                     text = "Repair the theme provider sync and verify the palette contract in dark mode.",
                 ),
                 ThreadItem.CommandExecution(
                     id = "theme-sync-command",
-                    timestampLabel = "8:16 AM",
                     command = "pnpm test --filter theme-provider",
                     cwd = "/projects/ui-kit",
                     status = ThreadItemStatus.Failed,
@@ -399,7 +415,6 @@ private fun demoThreadDetails(threads: List<ThreadSummary>): Map<String, ThreadD
                 ),
                 ThreadItem.AgentMessage(
                     id = "theme-sync-agent",
-                    timestampLabel = "8:17 AM",
                     text = "The current theme provider still dereferences a missing palette entry in dark mode.",
                     phase = "final_answer",
                 ),
@@ -410,17 +425,14 @@ private fun demoThreadDetails(threads: List<ThreadSummary>): Map<String, ThreadD
             items = listOf(
                 ThreadItem.UserMessage(
                     id = "analytics-user",
-                    timestampLabel = "6:02 AM",
                     text = "Generate the analytics dashboard review and summarize the export health before I open the laptop again.",
                 ),
                 ThreadItem.Plan(
                     id = "analytics-plan",
-                    timestampLabel = "6:04 AM",
                     text = "1. Validate the dashboard queries. 2. Check export freshness. 3. Summarize blockers only if any remain.",
                 ),
                 ThreadItem.AgentMessage(
                     id = "analytics-agent",
-                    timestampLabel = "6:12 AM",
                     text = "The export completed successfully and the dashboard review did not surface new blockers.",
                     phase = "final_answer",
                 ),
@@ -431,12 +443,10 @@ private fun demoThreadDetails(threads: List<ThreadSummary>): Map<String, ThreadD
             items = listOf(
                 ThreadItem.UserMessage(
                     id = "migration-user",
-                    timestampLabel = "5:11 AM",
                     text = "Prepare the next storage migration pass and stream only the essential execution details.",
                 ),
                 ThreadItem.CommandExecution(
                     id = "migration-command",
-                    timestampLabel = "5:12 AM",
                     command = "rsync -av legacy/ edge-storage:/snapshots/phase-4",
                     cwd = "/projects/platform",
                     status = ThreadItemStatus.InProgress,
@@ -463,7 +473,6 @@ private fun demoApprovals(): List<ApprovalItem> = listOf(
             ApprovalDecision.Decline,
             ApprovalDecision.Cancel,
         ),
-        requestTimeLabel = "Just now",
     ),
     ApprovalItem(
         id = "file-change-auth",
@@ -482,7 +491,6 @@ private fun demoApprovals(): List<ApprovalItem> = listOf(
             ApprovalDecision.Decline,
             ApprovalDecision.Cancel,
         ),
-        requestTimeLabel = "2m ago",
     ),
 )
 

@@ -32,5 +32,4 @@ data class ApprovalItem(
     val reason: String? = null,
     val grantRoot: Boolean = false,
     val availableDecisions: List<ApprovalDecision>,
-    val requestTimeLabel: String,
 )

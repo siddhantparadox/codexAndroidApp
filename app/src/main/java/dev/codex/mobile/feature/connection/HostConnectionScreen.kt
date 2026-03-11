@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LaptopMac
+import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -30,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,7 +39,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.StatusChip
+import dev.codex.mobile.core.model.AccountState
+import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.HostKind
+import dev.codex.mobile.core.model.summary
 
 @Composable
 fun HostConnectionScreen(
@@ -77,6 +82,13 @@ fun HostConnectionScreen(
                     )
                 }
             }
+        }
+        item {
+            ConnectionStatusCard(
+                connectionPhase = uiState.connection.phase,
+                connectionMessage = uiState.connection.message,
+                account = uiState.account,
+            )
         }
         item {
             Text(
@@ -202,9 +214,18 @@ fun HostConnectionScreen(
                     Spacer(modifier = Modifier.size(12.dp))
                     if (host.isActive) {
                         StatusChip(
-                            label = "Active",
-                            color = MaterialTheme.colorScheme.primary,
-                            pulsingDot = true,
+                            label = hostStatusLabel(
+                                hostId = host.id,
+                                activeHostId = uiState.connection.activeHostId,
+                                connectionPhase = uiState.connection.phase,
+                            ),
+                            color = hostStatusColor(
+                                hostId = host.id,
+                                activeHostId = uiState.connection.activeHostId,
+                                connectionPhase = uiState.connection.phase,
+                            ),
+                            pulsingDot = uiState.connection.activeHostId == host.id &&
+                                uiState.connection.phase == ConnectionPhase.Connected,
                         )
                     }
                 }
@@ -228,4 +249,98 @@ fun HostConnectionScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ConnectionStatusCard(
+    connectionPhase: ConnectionPhase,
+    connectionMessage: String?,
+    account: AccountState,
+) {
+    CodexCard {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = if (connectionPhase == ConnectionPhase.Connected) {
+                        Icons.Rounded.LaptopMac
+                    } else {
+                        Icons.Rounded.LinkOff
+                    },
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.size(12.dp))
+                Column {
+                    Text(
+                        text = "Desktop Runtime",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        text = account.summary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.size(12.dp))
+            StatusChip(
+                label = hostConnectionLabel(connectionPhase),
+                color = hostConnectionColor(connectionPhase),
+                pulsingDot = connectionPhase == ConnectionPhase.Connected,
+            )
+        }
+        connectionMessage?.let { message ->
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private fun hostStatusLabel(
+    hostId: String,
+    activeHostId: String?,
+    connectionPhase: ConnectionPhase,
+): String = if (hostId != activeHostId) {
+    "Saved"
+} else {
+    hostConnectionLabel(connectionPhase)
+}
+
+@Composable
+private fun hostStatusColor(
+    hostId: String,
+    activeHostId: String?,
+    connectionPhase: ConnectionPhase,
+): Color = if (hostId != activeHostId) {
+    MaterialTheme.colorScheme.onSurfaceVariant
+} else {
+    hostConnectionColor(connectionPhase)
+}
+
+private fun hostConnectionLabel(connectionPhase: ConnectionPhase): String = when (connectionPhase) {
+    ConnectionPhase.Connected -> "Connected"
+    ConnectionPhase.Connecting -> "Connecting"
+    ConnectionPhase.Disconnected -> "Disconnected"
+    ConnectionPhase.Error -> "Error"
+    ConnectionPhase.Idle -> "Idle"
+}
+
+@Composable
+private fun hostConnectionColor(connectionPhase: ConnectionPhase): Color = when (connectionPhase) {
+    ConnectionPhase.Connected -> MaterialTheme.colorScheme.primary
+    ConnectionPhase.Connecting -> Color(0xFFD59734)
+    ConnectionPhase.Disconnected -> MaterialTheme.colorScheme.onSurfaceVariant
+    ConnectionPhase.Error -> MaterialTheme.colorScheme.error
+    ConnectionPhase.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
 }

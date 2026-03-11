@@ -1,10 +1,14 @@
 package dev.codex.mobile.core.model
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class HostKind {
     Laptop,
     Desktop,
 }
 
+@Serializable
 data class HostProfile(
     val id: String,
     val name: String,

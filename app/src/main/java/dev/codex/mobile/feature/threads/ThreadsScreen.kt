@@ -52,7 +52,6 @@ import dev.codex.mobile.core.util.relativeTimeLabel
 
 @Composable
 fun ThreadsScreen(
-    onCreateThread: () -> Unit,
     onOpenThread: (String) -> Unit,
     viewModel: ThreadsViewModel = viewModel(
         factory = ThreadsViewModel.factory(CodexAppGraph.repository),
@@ -107,15 +106,26 @@ fun ThreadsScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                color = if (uiState.canCreateThread) {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                },
                                 shape = CircleShape,
                             )
-                            .clickable(onClick = onCreateThread),
+                            .clickable(enabled = uiState.canCreateThread) {
+                                viewModel.createThread(onOpenThread)
+                            },
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
                             contentDescription = "Create thread",
+                            tint = if (uiState.canCreateThread) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
                         )
                     }
                 }
@@ -162,6 +172,13 @@ fun ThreadsScreen(
                             )
                         }
                     }
+                }
+                if (!uiState.canCreateThread) {
+                    Text(
+                        text = "Connect to a desktop app-server before creating a new thread.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }

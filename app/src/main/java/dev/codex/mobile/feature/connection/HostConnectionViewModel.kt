@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.model.AccountState
+import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.HostProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,6 +19,8 @@ import kotlinx.coroutines.launch
 
 data class HostConnectionUiState(
     val hosts: List<HostProfile> = emptyList(),
+    val connection: ConnectionState = ConnectionState(),
+    val account: AccountState = AccountState(),
     val hostName: String = "",
     val address: String = "",
     val port: String = "4500",
@@ -29,10 +33,14 @@ class HostConnectionViewModel(
 
     val uiState: StateFlow<HostConnectionUiState> = combine(
         repository.observeHosts(),
+        repository.observeConnection(),
+        repository.observeAccount(),
         formState,
-    ) { hosts, form ->
+    ) { hosts, connection, account, form ->
         form.copy(
             hosts = hosts,
+            connection = connection,
+            account = account,
         )
     }.stateIn(
         scope = viewModelScope,

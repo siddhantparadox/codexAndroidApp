@@ -40,11 +40,14 @@ import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.SectionHeader
 import dev.codex.mobile.core.designsystem.component.StatusChip
+import dev.codex.mobile.core.model.AccountState
+import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.HostKind
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.model.summary
 import dev.codex.mobile.core.util.relativeTimeLabel
 
 @Composable
@@ -76,6 +79,9 @@ fun DashboardScreen(
                     address = host.address,
                     port = host.port,
                     hostKind = host.kind,
+                    connectionPhase = uiState.connection.phase,
+                    connectionMessage = uiState.connection.message,
+                    account = uiState.account,
                     onClick = onOpenHostConnection,
                 )
             }
@@ -180,6 +186,9 @@ private fun ConnectionCard(
     address: String,
     port: Int,
     hostKind: HostKind,
+    connectionPhase: ConnectionPhase,
+    connectionMessage: String?,
+    account: AccountState,
     onClick: () -> Unit,
 ) {
     CodexCard(
@@ -227,9 +236,9 @@ private fun ConnectionCard(
             }
             Spacer(modifier = Modifier.width(12.dp))
             StatusChip(
-                label = "Active",
-                color = MaterialTheme.colorScheme.primary,
-                pulsingDot = true,
+                label = connectionLabel(connectionPhase),
+                color = connectionColor(connectionPhase),
+                pulsingDot = connectionPhase == ConnectionPhase.Connected,
             )
         }
         Spacer(modifier = Modifier.height(14.dp))
@@ -238,6 +247,24 @@ private fun ConnectionCard(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = account.summary,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        connectionMessage?.takeIf { it != "$address:$port" }?.let { message ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -378,4 +405,21 @@ private fun threadStatusIcon(status: ThreadStatus) = when {
     status.type == ThreadStatusType.Active -> Icons.Rounded.Refresh
     status.type == ThreadStatusType.SystemError -> Icons.Rounded.Error
     else -> Icons.Rounded.ChatBubbleOutline
+}
+
+private fun connectionLabel(phase: ConnectionPhase): String = when (phase) {
+    ConnectionPhase.Connected -> "Connected"
+    ConnectionPhase.Connecting -> "Connecting"
+    ConnectionPhase.Disconnected -> "Disconnected"
+    ConnectionPhase.Error -> "Error"
+    ConnectionPhase.Idle -> "Idle"
+}
+
+@Composable
+private fun connectionColor(phase: ConnectionPhase): Color = when (phase) {
+    ConnectionPhase.Connected -> MaterialTheme.colorScheme.primary
+    ConnectionPhase.Connecting -> Color(0xFFD59734)
+    ConnectionPhase.Disconnected -> MaterialTheme.colorScheme.onSurfaceVariant
+    ConnectionPhase.Error -> MaterialTheme.colorScheme.error
+    ConnectionPhase.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
 }

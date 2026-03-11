@@ -9,7 +9,9 @@ import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.isActive
+import dev.codex.mobile.core.model.isConnected
 import dev.codex.mobile.core.model.isWaitingOnApproval
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,23 +29,26 @@ enum class ThreadFilter {
 data class ThreadsUiState(
     val query: String = "",
     val selectedFilter: ThreadFilter = ThreadFilter.All,
+    val canCreateThread: Boolean = false,
     val threads: List<ThreadSummary> = emptyList(),
 )
 
 class ThreadsViewModel(
-    repository: CodexRepository,
+    private val repository: CodexRepository,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
     private val selectedFilter = MutableStateFlow(ThreadFilter.All)
 
     val uiState: StateFlow<ThreadsUiState> = combine(
         repository.observeThreads(),
+        repository.observeConnection(),
         query,
         selectedFilter,
-    ) { threads, searchQuery, filter ->
+    ) { threads, connection, searchQuery, filter ->
         ThreadsUiState(
             query = searchQuery,
             selectedFilter = filter,
+            canCreateThread = connection.isConnected,
             threads = threads.filter { thread ->
                 val matchesQuery = searchQuery.isBlank() ||
                     thread.name.orEmpty().contains(searchQuery, ignoreCase = true) ||
@@ -69,6 +74,12 @@ class ThreadsViewModel(
 
     fun onFilterSelected(filter: ThreadFilter) {
         selectedFilter.update { filter }
+    }
+
+    fun createThread(onThreadCreated: (String) -> Unit) {
+        viewModelScope.launch {
+            repository.createThread()?.let(onThreadCreated)
+        }
     }
 
     companion object {

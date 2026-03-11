@@ -9,6 +9,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.toRoute
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.model.ApprovalDecision
+import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.navigation.ThreadDetailRoute
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +23,7 @@ import kotlinx.coroutines.launch
 
 data class ThreadDetailUiState(
     val detail: ThreadDetail? = null,
+    val approvals: List<ApprovalItem> = emptyList(),
     val draft: String = "",
 )
 
@@ -31,12 +34,20 @@ class ThreadDetailViewModel(
     private val route = savedStateHandle.toRoute<ThreadDetailRoute>()
     private val draft = MutableStateFlow("")
 
+    init {
+        viewModelScope.launch {
+            repository.openThread(route.threadId)
+        }
+    }
+
     val uiState: StateFlow<ThreadDetailUiState> = combine(
         repository.observeThreadDetail(route.threadId),
+        repository.observeApprovals(),
         draft,
-    ) { detail, currentDraft ->
+    ) { detail, approvals, currentDraft ->
         ThreadDetailUiState(
             detail = detail,
+            approvals = approvals.filter { approval -> approval.threadId == route.threadId },
             draft = currentDraft,
         )
     }.stateIn(
@@ -61,6 +72,15 @@ class ThreadDetailViewModel(
     fun interruptThread() {
         viewModelScope.launch {
             repository.interruptThread(route.threadId)
+        }
+    }
+
+    fun resolveApproval(
+        approvalId: String,
+        decision: ApprovalDecision,
+    ) {
+        viewModelScope.launch {
+            repository.resolveApproval(approvalId, decision)
         }
     }
 

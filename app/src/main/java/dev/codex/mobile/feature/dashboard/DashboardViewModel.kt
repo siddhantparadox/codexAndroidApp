@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.model.AccountState
+import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.HostProfile
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.isActive
@@ -16,6 +18,8 @@ import kotlinx.coroutines.flow.stateIn
 
 data class DashboardUiState(
     val activeHost: HostProfile? = null,
+    val connection: ConnectionState = ConnectionState(),
+    val account: AccountState = AccountState(),
     val activeThread: ThreadSummary? = null,
     val recentThreads: List<ThreadSummary> = emptyList(),
 )
@@ -25,10 +29,14 @@ class DashboardViewModel(
 ) : ViewModel() {
     val uiState: StateFlow<DashboardUiState> = combine(
         repository.observeHosts(),
+        repository.observeConnection(),
+        repository.observeAccount(),
         repository.observeThreads(),
-    ) { hosts, threads ->
+    ) { hosts, connection, account, threads ->
         DashboardUiState(
             activeHost = hosts.firstOrNull { it.isActive } ?: hosts.firstOrNull(),
+            connection = connection,
+            account = account,
             activeThread = threads.firstOrNull { it.status.isActive },
             recentThreads = threads.take(3),
         )

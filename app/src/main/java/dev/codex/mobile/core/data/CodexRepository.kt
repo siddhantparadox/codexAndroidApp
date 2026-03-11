@@ -1,8 +1,10 @@
 package dev.codex.mobile.core.data
 
 import dev.codex.mobile.core.model.AppPreferences
+import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
+import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.HostProfile
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadSummary
@@ -13,6 +15,10 @@ interface CodexRepository {
     fun observePreferences(): Flow<AppPreferences>
 
     fun observeHosts(): Flow<List<HostProfile>>
+
+    fun observeConnection(): Flow<ConnectionState>
+
+    fun observeAccount(): Flow<AccountState>
 
     fun observeThreads(): Flow<List<ThreadSummary>>
 
@@ -36,6 +42,10 @@ interface CodexRepository {
         approvalId: String,
         decision: ApprovalDecision,
     )
+
+    suspend fun createThread(): String?
+
+    suspend fun openThread(threadId: String)
 
     suspend fun sendReply(
         threadId: String,

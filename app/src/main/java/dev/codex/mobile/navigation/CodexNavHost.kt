@@ -49,6 +49,13 @@ fun CodexNavHost(
         currentDestination?.hasRoute<ApprovalsRoute>() == true -> TopLevelDestination.Approvals
         else -> TopLevelDestination.Settings
     }
+    val isOnTopLevelDestination = when {
+        currentDestination?.hasRoute<DashboardRoute>() == true -> true
+        currentDestination?.hasRoute<ThreadsRoute>() == true -> true
+        currentDestination?.hasRoute<ApprovalsRoute>() == true -> true
+        currentDestination?.hasRoute<SettingsRoute>() == true -> true
+        else -> false
+    }
     val showBottomBar = currentDestination?.hasRoute<ThreadDetailRoute>() != true
 
     LaunchedEffect(currentScreen) {
@@ -72,10 +79,10 @@ fun CodexNavHost(
                         }
                         navController.navigate(route) {
                             popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                                saveState = isOnTopLevelDestination
                             }
                             launchSingleTop = true
-                            restoreState = true
+                            restoreState = isOnTopLevelDestination
                         }
                     },
                 )
@@ -105,10 +112,6 @@ fun CodexNavHost(
             }
             composable<ThreadsRoute> {
                 ThreadsScreen(
-                    onCreateThread = {
-                        AppLog.action(name = "create_thread", detail = "demo_auth_refactor")
-                        navController.navigate(ThreadDetailRoute(threadId = "auth-refactor"))
-                    },
                     onOpenThread = { threadId ->
                         AppLog.action(name = "open_thread", detail = threadId)
                         navController.navigate(ThreadDetailRoute(threadId = threadId))

@@ -29,50 +29,142 @@ data class ThreadSummary(
     val status: ThreadStatus,
 )
 
+sealed interface UserInputContent {
+    data class Text(
+        val text: String,
+        val placeholders: List<String> = emptyList(),
+    ) : UserInputContent
+
+    data class Image(
+        val url: String,
+    ) : UserInputContent
+
+    data class LocalImage(
+        val path: String,
+    ) : UserInputContent
+
+    data class Skill(
+        val name: String,
+        val path: String,
+    ) : UserInputContent
+
+    data class Mention(
+        val name: String,
+        val path: String,
+    ) : UserInputContent
+}
+
 sealed interface ThreadItem {
     val id: String
-    val timestampLabel: String
 
     data class UserMessage(
         override val id: String,
-        override val timestampLabel: String,
         val text: String,
+        val content: List<UserInputContent> = listOf(UserInputContent.Text(text)),
     ) : ThreadItem
 
     data class AgentMessage(
         override val id: String,
-        override val timestampLabel: String,
         val text: String,
         val phase: String? = null,
     ) : ThreadItem
 
     data class Plan(
         override val id: String,
-        override val timestampLabel: String,
         val text: String,
     ) : ThreadItem
 
     data class Reasoning(
         override val id: String,
-        override val timestampLabel: String,
         val summary: String,
+        val summarySections: List<String> = if (summary.isBlank()) emptyList() else listOf(summary),
+        val contentText: String = "",
     ) : ThreadItem
 
     data class CommandExecution(
         override val id: String,
-        override val timestampLabel: String,
         val command: String,
         val cwd: String? = null,
         val status: ThreadItemStatus,
         val aggregatedOutput: String? = null,
         val exitCode: Int? = null,
+        val commandActions: List<CommandActionHint> = emptyList(),
+        val durationMs: Long? = null,
+        val processId: String? = null,
+        val interactions: List<String> = emptyList(),
     ) : ThreadItem
 
     data class FileChange(
         override val id: String,
-        override val timestampLabel: String,
         val changes: List<FileChangeEntry>,
         val status: ThreadItemStatus,
+        val toolOutput: String? = null,
+    ) : ThreadItem
+
+    data class McpToolCall(
+        override val id: String,
+        val server: String,
+        val tool: String,
+        val status: ThreadItemStatus,
+        val arguments: String,
+        val result: String? = null,
+        val errorMessage: String? = null,
+        val durationMs: Long? = null,
+        val progressMessages: List<String> = emptyList(),
+    ) : ThreadItem
+
+    data class DynamicToolCall(
+        override val id: String,
+        val tool: String,
+        val status: ThreadItemStatus,
+        val arguments: String,
+        val contentItems: List<ToolContentItem> = emptyList(),
+        val success: Boolean? = null,
+        val durationMs: Long? = null,
+    ) : ThreadItem
+
+    data class CollabToolCall(
+        override val id: String,
+        val tool: String,
+        val status: ThreadItemStatus,
+        val senderThreadId: String,
+        val receiverThreadIds: List<String>,
+        val prompt: String? = null,
+        val agentStates: List<CollabAgentState> = emptyList(),
+    ) : ThreadItem
+
+    data class WebSearch(
+        override val id: String,
+        val query: String,
+        val actionLabel: String? = null,
+    ) : ThreadItem
+
+    data class ImageView(
+        override val id: String,
+        val path: String,
+    ) : ThreadItem
+
+    data class ImageGeneration(
+        override val id: String,
+        val result: String,
+        val status: String,
+        val revisedPrompt: String? = null,
+    ) : ThreadItem
+
+    data class ReviewMode(
+        override val id: String,
+        val review: String,
+        val entered: Boolean,
+    ) : ThreadItem
+
+    data class ContextCompaction(
+        override val id: String,
+    ) : ThreadItem
+
+    data class Unknown(
+        override val id: String,
+        val typeName: String,
+        val payload: String,
     ) : ThreadItem
 }
 
@@ -83,13 +175,53 @@ enum class ThreadItemStatus {
     Declined,
 }
 
+data class CommandActionHint(
+    val type: String,
+    val command: String,
+    val path: String? = null,
+    val query: String? = null,
+    val name: String? = null,
+)
+
 data class FileChangeEntry(
     val path: String,
     val kind: String,
     val diff: String,
 )
 
+sealed interface ToolContentItem {
+    data class Text(
+        val text: String,
+    ) : ToolContentItem
+
+    data class Image(
+        val imageUrl: String,
+    ) : ToolContentItem
+}
+
+data class CollabAgentState(
+    val threadId: String,
+    val status: String,
+    val message: String? = null,
+)
+
+enum class ThreadActivityEmphasis {
+    Neutral,
+    Active,
+    Success,
+    Warning,
+    Error,
+}
+
+data class ThreadActivity(
+    val id: String,
+    val title: String,
+    val detail: String? = null,
+    val emphasis: ThreadActivityEmphasis = ThreadActivityEmphasis.Neutral,
+)
+
 data class ThreadDetail(
     val summary: ThreadSummary,
     val items: List<ThreadItem>,
+    val activities: List<ThreadActivity> = emptyList(),
 )

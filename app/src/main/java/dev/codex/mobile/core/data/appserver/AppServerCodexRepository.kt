@@ -1,0 +1,1143 @@
+package dev.codex.mobile.core.data.appserver
+
+import android.content.Context
+import dev.codex.mobile.BuildConfig
+import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.data.local.AppLocalStateStore
+import dev.codex.mobile.core.data.local.PersistedAppState
+import dev.codex.mobile.core.model.AccountState
+import dev.codex.mobile.core.model.AppPreferences
+import dev.codex.mobile.core.model.ApprovalDecision
+import dev.codex.mobile.core.model.ApprovalItem
+import dev.codex.mobile.core.model.ConnectionPhase
+import dev.codex.mobile.core.model.ConnectionState
+import dev.codex.mobile.core.model.HostKind
+import dev.codex.mobile.core.model.HostProfile
+import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.ThreadActivity
+import dev.codex.mobile.core.model.ThreadActivityEmphasis
+import dev.codex.mobile.core.model.ThreadItem
+import dev.codex.mobile.core.model.ThreadStatus
+import dev.codex.mobile.core.model.ThreadStatusType
+import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.ThemePreference
+import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.util.AppLog
+import java.net.UnknownHostException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import okhttp3.OkHttpClient
+
+private data class RepositoryState(
+    val preferences: AppPreferences = AppPreferences(),
+    val hosts: List<HostProfile> = emptyList(),
+    val connection: ConnectionState = ConnectionState(),
+    val account: AccountState = AccountState(),
+    val threads: List<ThreadSummary> = emptyList(),
+    val threadDetails: Map<String, ThreadDetail> = emptyMap(),
+    val approvals: List<ApprovalItem> = emptyList(),
+    val activeTurnIds: Map<String, String> = emptyMap(),
+)
+
+private data class PendingApprovalRequest(
+    val requestId: JsonPrimitive,
+    val method: String,
+)
+
+internal class AppServerCodexRepository(
+    context: Context,
+    private val applicationScope: CoroutineScope,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val okHttpClient: OkHttpClient = OkHttpClient.Builder().build(),
+) : CodexRepository {
+    private val localStateStore: AppLocalStateStore = AppLocalStateStore(
+        context = context.applicationContext,
+        json = appServerJson,
+        ioDispatcher = ioDispatcher,
+    )
+    private val repositoryState: MutableStateFlow<RepositoryState> = MutableStateFlow(RepositoryState())
+    private val connectMutex: Mutex = Mutex()
+    private val openedThreadIds: MutableSet<String> = linkedSetOf()
+    private val pendingApprovalRequests: MutableMap<String, PendingApprovalRequest> = linkedMapOf()
+
+    @Volatile
+    private var session: CodexAppServerSession? = null
+
+    @Volatile
+    private var sessionEventsJob: Job? = null
+
+    init {
+        applicationScope.launch {
+            restoreLocalState()
+        }
+    }
+
+    override fun observePreferences(): Flow<AppPreferences> = repositoryState.map { it.preferences }
+
+    override fun observeHosts(): Flow<List<HostProfile>> = repositoryState.map { it.hosts }
+
+    override fun observeConnection(): Flow<ConnectionState> = repositoryState.map { it.connection }
+
+    override fun observeAccount(): Flow<AccountState> = repositoryState.map { it.account }
+
+    override fun observeThreads(): Flow<List<ThreadSummary>> = repositoryState.map { it.threads }
+
+    override fun observeThreadDetail(threadId: String): Flow<ThreadDetail?> =
+        repositoryState.map { it.threadDetails[threadId] }
+
+    override fun observeApprovals(): Flow<List<ApprovalItem>> = repositoryState.map { it.approvals }
+
+    override suspend fun saveHost(
+        name: String,
+        address: String,
+        port: Int,
+    ) {
+        val trimmedName = name.trim()
+        val trimmedAddress = address.trim()
+        if (trimmedName.isEmpty() || trimmedAddress.isEmpty()) return
+
+        AppLog.action(
+            name = "save_host",
+            detail = "$trimmedName@$trimmedAddress:$port",
+        )
+
+        repositoryState.update { current ->
+            current.copy(
+                hosts = current.hosts + HostProfile(
+                    id = hostId(name = trimmedName, address = trimmedAddress, port = port),
+                    name = trimmedName,
+                    address = trimmedAddress,
+                    port = port,
+                    kind = inferHostKind(trimmedName),
+                ),
+            )
+        }
+        persistLocalState()
+    }
+
+    override suspend fun setActiveHost(hostId: String) {
+        AppLog.action(name = "activate_host", detail = hostId)
+
+        repositoryState.update { current ->
+            current.copy(
+                hosts = current.hosts.map { host ->
+                    host.copy(isActive = host.id == hostId)
+                },
+            )
+        }
+        persistLocalState()
+        reconnectToActiveHost()
+    }
+
+    override suspend fun setThemePreference(preference: ThemePreference) {
+        AppLog.action(name = "set_theme_preference", detail = preference.name)
+        repositoryState.update { current ->
+            current.copy(
+                preferences = current.preferences.copy(themePreference = preference),
+            )
+        }
+        persistLocalState()
+    }
+
+    override suspend fun setConnectionAlerts(enabled: Boolean) {
+        AppLog.action(name = "set_connection_alerts", detail = enabled.toString())
+        repositoryState.update { current ->
+            current.copy(
+                preferences = current.preferences.copy(connectionAlerts = enabled),
+            )
+        }
+        persistLocalState()
+    }
+
+    override suspend fun resolveApproval(
+        approvalId: String,
+        decision: ApprovalDecision,
+    ) {
+        val pending = pendingApprovalRequests[approvalId] ?: return
+        val currentSession = session ?: return
+
+        AppLog.action(name = "resolve_approval", detail = "$approvalId->$decision")
+
+        val payload = when (pending.method) {
+            "item/commandExecution/requestApproval" -> commandApprovalDecisionPayload(decision)
+            "item/fileChange/requestApproval" -> fileChangeApprovalDecisionPayload(decision)
+            else -> return
+        }
+
+        currentSession.respondToRequest(
+            requestId = pending.requestId,
+            result = payload,
+        )
+    }
+
+    override suspend fun createThread(): String? {
+        val currentSession = session ?: return null
+        val response = currentSession.threadStart()
+        val thread = response.objectAt("thread") ?: return null
+
+        AppLog.action(name = "create_thread", detail = thread.string("id"))
+        openedThreadIds += requireNotNull(thread.string("id"))
+        applyThreadSnapshot(thread)
+        return thread.string("id")
+    }
+
+    override suspend fun openThread(threadId: String) {
+        openedThreadIds += threadId
+        val currentSession = session ?: return
+        val thread = currentSession.threadResume(threadId).objectAt("thread")
+            ?: currentSession.threadRead(threadId = threadId, includeTurns = true).objectAt("thread")
+            ?: return
+
+        AppLog.action(name = "open_thread_live", detail = threadId)
+        applyThreadSnapshot(thread)
+    }
+
+    override suspend fun sendReply(
+        threadId: String,
+        message: String,
+    ) {
+        val trimmedMessage = message.trim()
+        if (trimmedMessage.isEmpty()) return
+
+        val currentSession = session ?: return
+        if (threadId !in openedThreadIds) {
+            openThread(threadId)
+        }
+
+        val activeTurnId = repositoryState.value.activeTurnIds[threadId]
+        AppLog.action(
+            name = "send_reply",
+            detail = "thread=$threadId chars=${trimmedMessage.length}",
+        )
+
+        if (activeTurnId != null) {
+            currentSession.turnSteer(
+                threadId = threadId,
+                expectedTurnId = activeTurnId,
+                message = trimmedMessage,
+            )
+        } else {
+            val response = currentSession.turnStart(
+                threadId = threadId,
+                message = trimmedMessage,
+            )
+            val turnId = response.objectAt("turn")?.string("id")
+            if (turnId != null) {
+                repositoryState.update { current ->
+                    current.copy(
+                        activeTurnIds = current.activeTurnIds + (threadId to turnId),
+                        threads = current.threads.map { thread ->
+                            if (thread.id == threadId) {
+                                thread.copy(
+                                    status = ThreadStatus(type = ThreadStatusType.Active),
+                                )
+                            } else {
+                                thread
+                            }
+                        }.syncThreadOrdering(),
+                    )
+                }
+            }
+        }
+    }
+
+    override suspend fun interruptThread(threadId: String) {
+        val turnId = repositoryState.value.activeTurnIds[threadId] ?: return
+        val currentSession = session ?: return
+        AppLog.action(name = "interrupt_thread", detail = threadId)
+        currentSession.turnInterrupt(
+            threadId = threadId,
+            turnId = turnId,
+        )
+    }
+
+    private suspend fun restoreLocalState(): Unit {
+        val localState = localStateStore.load()
+        repositoryState.update { current ->
+            current.copy(
+                preferences = localState.preferences,
+                hosts = localState.hosts,
+            )
+        }
+
+        if (localState.hosts.any { it.isActive }) {
+            reconnectToActiveHost()
+        }
+    }
+
+    private suspend fun persistLocalState(): Unit {
+        val current = repositoryState.value
+        localStateStore.save(
+            PersistedAppState(
+                preferences = current.preferences,
+                hosts = current.hosts,
+            ),
+        )
+    }
+
+    private suspend fun reconnectToActiveHost(): Unit = connectMutex.withLock {
+        sessionEventsJob?.cancel()
+        sessionEventsJob = null
+        session?.close()
+        session = null
+        pendingApprovalRequests.clear()
+
+        val activeHost = repositoryState.value.hosts.firstOrNull { it.isActive }
+        if (activeHost == null) {
+            repositoryState.update { current ->
+                current.copy(
+                    connection = ConnectionState(phase = ConnectionPhase.Idle),
+                    account = AccountState(),
+                    threads = emptyList(),
+                    threadDetails = emptyMap(),
+                    approvals = emptyList(),
+                    activeTurnIds = emptyMap(),
+                )
+            }
+            return
+        }
+
+        val socketUrl = "ws://${activeHost.address}:${activeHost.port}"
+        repositoryState.update { current ->
+            current.copy(
+                connection = ConnectionState(
+                    activeHostId = activeHost.id,
+                    phase = ConnectionPhase.Connecting,
+                    message = "Connecting to $socketUrl",
+                ),
+                account = AccountState(),
+                threads = emptyList(),
+                threadDetails = emptyMap(),
+                approvals = emptyList(),
+                activeTurnIds = emptyMap(),
+            )
+        }
+
+        val newSession = CodexAppServerSession(
+            transport = CodexJsonRpcTransport(
+                okHttpClient = okHttpClient,
+                url = socketUrl,
+            ),
+            versionName = BuildConfig.VERSION_NAME,
+        )
+
+        runCatching {
+            newSession.connect()
+            val account = newSession.accountRead().toAccountState()
+            val threads = newSession.threadList()
+                .arrayAt("data")
+                ?.map { it.jsonObject.toThreadSummary() }
+                .orEmpty()
+                .syncThreadOrdering()
+
+            session = newSession
+            repositoryState.update { current ->
+                current.copy(
+                    connection = ConnectionState(
+                        activeHostId = activeHost.id,
+                        phase = ConnectionPhase.Connected,
+                        message = socketUrl,
+                    ),
+                    account = account,
+                    threads = threads,
+                    threadDetails = current.threadDetails.syncWithThreads(threads),
+                )
+            }
+
+            sessionEventsJob = applicationScope.launch {
+                newSession.events.collect { event ->
+                    handleTransportEvent(activeHostId = activeHost.id, event = event)
+                }
+            }
+
+            reopenObservedThreads()
+        }.onFailure { error ->
+            newSession.close()
+            session = null
+            repositoryState.update { current ->
+                current.copy(
+                    connection = ConnectionState(
+                        activeHostId = activeHost.id,
+                        phase = ConnectionPhase.Error,
+                        message = error.toConnectionMessage(),
+                    ),
+                    account = AccountState(),
+                    threads = emptyList(),
+                    threadDetails = emptyMap(),
+                    approvals = emptyList(),
+                    activeTurnIds = emptyMap(),
+                )
+            }
+        }
+    }
+
+    private suspend fun reopenObservedThreads(): Unit {
+        val ids = openedThreadIds.toList()
+        ids.forEach { threadId ->
+            runCatching {
+                openThread(threadId)
+            }
+        }
+    }
+
+    private fun handleTransportEvent(
+        activeHostId: String,
+        event: TransportEvent,
+    ): Unit = when (event) {
+        is TransportEvent.Notification -> handleNotification(event.method, event.params)
+        is TransportEvent.ServerRequest -> handleServerRequest(event)
+        is TransportEvent.Closed -> handleTransportClosed(
+            activeHostId = activeHostId,
+            event = event,
+        )
+    }
+
+    private fun handleNotification(
+        method: String,
+        params: kotlinx.serialization.json.JsonObject,
+    ): Unit = when (method) {
+        "thread/status/changed" -> handleThreadStatusChanged(params)
+        "turn/started" -> handleTurnStarted(params)
+        "turn/completed" -> handleTurnCompleted(params)
+        "turn/diff/updated" -> handleTurnDiffUpdated(params)
+        "turn/plan/updated" -> handleTurnPlanUpdated(params)
+        "thread/tokenUsage/updated" -> handleThreadTokenUsageUpdated(params)
+        "item/started" -> handleItemStarted(params)
+        "item/completed" -> handleItemCompleted(params)
+        "item/agentMessage/delta" -> appendAgentDelta(params)
+        "item/plan/delta" -> appendPlanDelta(params)
+        "item/reasoning/summaryTextDelta" -> appendReasoningDelta(params)
+        "item/reasoning/summaryPartAdded" -> appendReasoningSummaryBoundary(params)
+        "item/reasoning/textDelta" -> appendReasoningTextDelta(params)
+        "item/commandExecution/outputDelta" -> appendCommandOutputDelta(params)
+        "item/fileChange/outputDelta" -> appendFileChangeOutputDelta(params)
+        "mcpToolCall/progress" -> handleMcpToolCallProgress(params)
+        "terminal/interaction" -> handleTerminalInteraction(params)
+        "rawResponseItem/completed" -> handleRawResponseItemCompleted(params)
+        "thread/realtime/started" -> handleRealtimeLifecycleActivity(params, title = "Realtime session started")
+        "thread/realtime/itemAdded" -> handleRealtimeItemAdded(params)
+        "thread/realtime/outputAudio/delta" -> handleRealtimeLifecycleActivity(params, title = "Realtime audio output updated")
+        "thread/realtime/error" -> handleRealtimeLifecycleActivity(params, title = "Realtime session error", emphasis = ThreadActivityEmphasis.Error)
+        "thread/realtime/closed" -> handleRealtimeLifecycleActivity(params, title = "Realtime session closed")
+        "serverRequest/resolved" -> handleServerRequestResolved(params)
+        else -> Unit
+    }
+
+    private fun handleServerRequest(request: TransportEvent.ServerRequest): Unit {
+        val wrapper = buildJsonObject {
+            put("method", request.method)
+            put("params", request.params)
+        }
+        val derivedItem = findThreadItem(
+            threadId = request.params.string("threadId").orEmpty(),
+            itemId = request.params.string("itemId").orEmpty(),
+        )
+        val approval = wrapper.toApprovalItem(request.requestId)?.let { base ->
+            when (derivedItem) {
+                is ThreadItem.CommandExecution -> base.copy(
+                    command = base.command ?: derivedItem.command,
+                    cwd = base.cwd ?: derivedItem.cwd,
+                )
+
+                is ThreadItem.FileChange -> base.copy(
+                    filePaths = derivedItem.changes.map { it.path },
+                )
+
+                else -> base
+            }
+        } ?: return
+
+        pendingApprovalRequests[approval.id] = PendingApprovalRequest(
+            requestId = request.requestId,
+            method = request.method,
+        )
+
+        repositoryState.update { current ->
+            current.copy(
+                approvals = (current.approvals.filterNot { it.id == approval.id } + approval)
+                    .sortedBy { it.threadId },
+                threads = current.threads.map { thread ->
+                    if (thread.id == approval.threadId) {
+                        thread.copy(
+                            status = ThreadStatus(
+                                type = ThreadStatusType.Active,
+                                activeFlags = setOf("waitingOnApproval"),
+                            ),
+                        )
+                    } else {
+                        thread
+                    }
+                }.syncThreadOrdering(),
+                threadDetails = current.threadDetails.mapValues { (threadId, detail) ->
+                    if (threadId == approval.threadId) {
+                        detail.copy(
+                            summary = detail.summary.copy(
+                                status = ThreadStatus(
+                                    type = ThreadStatusType.Active,
+                                    activeFlags = setOf("waitingOnApproval"),
+                                ),
+                            ),
+                        )
+                    } else {
+                        detail
+                    }
+                },
+            )
+        }
+    }
+
+    private fun handleTransportClosed(
+        activeHostId: String,
+        event: TransportEvent.Closed,
+    ): Unit {
+        if (repositoryState.value.connection.activeHostId != activeHostId) return
+
+        session = null
+        pendingApprovalRequests.clear()
+        repositoryState.update { current ->
+            current.copy(
+                connection = ConnectionState(
+                    activeHostId = activeHostId,
+                    phase = if (event.isError) ConnectionPhase.Error else ConnectionPhase.Disconnected,
+                    message = event.message ?: if (event.isError) "Connection lost." else "Disconnected.",
+                ),
+                account = AccountState(),
+                approvals = emptyList(),
+                activeTurnIds = emptyMap(),
+            )
+        }
+    }
+
+    private fun handleThreadStatusChanged(params: kotlinx.serialization.json.JsonObject): Unit {
+        val threadId = params.string("threadId") ?: return
+        val status = params.objectAt("status")?.toThreadStatus() ?: return
+        repositoryState.update { current ->
+            current.copy(
+                threads = current.threads.map { thread ->
+                    if (thread.id == threadId) thread.copy(status = status) else thread
+                }.syncThreadOrdering(),
+                threadDetails = current.threadDetails.mapValues { (id, detail) ->
+                    if (id == threadId) {
+                        detail.copy(summary = detail.summary.copy(status = status))
+                    } else {
+                        detail
+                    }
+                },
+            )
+        }
+        appendActivity(
+            threadId = threadId,
+            activity = ThreadActivity(
+                id = "thread-status-$threadId-${status.type.name}",
+                title = "Thread status changed",
+                detail = statusLabel(status),
+                emphasis = when (status.type) {
+                    ThreadStatusType.Active -> ThreadActivityEmphasis.Active
+                    ThreadStatusType.SystemError -> ThreadActivityEmphasis.Error
+                    else -> ThreadActivityEmphasis.Neutral
+                },
+            ),
+        )
+    }
+
+    private fun handleTurnStarted(params: kotlinx.serialization.json.JsonObject): Unit {
+        val threadId = params.string("threadId") ?: return
+        val turnId = params.objectAt("turn")?.string("id") ?: return
+        repositoryState.update { current ->
+            current.copy(
+                activeTurnIds = current.activeTurnIds + (threadId to turnId),
+            )
+        }
+        appendActivity(
+            threadId = threadId,
+            activity = ThreadActivity(
+                id = "turn-started-$turnId",
+                title = "Turn started",
+                detail = turnId,
+                emphasis = ThreadActivityEmphasis.Active,
+            ),
+        )
+    }
+
+    private fun handleTurnCompleted(params: kotlinx.serialization.json.JsonObject): Unit {
+        val threadId = params.string("threadId") ?: return
+        val turn = params.objectAt("turn") ?: return
+        val turnId = turn.string("id") ?: return
+        repositoryState.update { current ->
+            if (current.activeTurnIds[threadId] != turnId) {
+                current
+            } else {
+                current.copy(
+                    activeTurnIds = current.activeTurnIds - threadId,
+                )
+            }
+        }
+        val turnStatus = turn.string("status").orEmpty()
+        val turnError = turn.objectAt("error")?.string("message")
+        appendActivity(
+            threadId = threadId,
+            activity = ThreadActivity(
+                id = "turn-completed-$turnId",
+                title = "Turn $turnStatus",
+                detail = turnError ?: turnId,
+                emphasis = when (turnStatus) {
+                    "completed" -> ThreadActivityEmphasis.Success
+                    "failed" -> ThreadActivityEmphasis.Error
+                    "interrupted" -> ThreadActivityEmphasis.Warning
+                    else -> ThreadActivityEmphasis.Neutral
+                },
+            ),
+        )
+    }
+
+    private fun handleTurnDiffUpdated(params: kotlinx.serialization.json.JsonObject): Unit {
+        val threadId = params.string("threadId") ?: return
+        appendActivity(
+            threadId = threadId,
+            activity = ThreadActivity(
+                id = "turn-diff-${params.string("turnId").orEmpty()}",
+                title = "Unified diff updated",
+                detail = params.string("diff"),
+                emphasis = ThreadActivityEmphasis.Active,
+            ),
+        )
+    }
+
+    private fun handleTurnPlanUpdated(params: kotlinx.serialization.json.JsonObject): Unit {
+        val threadId = params.string("threadId") ?: return
+        val explanation = params.string("explanation")
+        val planLines = params.arrayAt("plan")
+            ?.mapNotNull { entry ->
+                val jsonEntry = entry.jsonObject
+                val step = jsonEntry.string("step")
+                val status = jsonEntry.string("status")
+                if (step == null || status == null) null else "[$status] $step"
+            }
+            .orEmpty()
+            .joinToString(separator = "\n")
+        appendActivity(
+            threadId = threadId,
+            activity = ThreadActivity(
+                id = "turn-plan-${params.string("turnId").orEmpty()}",
+                title = "Turn plan updated",
+                detail = listOfNotNull(explanation, planLines.takeIf { it.isNotBlank() }).joinToString(separator = "\n\n").ifBlank { null },
+                emphasis = ThreadActivityEmphasis.Active,
+            ),
+        )
+    }
+
+    private fun handleThreadTokenUsageUpdated(params: kotlinx.serialization.json.JsonObject): Unit {
+        val threadId = params.string("threadId") ?: return
+        val tokenUsage = params.objectAt("tokenUsage") ?: return
+        val total = tokenUsage.objectAt("total")
+        val last = tokenUsage.objectAt("last")
+        val detail = buildString {
+            last?.let { lastUsage ->
+                append("Last turn: ")
+                append(lastUsage.long("totalTokens") ?: 0L)
+                append(" total tokens")
+            }
+            total?.let { totalUsage ->
+                if (isNotBlank()) append('\n')
+                append("Thread total: ")
+                append(totalUsage.long("totalTokens") ?: 0L)
+                append(" total tokens")
+            }
+        }.ifBlank { null }
+        appendActivity(
+            threadId = threadId,
+            activity = ThreadActivity(
+                id = "token-usage-${params.string("turnId").orEmpty()}",
+                title = "Token usage updated",
+                detail = detail,
+            ),
+        )
+    }
+
+    private fun handleItemStarted(params: kotlinx.serialization.json.JsonObject): Unit {
+        val threadId = params.string("threadId") ?: return
+        val item = params.objectAt("item")?.toThreadItem() ?: return
+        upsertThreadItem(
+            threadId = threadId,
+            item = item,
+            replaceExisting = false,
+        )
+    }
+
+    private fun handleItemCompleted(params: kotlinx.serialization.json.JsonObject): Unit {
+        val threadId = params.string("threadId") ?: return
+        val item = params.objectAt("item")?.toThreadItem() ?: return
+        upsertThreadItem(
+            threadId = threadId,
+            item = item,
+            replaceExisting = true,
+        )
+    }
+
+    private fun appendAgentDelta(params: kotlinx.serialization.json.JsonObject): Unit {
+        appendToThreadItem(
+            threadId = params.string("threadId") ?: return,
+            itemId = params.string("itemId") ?: return,
+            delta = params.string("delta").orEmpty(),
+        ) { item, delta ->
+            when (item) {
+                is ThreadItem.AgentMessage -> item.copy(text = item.text + delta)
+                null -> ThreadItem.AgentMessage(
+                    id = params.string("itemId").orEmpty(),
+                    text = delta,
+                )
+
+                else -> item
+            }
+        }
+    }
+
+    private fun appendPlanDelta(params: kotlinx.serialization.json.JsonObject): Unit {
+        appendToThreadItem(
+            threadId = params.string("threadId") ?: return,
+            itemId = params.string("itemId") ?: return,
+            delta = params.string("delta").orEmpty(),
+        ) { item, delta ->
+            when (item) {
+                is ThreadItem.Plan -> item.copy(text = item.text + delta)
+                null -> ThreadItem.Plan(
+                    id = params.string("itemId").orEmpty(),
+                    text = delta,
+                )
+
+                else -> item
+            }
+        }
+    }
+
+    private fun appendReasoningDelta(params: kotlinx.serialization.json.JsonObject): Unit {
+        appendToThreadItem(
+            threadId = params.string("threadId") ?: return,
+            itemId = params.string("itemId") ?: return,
+            delta = params.string("delta").orEmpty(),
+        ) { item, delta ->
+            when (item) {
+                is ThreadItem.Reasoning -> {
+                    val updatedSections = if (item.summarySections.isEmpty()) {
+                        listOf(delta)
+                    } else {
+                        item.summarySections.dropLast(1) + (item.summarySections.last() + delta)
+                    }
+                    item.copy(
+                        summary = updatedSections.joinToString(separator = "\n"),
+                        summarySections = updatedSections,
+                    )
+                }
+
+                null -> ThreadItem.Reasoning(
+                    id = params.string("itemId").orEmpty(),
+                    summary = delta,
+                    summarySections = listOf(delta),
+                )
+
+                else -> item
+            }
+        }
+    }
+
+    private fun appendReasoningSummaryBoundary(params: kotlinx.serialization.json.JsonObject): Unit {
+        appendToThreadItem(
+            threadId = params.string("threadId") ?: return,
+            itemId = params.string("itemId") ?: return,
+            delta = "",
+        ) { item, _ ->
+            when (item) {
+                is ThreadItem.Reasoning -> item.copy(
+                    summarySections = item.summarySections + "",
+                )
+
+                null -> ThreadItem.Reasoning(
+                    id = params.string("itemId").orEmpty(),
+                    summary = "",
+                    summarySections = listOf(""),
+                )
+
+                else -> item
+            }
+        }
+    }
+
+    private fun appendReasoningTextDelta(params: kotlinx.serialization.json.JsonObject): Unit {
+        appendToThreadItem(
+            threadId = params.string("threadId") ?: return,
+            itemId = params.string("itemId") ?: return,
+            delta = params.string("delta").orEmpty(),
+        ) { item, delta ->
+            when (item) {
+                is ThreadItem.Reasoning -> item.copy(
+                    contentText = item.contentText + delta,
+                )
+
+                null -> ThreadItem.Reasoning(
+                    id = params.string("itemId").orEmpty(),
+                    summary = "",
+                    contentText = delta,
+                )
+
+                else -> item
+            }
+        }
+    }
+
+    private fun appendCommandOutputDelta(params: kotlinx.serialization.json.JsonObject): Unit {
+        appendToThreadItem(
+            threadId = params.string("threadId") ?: return,
+            itemId = params.string("itemId") ?: return,
+            delta = params.string("delta").orEmpty(),
+        ) { item, delta ->
+            when (item) {
+                is ThreadItem.CommandExecution -> item.copy(
+                    aggregatedOutput = (item.aggregatedOutput ?: "") + delta,
+                )
+
+                else -> item
+            }
+        }
+    }
+
+    private fun appendFileChangeOutputDelta(params: kotlinx.serialization.json.JsonObject): Unit {
+        appendToThreadItem(
+            threadId = params.string("threadId") ?: return,
+            itemId = params.string("itemId") ?: return,
+            delta = params.elementAt("delta")?.toDisplayJson() ?: params.string("delta").orEmpty(),
+        ) { item, delta ->
+            when (item) {
+                is ThreadItem.FileChange -> item.copy(
+                    toolOutput = (item.toolOutput ?: "") + delta,
+                )
+
+                else -> item
+            }
+        }
+    }
+
+    private fun handleMcpToolCallProgress(params: kotlinx.serialization.json.JsonObject): Unit {
+        appendToThreadItem(
+            threadId = params.string("threadId") ?: return,
+            itemId = params.string("itemId") ?: return,
+            delta = params.string("message").orEmpty(),
+        ) { item, delta ->
+            when (item) {
+                is ThreadItem.McpToolCall -> item.copy(
+                    progressMessages = item.progressMessages + delta,
+                )
+
+                else -> item
+            }
+        }
+    }
+
+    private fun handleTerminalInteraction(params: kotlinx.serialization.json.JsonObject): Unit {
+        appendToThreadItem(
+            threadId = params.string("threadId") ?: return,
+            itemId = params.string("itemId") ?: return,
+            delta = params.string("stdin").orEmpty(),
+        ) { item, delta ->
+            when (item) {
+                is ThreadItem.CommandExecution -> item.copy(
+                    interactions = item.interactions + delta,
+                )
+
+                else -> item
+            }
+        }
+    }
+
+    private fun handleRawResponseItemCompleted(params: kotlinx.serialization.json.JsonObject): Unit {
+        val threadId = params.string("threadId") ?: return
+        appendActivity(
+            threadId = threadId,
+            activity = ThreadActivity(
+                id = "raw-response-${params.string("turnId").orEmpty()}",
+                title = "Raw response item received",
+                detail = params.objectAt("item")?.toDisplayJson(),
+            ),
+        )
+    }
+
+    private fun handleRealtimeItemAdded(params: kotlinx.serialization.json.JsonObject): Unit {
+        val threadId = params.string("threadId") ?: return
+        appendActivity(
+            threadId = threadId,
+            activity = ThreadActivity(
+                id = "realtime-item-$threadId",
+                title = "Realtime item added",
+                detail = params.elementAt("item")?.toDisplayJson(),
+                emphasis = ThreadActivityEmphasis.Active,
+            ),
+        )
+    }
+
+    private fun handleRealtimeLifecycleActivity(
+        params: kotlinx.serialization.json.JsonObject,
+        title: String,
+        emphasis: ThreadActivityEmphasis = ThreadActivityEmphasis.Neutral,
+    ): Unit {
+        val threadId = params.string("threadId") ?: return
+        appendActivity(
+            threadId = threadId,
+            activity = ThreadActivity(
+                id = "$title-$threadId",
+                title = title,
+                detail = params.toDisplayJson(),
+                emphasis = emphasis,
+            ),
+        )
+    }
+
+    private fun handleServerRequestResolved(params: kotlinx.serialization.json.JsonObject): Unit {
+        val approvalId = params["requestId"]?.jsonPrimitive?.content ?: return
+        pendingApprovalRequests.remove(approvalId)
+        repositoryState.update { current ->
+            val remainingApprovals = current.approvals.filterNot { it.id == approvalId }
+            current.copy(
+                approvals = remainingApprovals,
+                threads = current.threads.map { thread ->
+                    if (
+                        thread.status.isWaitingOnApproval &&
+                        remainingApprovals.none { it.threadId == thread.id }
+                    ) {
+                        val activeTurnId = current.activeTurnIds[thread.id]
+                        thread.copy(
+                            status = if (activeTurnId != null) {
+                                ThreadStatus(type = ThreadStatusType.Active)
+                            } else {
+                                ThreadStatus(type = ThreadStatusType.Idle)
+                            },
+                        )
+                    } else {
+                        thread
+                    }
+                }.syncThreadOrdering(),
+                threadDetails = current.threadDetails.mapValues { (threadId, detail) ->
+                    if (
+                        detail.summary.status.isWaitingOnApproval &&
+                        remainingApprovals.none { it.threadId == threadId }
+                    ) {
+                        val activeTurnId = current.activeTurnIds[threadId]
+                        detail.copy(
+                            summary = detail.summary.copy(
+                                status = if (activeTurnId != null) {
+                                    ThreadStatus(type = ThreadStatusType.Active)
+                                } else {
+                                    ThreadStatus(type = ThreadStatusType.Idle)
+                                },
+                            ),
+                        )
+                    } else {
+                        detail
+                    }
+                },
+            )
+        }
+    }
+
+    private fun upsertThreadItem(
+        threadId: String,
+        item: ThreadItem,
+        replaceExisting: Boolean,
+    ): Unit {
+        repositoryState.update { current ->
+            val detail = current.threadDetails[threadId] ?: return@update current
+            val newItems = detail.items.toMutableList()
+            val existingIndex = newItems.indexOfFirst { existing -> existing.id == item.id }
+            if (existingIndex >= 0) {
+                newItems[existingIndex] = item
+            } else {
+                newItems += item
+            }
+
+            val updatedDetail = detail.copy(
+                summary = detail.summary.copy(preview = previewForItem(item, detail.summary.preview)),
+                items = newItems,
+            )
+            current.copy(
+                threadDetails = current.threadDetails + (threadId to updatedDetail),
+                threads = current.threads.map { thread ->
+                    if (thread.id == threadId) {
+                        updatedDetail.summary.copy(
+                            updatedAtEpochSeconds = currentEpochSeconds(),
+                        )
+                    } else {
+                        thread
+                    }
+                }.syncThreadOrdering(),
+            )
+        }
+    }
+
+    private fun appendToThreadItem(
+        threadId: String,
+        itemId: String,
+        delta: String,
+        transform: (ThreadItem?, String) -> ThreadItem?,
+    ): Unit {
+        repositoryState.update { current ->
+            val detail = current.threadDetails[threadId] ?: return@update current
+            val newItems = detail.items.toMutableList()
+            val existingIndex = newItems.indexOfFirst { item -> item.id == itemId }
+            val existingItem = newItems.getOrNull(existingIndex)
+            val transformedItem = transform(existingItem, delta) ?: return@update current
+            if (existingIndex >= 0) {
+                newItems[existingIndex] = transformedItem
+            } else {
+                newItems += transformedItem
+            }
+            val updatedDetail = detail.copy(
+                summary = detail.summary.copy(
+                    preview = previewForItem(transformedItem, detail.summary.preview),
+                ),
+                items = newItems,
+            )
+            current.copy(
+                threadDetails = current.threadDetails + (threadId to updatedDetail),
+                threads = current.threads.map { thread ->
+                    if (thread.id == threadId) {
+                        updatedDetail.summary.copy(
+                            updatedAtEpochSeconds = currentEpochSeconds(),
+                        )
+                    } else {
+                        thread
+                    }
+                }.syncThreadOrdering(),
+            )
+        }
+    }
+
+    private fun appendActivity(
+        threadId: String,
+        activity: ThreadActivity,
+    ) {
+        repositoryState.update { current ->
+            val detail = current.threadDetails[threadId] ?: return@update current
+            val updatedActivities = (detail.activities.filterNot { it.id == activity.id } + activity)
+                .takeLast(MAX_THREAD_ACTIVITIES)
+            current.copy(
+                threadDetails = current.threadDetails + (
+                    threadId to detail.copy(activities = updatedActivities)
+                    ),
+            )
+        }
+    }
+
+    private fun applyThreadSnapshot(thread: kotlinx.serialization.json.JsonObject): Unit {
+        val detail = thread.toThreadDetail()
+        val activeTurnId = thread.extractActiveTurnId()
+        repositoryState.update { current ->
+            val existingDetail = current.threadDetails[detail.summary.id]
+            val mergedDetail = detail.copy(
+                activities = existingDetail?.activities.orEmpty(),
+            )
+            current.copy(
+                threads = current.threads
+                    .filterNot { it.id == mergedDetail.summary.id }
+                    .plus(mergedDetail.summary)
+                    .syncThreadOrdering(),
+                threadDetails = (current.threadDetails + (mergedDetail.summary.id to mergedDetail))
+                    .syncWithThreads(
+                        current.threads
+                            .filterNot { it.id == mergedDetail.summary.id }
+                            .plus(mergedDetail.summary)
+                            .syncThreadOrdering(),
+                    ),
+                activeTurnIds = if (activeTurnId == null) {
+                    current.activeTurnIds - mergedDetail.summary.id
+                } else {
+                    current.activeTurnIds + (mergedDetail.summary.id to activeTurnId)
+                },
+            )
+        }
+    }
+
+    private fun findThreadItem(
+        threadId: String,
+        itemId: String,
+    ): ThreadItem? = repositoryState.value.threadDetails[threadId]
+        ?.items
+        ?.firstOrNull { item -> item.id == itemId }
+}
+
+private fun List<ThreadSummary>.syncThreadOrdering(): List<ThreadSummary> = distinctBy { it.id }
+    .sortedByDescending { it.updatedAtEpochSeconds }
+
+private fun Map<String, ThreadDetail>.syncWithThreads(
+    threads: List<ThreadSummary>,
+): Map<String, ThreadDetail> {
+    val threadsById = threads.associateBy { it.id }
+    return mapValues { (threadId, detail) ->
+        val summary = threadsById[threadId] ?: detail.summary
+        detail.copy(summary = summary)
+    }
+}
+
+private fun inferHostKind(name: String): HostKind = if (
+    name.contains("book", ignoreCase = true) ||
+    name.contains("laptop", ignoreCase = true)
+) {
+    HostKind.Laptop
+} else {
+    HostKind.Desktop
+}
+
+private fun hostId(
+    name: String,
+    address: String,
+    port: Int,
+): String = "${name.lowercase().replace(" ", "-")}-$address-$port"
+
+private const val MAX_THREAD_ACTIVITIES: Int = 40
+
+private fun currentEpochSeconds(): Long = System.currentTimeMillis() / 1_000
+
+private fun Throwable.toConnectionMessage(): String = when (this) {
+    is UnknownHostException -> "Host not found."
+    else -> message ?: "Unable to connect to app-server."
+}
+
+private fun statusLabel(status: ThreadStatus): String = when {
+    status.isWaitingOnApproval -> "Waiting on approval"
+    status.type == ThreadStatusType.Active -> "Active"
+    status.type == ThreadStatusType.SystemError -> "System error"
+    status.type == ThreadStatusType.Idle -> "Idle"
+    else -> "Not loaded"
+}
+
+private fun previewForItem(
+    item: ThreadItem,
+    fallback: String,
+): String = when (item) {
+    is ThreadItem.UserMessage -> item.text
+    is ThreadItem.AgentMessage -> item.text
+    is ThreadItem.Plan -> item.text
+    is ThreadItem.Reasoning -> item.summary.ifBlank { fallback }
+    is ThreadItem.CommandExecution -> item.command.ifBlank { fallback }
+    is ThreadItem.FileChange -> item.changes.firstOrNull()?.path ?: fallback
+    is ThreadItem.McpToolCall -> "${item.server}/${item.tool}".ifBlank { fallback }
+    is ThreadItem.DynamicToolCall -> item.tool.ifBlank { fallback }
+    is ThreadItem.CollabToolCall -> item.tool.ifBlank { fallback }
+    is ThreadItem.WebSearch -> item.query.ifBlank { fallback }
+    is ThreadItem.ImageView -> item.path.ifBlank { fallback }
+    is ThreadItem.ImageGeneration -> item.result.ifBlank { fallback }
+    is ThreadItem.ReviewMode -> item.review.ifBlank { fallback }
+    is ThreadItem.ContextCompaction -> "Conversation compacted"
+    is ThreadItem.Unknown -> item.typeName.ifBlank { fallback }
+}
