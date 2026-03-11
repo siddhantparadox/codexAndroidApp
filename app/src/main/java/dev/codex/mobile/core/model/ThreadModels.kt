@@ -1,5 +1,8 @@
 package dev.codex.mobile.core.model
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class ThreadStatusType {
     NotLoaded,
     Idle,
@@ -7,6 +10,7 @@ enum class ThreadStatusType {
     SystemError,
 }
 
+@Serializable
 data class ThreadStatus(
     val type: ThreadStatusType,
     val activeFlags: Set<String> = emptySet(),
@@ -29,51 +33,62 @@ data class ThreadSummary(
     val status: ThreadStatus,
 )
 
+@Serializable
 sealed interface UserInputContent {
+    @Serializable
     data class Text(
         val text: String,
         val placeholders: List<String> = emptyList(),
     ) : UserInputContent
 
+    @Serializable
     data class Image(
         val url: String,
     ) : UserInputContent
 
+    @Serializable
     data class LocalImage(
         val path: String,
     ) : UserInputContent
 
+    @Serializable
     data class Skill(
         val name: String,
         val path: String,
     ) : UserInputContent
 
+    @Serializable
     data class Mention(
         val name: String,
         val path: String,
     ) : UserInputContent
 }
 
+@Serializable
 sealed interface ThreadItem {
     val id: String
 
+    @Serializable
     data class UserMessage(
         override val id: String,
         val text: String,
         val content: List<UserInputContent> = listOf(UserInputContent.Text(text)),
     ) : ThreadItem
 
+    @Serializable
     data class AgentMessage(
         override val id: String,
         val text: String,
         val phase: String? = null,
     ) : ThreadItem
 
+    @Serializable
     data class Plan(
         override val id: String,
         val text: String,
     ) : ThreadItem
 
+    @Serializable
     data class Reasoning(
         override val id: String,
         val summary: String,
@@ -81,6 +96,7 @@ sealed interface ThreadItem {
         val contentText: String = "",
     ) : ThreadItem
 
+    @Serializable
     data class CommandExecution(
         override val id: String,
         val command: String,
@@ -94,6 +110,7 @@ sealed interface ThreadItem {
         val interactions: List<String> = emptyList(),
     ) : ThreadItem
 
+    @Serializable
     data class FileChange(
         override val id: String,
         val changes: List<FileChangeEntry>,
@@ -101,6 +118,7 @@ sealed interface ThreadItem {
         val toolOutput: String? = null,
     ) : ThreadItem
 
+    @Serializable
     data class McpToolCall(
         override val id: String,
         val server: String,
@@ -113,6 +131,7 @@ sealed interface ThreadItem {
         val progressMessages: List<String> = emptyList(),
     ) : ThreadItem
 
+    @Serializable
     data class DynamicToolCall(
         override val id: String,
         val tool: String,
@@ -123,6 +142,7 @@ sealed interface ThreadItem {
         val durationMs: Long? = null,
     ) : ThreadItem
 
+    @Serializable
     data class CollabToolCall(
         override val id: String,
         val tool: String,
@@ -133,17 +153,20 @@ sealed interface ThreadItem {
         val agentStates: List<CollabAgentState> = emptyList(),
     ) : ThreadItem
 
+    @Serializable
     data class WebSearch(
         override val id: String,
         val query: String,
         val actionLabel: String? = null,
     ) : ThreadItem
 
+    @Serializable
     data class ImageView(
         override val id: String,
         val path: String,
     ) : ThreadItem
 
+    @Serializable
     data class ImageGeneration(
         override val id: String,
         val result: String,
@@ -151,16 +174,19 @@ sealed interface ThreadItem {
         val revisedPrompt: String? = null,
     ) : ThreadItem
 
+    @Serializable
     data class ReviewMode(
         override val id: String,
         val review: String,
         val entered: Boolean,
     ) : ThreadItem
 
+    @Serializable
     data class ContextCompaction(
         override val id: String,
     ) : ThreadItem
 
+    @Serializable
     data class Unknown(
         override val id: String,
         val typeName: String,
@@ -168,6 +194,7 @@ sealed interface ThreadItem {
     ) : ThreadItem
 }
 
+@Serializable
 enum class ThreadItemStatus {
     InProgress,
     Completed,
@@ -175,6 +202,7 @@ enum class ThreadItemStatus {
     Declined,
 }
 
+@Serializable
 data class CommandActionHint(
     val type: String,
     val command: String,
@@ -183,22 +211,27 @@ data class CommandActionHint(
     val name: String? = null,
 )
 
+@Serializable
 data class FileChangeEntry(
     val path: String,
     val kind: String,
     val diff: String,
 )
 
+@Serializable
 sealed interface ToolContentItem {
+    @Serializable
     data class Text(
         val text: String,
     ) : ToolContentItem
 
+    @Serializable
     data class Image(
         val imageUrl: String,
     ) : ToolContentItem
 }
 
+@Serializable
 data class CollabAgentState(
     val threadId: String,
     val status: String,

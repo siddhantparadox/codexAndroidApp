@@ -3,6 +3,7 @@ package dev.codex.mobile.core.data.local
 import android.content.Context
 import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.HostProfile
+import dev.codex.mobile.core.model.ThreadItem
 import java.io.File
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,7 @@ import kotlinx.serialization.json.Json
 internal data class PersistedAppState(
     val preferences: AppPreferences = AppPreferences(),
     val hosts: List<HostProfile> = emptyList(),
+    val threadItemCache: Map<String, List<ThreadItem>> = emptyMap(),
 )
 
 internal class AppLocalStateStore(

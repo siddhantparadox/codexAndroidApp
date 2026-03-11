@@ -28,6 +28,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
@@ -80,6 +81,9 @@ internal class AppServerCodexRepository(
 
     @Volatile
     private var sessionEventsJob: Job? = null
+
+    @Volatile
+    private var persistStateJob: Job? = null
 
     init {
         applicationScope.launch {
@@ -277,10 +281,16 @@ internal class AppServerCodexRepository(
 
     private suspend fun restoreLocalState(): Unit {
         val localState = localStateStore.load()
+        AppLog.action(name = "restore_local_state", detail = "cachedThreads=${localState.threadItemCache.size}")
         repositoryState.update { current ->
+            val hydratedThreadDetails = current.threadDetails.mapValues { (threadId, detail) ->
+                detail.copy(items = localState.threadItemCache[threadId].orEmpty().ifEmpty { detail.items })
+            }
             current.copy(
                 preferences = localState.preferences,
                 hosts = localState.hosts,
+                threadDetails = hydratedThreadDetails,
+                threadItemCache = localState.threadItemCache,
             )
         }
 
@@ -295,13 +305,29 @@ internal class AppServerCodexRepository(
             PersistedAppState(
                 preferences = current.preferences,
                 hosts = current.hosts,
+                threadItemCache = current.threadItemCache,
             ),
         )
+        AppLog.action(name = "persist_local_state", detail = "cachedThreads=${current.threadItemCache.size}")
+    }
+
+    private fun schedulePersistLocalState(): Unit {
+        persistStateJob?.cancel()
+        persistStateJob = applicationScope.launch(ioDispatcher) {
+            delay(350)
+            persistLocalState()
+        }
+    }
+
+    private fun flushPersistLocalState(): Unit {
+        persistStateJob?.cancel()
+        persistStateJob = applicationScope.launch(ioDispatcher) {
+            persistLocalState()
+        }
     }
 
     private suspend fun reconnectToActiveHost(): Unit = connectMutex.withLock {
         val previousActiveHostId = repositoryState.value.connection.activeHostId
-        val preserveThreadCache = previousActiveHostId != null && previousActiveHostId == repositoryState.value.hosts.firstOrNull { it.isActive }?.id
         sessionEventsJob?.cancel()
         sessionEventsJob = null
         session?.close()
@@ -309,19 +335,25 @@ internal class AppServerCodexRepository(
         pendingApprovalRequests.clear()
 
         val activeHost = repositoryState.value.hosts.firstOrNull { it.isActive }
+        val preserveThreadCache = shouldPreserveThreadCache(
+            previousActiveHostId = previousActiveHostId,
+            nextActiveHostId = activeHost?.id,
+            currentThreadItemCache = repositoryState.value.threadItemCache,
+        )
         if (activeHost == null) {
             repositoryState.update { current ->
                 current.copy(
-                connection = ConnectionState(phase = ConnectionPhase.Idle),
-                account = AccountState(),
+                    connection = ConnectionState(phase = ConnectionPhase.Idle),
+                    account = AccountState(),
                 threads = emptyList(),
                 threadDetails = emptyMap(),
                 threadItemCache = emptyMap(),
                 approvals = emptyList(),
-                activeTurnIds = emptyMap(),
-            )
-        }
-        return
+                    activeTurnIds = emptyMap(),
+                )
+            }
+            schedulePersistLocalState()
+            return
         }
 
         val socketUrl = "ws://${activeHost.address}:${activeHost.port}"
@@ -340,6 +372,7 @@ internal class AppServerCodexRepository(
                 activeTurnIds = emptyMap(),
             )
         }
+        schedulePersistLocalState()
 
         val newSession = CodexAppServerSession(
             transport = CodexJsonRpcTransport(
@@ -396,6 +429,7 @@ internal class AppServerCodexRepository(
                     activeTurnIds = emptyMap(),
                 )
             }
+            schedulePersistLocalState()
         }
     }
 
@@ -700,6 +734,7 @@ internal class AppServerCodexRepository(
             item = item,
             replaceExisting = true,
         )
+        flushPersistLocalState()
     }
 
     private fun appendAgentDelta(params: kotlinx.serialization.json.JsonObject): Unit {
@@ -998,6 +1033,7 @@ internal class AppServerCodexRepository(
                 }.syncThreadOrdering(),
             )
         }
+        schedulePersistLocalState()
     }
 
     private fun appendToThreadItem(
@@ -1044,6 +1080,7 @@ internal class AppServerCodexRepository(
                 }.syncThreadOrdering(),
             )
         }
+        schedulePersistLocalState()
     }
 
     private fun appendActivity(
@@ -1095,6 +1132,7 @@ internal class AppServerCodexRepository(
                 },
             )
         }
+        flushPersistLocalState()
     }
 
     private fun findThreadItem(
@@ -1105,7 +1143,7 @@ internal class AppServerCodexRepository(
         ?.firstOrNull { item -> item.id == itemId }
 }
 
-private fun mergeThreadItems(
+internal fun mergeThreadItems(
     existingItems: List<ThreadItem>,
     snapshotItems: List<ThreadItem>,
 ): List<ThreadItem> {
@@ -1124,6 +1162,17 @@ private fun mergeThreadItems(
             .filterNot { it.id in existingIds }
             .forEach(::add)
     }
+}
+
+internal fun shouldPreserveThreadCache(
+    previousActiveHostId: String?,
+    nextActiveHostId: String?,
+    currentThreadItemCache: Map<String, List<ThreadItem>>,
+): Boolean = when {
+    nextActiveHostId == null -> false
+    previousActiveHostId == nextActiveHostId -> true
+    previousActiveHostId == null && currentThreadItemCache.isNotEmpty() -> true
+    else -> false
 }
 
 private fun List<ThreadSummary>.syncThreadOrdering(): List<ThreadSummary> = distinctBy { it.id }
