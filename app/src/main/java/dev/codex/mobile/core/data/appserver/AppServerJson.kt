@@ -50,9 +50,19 @@ internal fun JsonObject.int(name: String): Int? = this[name]
     ?.jsonPrimitive
     ?.intOrNull
 
-internal fun JsonObject.objectAt(name: String): JsonObject? = this[name]?.jsonObject
+internal fun JsonObject.objectAt(name: String): JsonObject? = when (val element = this[name]) {
+    null -> null
+    JsonNull -> null
+    is JsonObject -> element
+    else -> null
+}
 
-internal fun JsonObject.arrayAt(name: String): JsonArray? = this[name]?.jsonArray
+internal fun JsonObject.arrayAt(name: String): JsonArray? = when (val element = this[name]) {
+    null -> null
+    JsonNull -> null
+    is JsonArray -> element
+    else -> null
+}
 
 internal fun JsonObject.elementAt(name: String): JsonElement? = this[name]
 

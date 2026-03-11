@@ -48,6 +48,7 @@ import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.util.AppLog
 import dev.codex.mobile.core.model.ApprovalItem
+import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
@@ -74,15 +75,16 @@ fun ThreadDetailScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         } else {
+            val visibleItems = detail.items.filter(::shouldRenderTranscriptItem)
             val approvalsByItem = uiState.approvals
-                .filter { approval -> detail.items.any { item -> item.id == approval.itemId } }
+                .filter { approval -> visibleItems.any { item -> item.id == approval.itemId } }
                 .groupBy { approval -> approval.itemId }
             val orphanApprovals = uiState.approvals.filter { approval ->
-                detail.items.none { item -> item.id == approval.itemId }
+                visibleItems.none { item -> item.id == approval.itemId }
             }
-            val latestTranscriptEntryId = detail.items.lastOrNull()?.id ?: orphanApprovals.lastOrNull()?.id
+            val latestTranscriptEntryId = visibleItems.lastOrNull()?.id ?: orphanApprovals.lastOrNull()?.id
             val activityRowCount = if (detail.activities.isEmpty()) 0 else 1
-            val transcriptRowCount = if (detail.items.isEmpty()) 1 else detail.items.size
+            val transcriptRowCount = if (visibleItems.isEmpty()) 1 else visibleItems.size
             val totalTranscriptRows = 1 + activityRowCount + transcriptRowCount + orphanApprovals.size
 
             LaunchedEffect(detail.summary.id, latestTranscriptEntryId, totalTranscriptRows) {
@@ -129,13 +131,13 @@ fun ThreadDetailScreen(
                         ThreadActivityPanel(activities = detail.activities)
                     }
                 }
-                if (detail.items.isEmpty()) {
+                if (visibleItems.isEmpty()) {
                     item {
                         EmptyTranscriptState()
                     }
                 } else {
                     items(
-                        items = detail.items,
+                        items = visibleItems,
                         key = { item -> item.id },
                     ) { entry ->
                         ThreadTranscriptEntry(
@@ -343,4 +345,9 @@ private fun androidx.compose.foundation.lazy.LazyListState.isNearBottom(totalRow
     if (totalRows <= 1) return true
     val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return true
     return lastVisibleIndex >= totalRows - 3
+}
+
+private fun shouldRenderTranscriptItem(item: ThreadItem): Boolean = when (item) {
+    is ThreadItem.Reasoning -> item.summary.isNotBlank() || item.contentText.isNotBlank()
+    else -> true
 }

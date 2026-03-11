@@ -341,15 +341,25 @@ private fun JsonArray?.toUserInputContents(): List<UserInputContent> = this
     }
     .orEmpty()
 
-private fun List<UserInputContent>.toUserInputText(): String = joinToString(separator = "\n") { item ->
-    when (item) {
-        is UserInputContent.Text -> item.text
-        is UserInputContent.Image -> "[Image] ${item.url}"
-        is UserInputContent.LocalImage -> "[Local image] ${item.path}"
-        is UserInputContent.Skill -> "[Skill] ${item.name}"
-        is UserInputContent.Mention -> "[Mention] ${item.name}"
+private fun List<UserInputContent>.toUserInputText(): String {
+    val textContent = filterIsInstance<UserInputContent.Text>()
+        .joinToString(separator = "\n") { it.text }
+        .trim()
+
+    if (textContent.isNotBlank()) {
+        return textContent
     }
-}.ifBlank { "User input" }
+
+    val imageCount = count { it is UserInputContent.Image || it is UserInputContent.LocalImage }
+    return when {
+        imageCount == 1 && size == 1 -> "Image attached"
+        imageCount > 1 && imageCount == size -> "$imageCount images attached"
+        size == 1 && firstOrNull() is UserInputContent.Skill -> "Skill attached"
+        size == 1 && firstOrNull() is UserInputContent.Mention -> "App attached"
+        size > 0 -> "$size attachment(s)"
+        else -> "User input"
+    }
+}
 
 private fun JsonObject.toToolContentItemOrNull(): ToolContentItem? = when (string("type")) {
     "inputText" -> ToolContentItem.Text(text = string("text").orEmpty())

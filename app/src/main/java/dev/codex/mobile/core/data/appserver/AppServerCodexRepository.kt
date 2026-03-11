@@ -49,6 +49,7 @@ private data class RepositoryState(
     val account: AccountState = AccountState(),
     val threads: List<ThreadSummary> = emptyList(),
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
+    val threadItemCache: Map<String, List<ThreadItem>> = emptyMap(),
     val approvals: List<ApprovalItem> = emptyList(),
     val activeTurnIds: Map<String, String> = emptyMap(),
 )
@@ -198,8 +199,17 @@ internal class AppServerCodexRepository(
     override suspend fun openThread(threadId: String) {
         openedThreadIds += threadId
         val currentSession = session ?: return
-        val thread = currentSession.threadResume(threadId).objectAt("thread")
-            ?: currentSession.threadRead(threadId = threadId, includeTurns = true).objectAt("thread")
+        val resumedThread = runCatching {
+            currentSession.threadResume(threadId).objectAt("thread")
+        }.getOrNull()
+        val thread = runCatching {
+            currentSession.threadRead(threadId = threadId, includeTurns = true).objectAt("thread")
+        }.getOrNull()
+            ?: resumedThread
+            ?: runCatching {
+                AppLog.action(name = "open_thread_pending", detail = threadId)
+                currentSession.threadRead(threadId = threadId, includeTurns = false).objectAt("thread")
+            }.getOrNull()
             ?: return
 
         AppLog.action(name = "open_thread_live", detail = threadId)
@@ -290,6 +300,8 @@ internal class AppServerCodexRepository(
     }
 
     private suspend fun reconnectToActiveHost(): Unit = connectMutex.withLock {
+        val previousActiveHostId = repositoryState.value.connection.activeHostId
+        val preserveThreadCache = previousActiveHostId != null && previousActiveHostId == repositoryState.value.hosts.firstOrNull { it.isActive }?.id
         sessionEventsJob?.cancel()
         sessionEventsJob = null
         session?.close()
@@ -300,15 +312,16 @@ internal class AppServerCodexRepository(
         if (activeHost == null) {
             repositoryState.update { current ->
                 current.copy(
-                    connection = ConnectionState(phase = ConnectionPhase.Idle),
-                    account = AccountState(),
-                    threads = emptyList(),
-                    threadDetails = emptyMap(),
-                    approvals = emptyList(),
-                    activeTurnIds = emptyMap(),
-                )
-            }
-            return
+                connection = ConnectionState(phase = ConnectionPhase.Idle),
+                account = AccountState(),
+                threads = emptyList(),
+                threadDetails = emptyMap(),
+                threadItemCache = emptyMap(),
+                approvals = emptyList(),
+                activeTurnIds = emptyMap(),
+            )
+        }
+        return
         }
 
         val socketUrl = "ws://${activeHost.address}:${activeHost.port}"
@@ -322,6 +335,7 @@ internal class AppServerCodexRepository(
                 account = AccountState(),
                 threads = emptyList(),
                 threadDetails = emptyMap(),
+                threadItemCache = if (preserveThreadCache) current.threadItemCache else emptyMap(),
                 approvals = emptyList(),
                 activeTurnIds = emptyMap(),
             )
@@ -765,12 +779,6 @@ internal class AppServerCodexRepository(
                     summarySections = item.summarySections + "",
                 )
 
-                null -> ThreadItem.Reasoning(
-                    id = params.string("itemId").orEmpty(),
-                    summary = "",
-                    summarySections = listOf(""),
-                )
-
                 else -> item
             }
         }
@@ -957,8 +965,9 @@ internal class AppServerCodexRepository(
         replaceExisting: Boolean,
     ): Unit {
         repositoryState.update { current ->
-            val detail = current.threadDetails[threadId] ?: return@update current
-            val newItems = detail.items.toMutableList()
+            val detail = current.threadDetails[threadId]
+            val cachedItems = current.threadItemCache[threadId].orEmpty().ifEmpty { detail?.items.orEmpty() }
+            val newItems = cachedItems.toMutableList()
             val existingIndex = newItems.indexOfFirst { existing -> existing.id == item.id }
             if (existingIndex >= 0) {
                 newItems[existingIndex] = item
@@ -966,11 +975,17 @@ internal class AppServerCodexRepository(
                 newItems += item
             }
 
+            val updatedCache = current.threadItemCache + (threadId to newItems)
+            if (detail == null) {
+                return@update current.copy(threadItemCache = updatedCache)
+            }
+
             val updatedDetail = detail.copy(
                 summary = detail.summary.copy(preview = previewForItem(item, detail.summary.preview)),
                 items = newItems,
             )
             current.copy(
+                threadItemCache = updatedCache,
                 threadDetails = current.threadDetails + (threadId to updatedDetail),
                 threads = current.threads.map { thread ->
                     if (thread.id == threadId) {
@@ -992,8 +1007,9 @@ internal class AppServerCodexRepository(
         transform: (ThreadItem?, String) -> ThreadItem?,
     ): Unit {
         repositoryState.update { current ->
-            val detail = current.threadDetails[threadId] ?: return@update current
-            val newItems = detail.items.toMutableList()
+            val detail = current.threadDetails[threadId]
+            val cachedItems = current.threadItemCache[threadId].orEmpty().ifEmpty { detail?.items.orEmpty() }
+            val newItems = cachedItems.toMutableList()
             val existingIndex = newItems.indexOfFirst { item -> item.id == itemId }
             val existingItem = newItems.getOrNull(existingIndex)
             val transformedItem = transform(existingItem, delta) ?: return@update current
@@ -1002,6 +1018,12 @@ internal class AppServerCodexRepository(
             } else {
                 newItems += transformedItem
             }
+
+            val updatedCache = current.threadItemCache + (threadId to newItems)
+            if (detail == null) {
+                return@update current.copy(threadItemCache = updatedCache)
+            }
+
             val updatedDetail = detail.copy(
                 summary = detail.summary.copy(
                     preview = previewForItem(transformedItem, detail.summary.preview),
@@ -1009,6 +1031,7 @@ internal class AppServerCodexRepository(
                 items = newItems,
             )
             current.copy(
+                threadItemCache = updatedCache,
                 threadDetails = current.threadDetails + (threadId to updatedDetail),
                 threads = current.threads.map { thread ->
                     if (thread.id == threadId) {
@@ -1044,10 +1067,16 @@ internal class AppServerCodexRepository(
         val activeTurnId = thread.extractActiveTurnId()
         repositoryState.update { current ->
             val existingDetail = current.threadDetails[detail.summary.id]
+            val cachedItems = current.threadItemCache[detail.summary.id].orEmpty()
             val mergedDetail = detail.copy(
+                items = mergeThreadItems(
+                    existingItems = if (cachedItems.isNotEmpty()) cachedItems else existingDetail?.items.orEmpty(),
+                    snapshotItems = detail.items,
+                ),
                 activities = existingDetail?.activities.orEmpty(),
             )
             current.copy(
+                threadItemCache = current.threadItemCache + (mergedDetail.summary.id to mergedDetail.items),
                 threads = current.threads
                     .filterNot { it.id == mergedDetail.summary.id }
                     .plus(mergedDetail.summary)
@@ -1074,6 +1103,27 @@ internal class AppServerCodexRepository(
     ): ThreadItem? = repositoryState.value.threadDetails[threadId]
         ?.items
         ?.firstOrNull { item -> item.id == itemId }
+}
+
+private fun mergeThreadItems(
+    existingItems: List<ThreadItem>,
+    snapshotItems: List<ThreadItem>,
+): List<ThreadItem> {
+    if (existingItems.isEmpty()) return snapshotItems
+    if (snapshotItems.isEmpty()) return existingItems
+    if (existingItems.size > snapshotItems.size) return existingItems
+
+    val snapshotById = snapshotItems.associateBy { it.id }
+    val existingIds = existingItems.map { it.id }.toSet()
+
+    return buildList {
+        existingItems.forEach { item ->
+            add(snapshotById[item.id] ?: item)
+        }
+        snapshotItems
+            .filterNot { it.id in existingIds }
+            .forEach(::add)
+    }
 }
 
 private fun List<ThreadSummary>.syncThreadOrdering(): List<ThreadSummary> = distinctBy { it.id }

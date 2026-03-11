@@ -239,24 +239,29 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
         textColor = MaterialTheme.colorScheme.onPrimary,
     ) {
         val textParts = entry.content.filterIsInstance<UserInputContent.Text>()
+        val nonTextParts = entry.content.filterNot { it is UserInputContent.Text }
         if (textParts.isEmpty()) {
-            Text(
-                text = entry.text,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onPrimary,
-            )
+            if (nonTextParts.isEmpty()) {
+                ThreadRichText(
+                    text = entry.text,
+                    textColor = MaterialTheme.colorScheme.onPrimary,
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    codeBackground = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
+                    codeColor = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
         } else {
             textParts.forEachIndexed { index, textPart ->
                 if (index > 0) Spacer(modifier = Modifier.height(8.dp))
-                Text(
+                ThreadRichText(
                     text = textPart.text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    textColor = MaterialTheme.colorScheme.onPrimary,
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    codeBackground = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
+                    codeColor = MaterialTheme.colorScheme.onPrimary,
                 )
             }
         }
-
-        val nonTextParts = entry.content.filterNot { it is UserInputContent.Text }
         if (nonTextParts.isNotEmpty()) {
             Spacer(modifier = Modifier.height(10.dp))
             NonTextUserInputs(
@@ -269,6 +274,11 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
 
 @Composable
 private fun AgentBubble(entry: ThreadItem.AgentMessage) {
+    val bubbleColor = if (entry.phase == "commentary") {
+        MaterialTheme.colorScheme.surfaceVariant
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
     BubbleRow(
         isUser = false,
         label = "Codex",
@@ -277,59 +287,55 @@ private fun AgentBubble(entry: ThreadItem.AgentMessage) {
             "final_answer" -> "Final"
             else -> null
         },
-        bubbleColor = if (entry.phase == "commentary") {
-            MaterialTheme.colorScheme.surfaceVariant
-        } else {
-            MaterialTheme.colorScheme.surface
-        },
+        bubbleColor = bubbleColor,
         textColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        Text(
+        ThreadRichText(
             text = entry.text,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
+            textColor = MaterialTheme.colorScheme.onSurface,
+            textStyle = MaterialTheme.typography.bodyLarge,
+            codeBackground = bubbleColor.copy(alpha = 0.85f),
+            codeColor = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
 
 @Composable
 private fun PlanCard(entry: ThreadItem.Plan) {
-    TranscriptCard(
-        title = "Plan",
+    TechnicalCard(
+        rememberKey = entry.id,
+        title = "Execution plan",
+        badge = "PLAN",
+        preview = firstPreviewLine(entry.text),
         icon = Icons.AutoMirrored.Rounded.FormatListBulleted,
+        family = TechnicalCardFamily.Plan,
     ) {
-        Text(
+        ThreadRichText(
             text = entry.text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textColor = MaterialTheme.colorScheme.onSurface,
+            textStyle = MaterialTheme.typography.bodySmall,
         )
     }
 }
 
 @Composable
 private fun ReasoningCard(entry: ThreadItem.Reasoning) {
-    var expanded by remember(entry.id) { mutableStateOf(false) }
-
-    TranscriptCard(
-        title = "Reasoning",
+    TechnicalCard(
+        rememberKey = entry.id,
+        title = "Model reasoning",
+        badge = "REASONING",
+        preview = firstPreviewLine(entry.summary.ifBlank { entry.contentText }),
         icon = Icons.Rounded.Psychology,
-        trailing = {
-            StatusChip(
-                label = if (expanded) "Hide" else "Expand",
-                color = MaterialTheme.colorScheme.primary,
-            )
-        },
-        onHeaderClick = { expanded = !expanded },
+        family = TechnicalCardFamily.Reasoning,
     ) {
         entry.summarySections.ifEmpty { listOf(entry.summary) }.forEach { section ->
-            Text(
+            ThreadRichText(
                 text = section,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textColor = MaterialTheme.colorScheme.onSurface,
+                textStyle = MaterialTheme.typography.bodySmall,
             )
-            Spacer(modifier = Modifier.height(8.dp))
         }
-        if (expanded && entry.contentText.isNotBlank()) {
+        if (entry.contentText.isNotBlank()) {
             Text(
                 text = "Raw reasoning",
                 style = MaterialTheme.typography.labelLarge,
@@ -343,46 +349,37 @@ private fun ReasoningCard(entry: ThreadItem.Reasoning) {
 
 @Composable
 private fun CommandExecutionCard(entry: ThreadItem.CommandExecution) {
-    var expanded by remember(entry.id) { mutableStateOf(false) }
-
-    TranscriptCard(
+    TechnicalCard(
+        rememberKey = entry.id,
         title = entry.command,
+        badge = "CMD",
+        preview = commandPreview(entry),
         icon = Icons.Rounded.Terminal,
+        family = TechnicalCardFamily.Command,
         status = entry.status,
-        onHeaderClick = { expanded = !expanded },
     ) {
         entry.cwd?.let { cwd ->
             MetadataLine("CWD", cwd)
-            Spacer(modifier = Modifier.height(6.dp))
         }
         if (entry.commandActions.isNotEmpty()) {
             WrapPills(entry.commandActions.map(::commandActionLabel))
-            Spacer(modifier = Modifier.height(10.dp))
         }
         entry.durationMs?.let { durationMs ->
             MetadataLine("Duration", "${durationMs} ms")
-            Spacer(modifier = Modifier.height(6.dp))
         }
         entry.processId?.let { processId ->
             MetadataLine("Process", processId)
-            Spacer(modifier = Modifier.height(6.dp))
         }
         entry.exitCode?.let { exitCode ->
             MetadataLine("Exit code", exitCode.toString())
-            Spacer(modifier = Modifier.height(6.dp))
         }
         if (entry.aggregatedOutput?.isNotBlank() == true) {
             Text(
-                text = if (expanded) "Output" else "Output preview",
+                text = "Output",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            CodeBlock(
-                text = entry.aggregatedOutput,
-                maxLines = if (expanded) Int.MAX_VALUE else 8,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+            CodeBlock(text = entry.aggregatedOutput)
         }
         if (entry.interactions.isNotEmpty()) {
             Text(
@@ -390,10 +387,8 @@ private fun CommandExecutionCard(entry: ThreadItem.CommandExecution) {
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Spacer(modifier = Modifier.height(6.dp))
             entry.interactions.forEach { interaction ->
-                CodeBlock(interaction, maxLines = 4)
-                Spacer(modifier = Modifier.height(6.dp))
+                CodeBlock(interaction, maxLines = 8)
             }
         }
     }
@@ -401,13 +396,14 @@ private fun CommandExecutionCard(entry: ThreadItem.CommandExecution) {
 
 @Composable
 private fun FileChangeCard(entry: ThreadItem.FileChange) {
-    var expanded by remember(entry.id) { mutableStateOf(false) }
-
-    TranscriptCard(
+    TechnicalCard(
+        rememberKey = entry.id,
         title = "${entry.changes.size} file change(s)",
+        badge = "PATCH",
+        preview = fileChangePreview(entry),
         icon = Icons.Rounded.Description,
+        family = TechnicalCardFamily.Patch,
         status = entry.status,
-        onHeaderClick = { expanded = !expanded },
     ) {
         entry.changes.forEach { change ->
             Text(
@@ -422,13 +418,8 @@ private fun FileChangeCard(entry: ThreadItem.FileChange) {
                 color = MaterialTheme.colorScheme.primary,
             )
             if (change.diff.isNotBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                CodeBlock(
-                    text = change.diff,
-                    maxLines = if (expanded) Int.MAX_VALUE else 8,
-                )
+                CodeBlock(text = change.diff)
             }
-            Spacer(modifier = Modifier.height(10.dp))
         }
         entry.toolOutput?.takeIf { it.isNotBlank() }?.let { output ->
             Text(
@@ -436,40 +427,39 @@ private fun FileChangeCard(entry: ThreadItem.FileChange) {
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            CodeBlock(
-                text = output,
-                maxLines = if (expanded) Int.MAX_VALUE else 6,
-            )
+            CodeBlock(text = output)
         }
     }
 }
 
 @Composable
 private fun McpToolCallCard(entry: ThreadItem.McpToolCall) {
-    ToolCard(
+    TechnicalCard(
+        rememberKey = entry.id,
         title = "${entry.server} / ${entry.tool}",
+        badge = "MCP",
+        preview = mcpPreview(entry),
         icon = Icons.Rounded.BuildCircle,
+        family = TechnicalCardFamily.Mcp,
         status = entry.status,
     ) {
         JsonSection(label = "Arguments", value = entry.arguments)
         entry.result?.let { result ->
-            Spacer(modifier = Modifier.height(10.dp))
             JsonSection(label = "Result", value = result)
         }
         entry.errorMessage?.let { error ->
-            Spacer(modifier = Modifier.height(10.dp))
             MetadataLine("Error", error)
         }
+        entry.durationMs?.let { durationMs ->
+            MetadataLine("Duration", "${durationMs} ms")
+        }
         if (entry.progressMessages.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "Progress",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
             entry.progressMessages.forEach { message ->
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodySmall,
@@ -482,33 +472,38 @@ private fun McpToolCallCard(entry: ThreadItem.McpToolCall) {
 
 @Composable
 private fun DynamicToolCallCard(entry: ThreadItem.DynamicToolCall) {
-    ToolCard(
+    TechnicalCard(
+        rememberKey = entry.id,
         title = entry.tool,
+        badge = "TOOL",
+        preview = dynamicToolPreview(entry),
         icon = Icons.Rounded.Code,
+        family = TechnicalCardFamily.Tool,
         status = entry.status,
     ) {
         JsonSection(label = "Arguments", value = entry.arguments)
         entry.success?.let { success ->
-            Spacer(modifier = Modifier.height(10.dp))
             MetadataLine("Success", success.toString())
         }
+        entry.durationMs?.let { durationMs ->
+            MetadataLine("Duration", "${durationMs} ms")
+        }
         if (entry.contentItems.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = "Returned content",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
             entry.contentItems.forEach { item ->
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = when (item) {
-                        is ToolContentItem.Text -> item.text
-                        is ToolContentItem.Image -> item.imageUrl
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                when (item) {
+                    is ToolContentItem.Text -> ThreadRichText(
+                        text = item.text,
+                        textColor = MaterialTheme.colorScheme.onSurface,
+                        textStyle = MaterialTheme.typography.bodySmall,
+                    )
+
+                    is ToolContentItem.Image -> MetadataLine("Image", item.imageUrl)
+                }
             }
         }
     }
@@ -516,27 +511,27 @@ private fun DynamicToolCallCard(entry: ThreadItem.DynamicToolCall) {
 
 @Composable
 private fun CollabToolCallCard(entry: ThreadItem.CollabToolCall) {
-    ToolCard(
+    TechnicalCard(
+        rememberKey = entry.id,
         title = entry.tool,
+        badge = "COLLAB",
+        preview = collabPreview(entry),
         icon = Icons.AutoMirrored.Rounded.CallSplit,
+        family = TechnicalCardFamily.Collab,
         status = entry.status,
     ) {
         MetadataLine("Sender", entry.senderThreadId)
-        Spacer(modifier = Modifier.height(6.dp))
         MetadataLine("Receivers", entry.receiverThreadIds.joinToString())
         entry.prompt?.let { prompt ->
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
+            ThreadRichText(
                 text = prompt,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textColor = MaterialTheme.colorScheme.onSurface,
+                textStyle = MaterialTheme.typography.bodySmall,
             )
         }
         if (entry.agentStates.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
             entry.agentStates.forEach { state ->
                 AgentStateRow(state)
-                Spacer(modifier = Modifier.height(6.dp))
             }
         }
     }
@@ -544,10 +539,15 @@ private fun CollabToolCallCard(entry: ThreadItem.CollabToolCall) {
 
 @Composable
 private fun WebSearchCard(entry: ThreadItem.WebSearch) {
-    ToolCard(
-        title = entry.query,
+    TechnicalCard(
+        rememberKey = entry.id,
+        title = "Web search",
+        badge = "WEB",
+        preview = webPreview(entry),
         icon = Icons.AutoMirrored.Rounded.ManageSearch,
+        family = TechnicalCardFamily.Web,
     ) {
+        MetadataLine("Query", entry.query)
         entry.actionLabel?.let { actionLabel ->
             MetadataLine("Action", actionLabel)
         }
@@ -556,9 +556,13 @@ private fun WebSearchCard(entry: ThreadItem.WebSearch) {
 
 @Composable
 private fun ImageViewCard(entry: ThreadItem.ImageView) {
-    ToolCard(
+    TechnicalCard(
+        rememberKey = entry.id,
         title = "Image viewer",
+        badge = "IMAGE",
+        preview = firstPreviewLine(entry.path),
         icon = Icons.Rounded.Visibility,
+        family = TechnicalCardFamily.Image,
     ) {
         MetadataLine("Path", entry.path)
     }
@@ -566,18 +570,21 @@ private fun ImageViewCard(entry: ThreadItem.ImageView) {
 
 @Composable
 private fun ImageGenerationCard(entry: ThreadItem.ImageGeneration) {
-    ToolCard(
+    TechnicalCard(
+        rememberKey = entry.id,
         title = "Image generation",
+        badge = "IMAGE",
+        preview = firstPreviewLine(entry.revisedPrompt ?: entry.result),
         icon = Icons.Rounded.Image,
+        family = TechnicalCardFamily.Image,
         statusLabel = entry.status,
     ) {
         MetadataLine("Result", entry.result)
         entry.revisedPrompt?.let { revisedPrompt ->
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
+            ThreadRichText(
                 text = revisedPrompt,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textColor = MaterialTheme.colorScheme.onSurface,
+                textStyle = MaterialTheme.typography.bodySmall,
             )
         }
     }
@@ -585,27 +592,35 @@ private fun ImageGenerationCard(entry: ThreadItem.ImageGeneration) {
 
 @Composable
 private fun ReviewModeCard(entry: ThreadItem.ReviewMode) {
-    ToolCard(
+    TechnicalCard(
+        rememberKey = entry.id,
         title = if (entry.entered) "Entered review mode" else "Exited review mode",
+        badge = "REVIEW",
+        preview = firstPreviewLine(entry.review),
         icon = Icons.Rounded.Lightbulb,
+        family = TechnicalCardFamily.Review,
     ) {
-        Text(
+        ThreadRichText(
             text = entry.review,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textColor = MaterialTheme.colorScheme.onSurface,
+            textStyle = MaterialTheme.typography.bodySmall,
         )
     }
 }
 
 @Composable
 private fun ContextCompactionCard() {
-    ToolCard(
+    TechnicalCard(
+        rememberKey = "context_compaction",
         title = "Conversation compacted",
+        badge = "SYSTEM",
+        preview = "Codex compacted the thread history to continue the conversation.",
         icon = Icons.Rounded.AutoAwesome,
+        family = TechnicalCardFamily.System,
     ) {
         Text(
             text = "Codex compacted the thread history to continue the conversation.",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -613,11 +628,15 @@ private fun ContextCompactionCard() {
 
 @Composable
 private fun UnknownItemCard(entry: ThreadItem.Unknown) {
-    ToolCard(
+    TechnicalCard(
+        rememberKey = entry.id,
         title = entry.typeName.ifBlank { "Unknown item" },
+        badge = "SYSTEM",
+        preview = firstPreviewLine(entry.payload),
         icon = Icons.Rounded.Code,
+        family = TechnicalCardFamily.System,
     ) {
-        CodeBlock(entry.payload, maxLines = 12)
+        CodeBlock(entry.payload)
     }
 }
 
@@ -668,116 +687,16 @@ private fun BubbleRow(
 }
 
 @Composable
-private fun TranscriptCard(
-    title: String,
-    icon: ImageVector,
-    status: ThreadItemStatus? = null,
-    trailing: (@Composable () -> Unit)? = null,
-    onHeaderClick: (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    CodexCard(
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(14.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (onHeaderClick != null) Modifier.clickable { onHeaderClick() } else Modifier),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                when {
-                    trailing != null -> trailing()
-                    status != null -> StatusChip(
-                        label = threadItemStatusLabel(status),
-                        color = threadItemStatusColor(status),
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            content()
-        }
-    }
-}
-
-@Composable
-private fun ToolCard(
-    title: String,
-    icon: ImageVector,
-    status: ThreadItemStatus? = null,
-    statusLabel: String? = null,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    TranscriptCard(
-        title = title,
-        icon = icon,
-        trailing = {
-            when {
-                status != null -> StatusChip(
-                    label = threadItemStatusLabel(status),
-                    color = threadItemStatusColor(status),
-                )
-
-                statusLabel != null -> StatusChip(
-                    label = statusLabel,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        },
-        content = content,
-    )
-}
-
-@Composable
 private fun NonTextUserInputs(
     items: List<UserInputContent>,
     isUser: Boolean,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items.forEach { item ->
-            Surface(
-                color = if (isUser) {
-                    MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f)
-                } else {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                },
-                shape = MaterialTheme.shapes.small,
-            ) {
-                Text(
-                    text = when (item) {
-                        is UserInputContent.Text -> item.text
-                        is UserInputContent.Image -> "Image: ${item.url}"
-                        is UserInputContent.LocalImage -> "Local image: ${item.path}"
-                        is UserInputContent.Skill -> "Skill: ${item.name}"
-                        is UserInputContent.Mention -> "Mention: ${item.name}"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isUser) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                )
-            }
+            ThreadUserAttachment(
+                item = item,
+                isUser = isUser,
+            )
         }
     }
 }
@@ -876,6 +795,65 @@ private fun commandActionLabel(action: CommandActionHint): String = buildString 
     action.query?.let { append(" • $it") }
 }
 
+private fun firstPreviewLine(text: String): String = text
+    .lines()
+    .map { it.trim() }
+    .firstOrNull { it.isNotBlank() }
+    ?: "No details"
+
+private fun commandPreview(entry: ThreadItem.CommandExecution): String = when {
+    !entry.aggregatedOutput.isNullOrBlank() -> firstPreviewLine(entry.aggregatedOutput)
+    entry.exitCode != null -> "Exit code ${entry.exitCode}"
+    entry.cwd != null -> entry.cwd
+    entry.commandActions.isNotEmpty() -> commandActionLabel(entry.commandActions.first())
+    else -> entry.command
+}
+
+private fun fileChangePreview(entry: ThreadItem.FileChange): String {
+    val firstChange = entry.changes.firstOrNull() ?: return "No file changes"
+    return if (entry.changes.size == 1) {
+        "${firstChange.kind} • ${firstChange.path}"
+    } else {
+        "${firstChange.path} +${entry.changes.size - 1} more"
+    }
+}
+
+private fun mcpPreview(entry: ThreadItem.McpToolCall): String = when {
+    entry.errorMessage != null -> entry.errorMessage
+    entry.progressMessages.isNotEmpty() -> entry.progressMessages.last()
+    entry.result != null -> firstPreviewLine(entry.result)
+    else -> firstPreviewLine(entry.arguments)
+}
+
+private fun dynamicToolPreview(entry: ThreadItem.DynamicToolCall): String = when {
+    entry.contentItems.isNotEmpty() -> when (val firstItem = entry.contentItems.first()) {
+        is ToolContentItem.Text -> firstPreviewLine(firstItem.text)
+        is ToolContentItem.Image -> firstItem.imageUrl
+    }
+
+    entry.success != null -> if (entry.success) "Completed successfully" else "Marked unsuccessful"
+    else -> firstPreviewLine(entry.arguments)
+}
+
+private fun collabPreview(entry: ThreadItem.CollabToolCall): String = when {
+    !entry.prompt.isNullOrBlank() -> firstPreviewLine(entry.prompt)
+    entry.receiverThreadIds.isNotEmpty() -> {
+        val firstReceiver = entry.receiverThreadIds.first()
+        if (entry.receiverThreadIds.size == 1) {
+            "Receiver $firstReceiver"
+        } else {
+            "$firstReceiver +${entry.receiverThreadIds.size - 1} more receivers"
+        }
+    }
+
+    else -> "Sender ${entry.senderThreadId}"
+}
+
+private fun webPreview(entry: ThreadItem.WebSearch): String = buildString {
+    append(entry.query)
+    entry.actionLabel?.takeIf { it.isNotBlank() }?.let { append(" • $it") }
+}
+
 private fun approvalHeadline(approval: ApprovalItem): String = when (approval.kind) {
     ApprovalKind.CommandExecution -> approval.command ?: "Command approval requested"
     ApprovalKind.FileChange -> {
@@ -898,21 +876,6 @@ private fun approvalDecisionContent(decision: ApprovalDecision): Color = when (d
     ApprovalDecision.AcceptForSession -> MaterialTheme.colorScheme.primary
     ApprovalDecision.Decline -> MaterialTheme.colorScheme.onSurface
     ApprovalDecision.Cancel -> MaterialTheme.colorScheme.onSurfaceVariant
-}
-
-@Composable
-private fun threadItemStatusColor(status: ThreadItemStatus): Color = when (status) {
-    ThreadItemStatus.InProgress -> MaterialTheme.colorScheme.primary
-    ThreadItemStatus.Completed -> Color(0xFF2F9A58)
-    ThreadItemStatus.Failed -> MaterialTheme.colorScheme.error
-    ThreadItemStatus.Declined -> Color(0xFFD59734)
-}
-
-private fun threadItemStatusLabel(status: ThreadItemStatus): String = when (status) {
-    ThreadItemStatus.InProgress -> "In Progress"
-    ThreadItemStatus.Completed -> "Completed"
-    ThreadItemStatus.Failed -> "Failed"
-    ThreadItemStatus.Declined -> "Declined"
 }
 
 @Composable
