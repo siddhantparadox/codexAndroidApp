@@ -23,6 +23,7 @@ import kotlinx.coroutines.launch
 
 data class ThreadDetailUiState(
     val detail: ThreadDetail? = null,
+    val activeItemIds: Set<String> = emptySet(),
     val approvals: List<ApprovalItem> = emptyList(),
     val draft: String = "",
 )
@@ -42,11 +43,13 @@ class ThreadDetailViewModel(
 
     val uiState: StateFlow<ThreadDetailUiState> = combine(
         repository.observeThreadDetail(route.threadId),
+        repository.observeActiveItemIds(route.threadId),
         repository.observeApprovals(),
         draft,
-    ) { detail, approvals, currentDraft ->
+    ) { detail, activeItemIds, approvals, currentDraft ->
         ThreadDetailUiState(
             detail = detail,
+            activeItemIds = activeItemIds,
             approvals = approvals.filter { approval -> approval.threadId == route.threadId },
             draft = currentDraft,
         )

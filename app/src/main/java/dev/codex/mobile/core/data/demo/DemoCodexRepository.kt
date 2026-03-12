@@ -42,6 +42,7 @@ private data class DemoStoreState(
     ),
     val threads: List<ThreadSummary> = emptyList(),
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
+    val activeItemIdsByThread: Map<String, Set<String>> = emptyMap(),
     val approvals: List<ApprovalItem> = emptyList(),
 )
 
@@ -73,6 +74,7 @@ class DemoCodexRepository : CodexRepository {
             ),
             threads = initialThreads,
             threadDetails = demoThreadDetails(initialThreads),
+            activeItemIdsByThread = demoActiveItemIdsByThread(),
             approvals = demoApprovals(),
         ),
     )
@@ -89,6 +91,9 @@ class DemoCodexRepository : CodexRepository {
 
     override fun observeThreadDetail(threadId: String): Flow<ThreadDetail?> =
         store.map { it.threadDetails[threadId] }
+
+    override fun observeActiveItemIds(threadId: String): Flow<Set<String>> =
+        store.map { it.activeItemIdsByThread[threadId].orEmpty() }
 
     override fun observeApprovals(): Flow<List<ApprovalItem>> = store.map { it.approvals }
 
@@ -233,6 +238,7 @@ class DemoCodexRepository : CodexRepository {
             )
             current.copy(
                 threads = updatedThreads,
+                activeItemIdsByThread = current.activeItemIdsByThread + (threadId to emptySet()),
                 threadDetails = syncThreadSummaries(updatedDetails, updatedThreads),
             )
         }
@@ -267,6 +273,7 @@ class DemoCodexRepository : CodexRepository {
             )
             current.copy(
                 threads = updatedThreads,
+                activeItemIdsByThread = current.activeItemIdsByThread - threadId,
                 threadDetails = syncThreadSummaries(updatedDetails, updatedThreads),
             )
         }
@@ -291,6 +298,7 @@ class DemoCodexRepository : CodexRepository {
             }
             current.copy(
                 threads = updatedThreads,
+                activeItemIdsByThread = current.activeItemIdsByThread - threadId,
                 threadDetails = syncThreadSummaries(current.threadDetails, updatedThreads),
             )
         }
@@ -492,6 +500,12 @@ private fun demoApprovals(): List<ApprovalItem> = listOf(
             ApprovalDecision.Cancel,
         ),
     ),
+)
+
+private fun demoActiveItemIdsByThread(): Map<String, Set<String>> = mapOf(
+    "auth-refactor" to setOf("auth-refactor-reasoning", "file-change-auth-item"),
+    "auth-handshake" to setOf("command-install-item"),
+    "server-migration" to setOf("migration-command"),
 )
 
 private fun syncThreadSummaries(

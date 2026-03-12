@@ -47,7 +47,6 @@ import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.util.AppLog
-import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
@@ -76,16 +75,14 @@ fun ThreadDetailScreen(
             )
         } else {
             val visibleItems = detail.items.filter(::shouldRenderTranscriptItem)
-            val approvalsByItem = uiState.approvals
-                .filter { approval -> visibleItems.any { item -> item.id == approval.itemId } }
-                .groupBy { approval -> approval.itemId }
-            val orphanApprovals = uiState.approvals.filter { approval ->
-                visibleItems.none { item -> item.id == approval.itemId }
-            }
-            val latestTranscriptEntryId = visibleItems.lastOrNull()?.id ?: orphanApprovals.lastOrNull()?.id
+            val transcriptRows = buildTranscriptRows(
+                items = visibleItems,
+                approvals = uiState.approvals,
+            )
+            val latestTranscriptEntryId = transcriptRows.lastOrNull()?.id
             val activityRowCount = if (detail.activities.isEmpty()) 0 else 1
-            val transcriptRowCount = if (visibleItems.isEmpty()) 1 else visibleItems.size
-            val totalTranscriptRows = 1 + activityRowCount + transcriptRowCount + orphanApprovals.size
+            val transcriptRowCount = if (transcriptRows.isEmpty()) 1 else transcriptRows.size
+            val totalTranscriptRows = 1 + activityRowCount + transcriptRowCount
 
             LaunchedEffect(detail.summary.id, latestTranscriptEntryId, totalTranscriptRows) {
                 if (latestTranscriptEntryId == null || totalTranscriptRows <= 0) return@LaunchedEffect
@@ -137,24 +134,15 @@ fun ThreadDetailScreen(
                     }
                 } else {
                     items(
-                        items = visibleItems,
-                        key = { item -> item.id },
-                    ) { entry ->
-                        ThreadTranscriptEntry(
-                            entry = entry,
-                            approvals = approvalsByItem[entry.id].orEmpty(),
+                        items = transcriptRows,
+                        key = { row -> row.id },
+                    ) { row ->
+                        ThreadTranscriptRowView(
+                            row = row,
+                            activeItemIds = uiState.activeItemIds,
                             onDecision = viewModel::resolveApproval,
                         )
                     }
-                }
-                items(
-                    items = orphanApprovals,
-                    key = { approval -> approval.id },
-                ) { approval ->
-                    InlineApprovalCard(
-                        approval = approval,
-                        onDecision = viewModel::resolveApproval,
-                    )
                 }
             }
         }

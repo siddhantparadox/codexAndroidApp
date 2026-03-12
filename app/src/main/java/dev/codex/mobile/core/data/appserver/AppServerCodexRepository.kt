@@ -50,6 +50,7 @@ private data class RepositoryState(
     val account: AccountState = AccountState(),
     val threads: List<ThreadSummary> = emptyList(),
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
+    val activeItemIdsByThread: Map<String, Set<String>> = emptyMap(),
     val threadItemCache: Map<String, List<ThreadItem>> = emptyMap(),
     val approvals: List<ApprovalItem> = emptyList(),
     val activeTurnIds: Map<String, String> = emptyMap(),
@@ -103,6 +104,9 @@ internal class AppServerCodexRepository(
 
     override fun observeThreadDetail(threadId: String): Flow<ThreadDetail?> =
         repositoryState.map { it.threadDetails[threadId] }
+
+    override fun observeActiveItemIds(threadId: String): Flow<Set<String>> =
+        repositoryState.map { it.activeItemIdsByThread[threadId].orEmpty() }
 
     override fun observeApprovals(): Flow<List<ApprovalItem>> = repositoryState.map { it.approvals }
 
@@ -344,9 +348,10 @@ internal class AppServerCodexRepository(
             repositoryState.update { current ->
                 current.copy(
                     connection = ConnectionState(phase = ConnectionPhase.Idle),
-                    account = AccountState(),
+                account = AccountState(),
                 threads = emptyList(),
                 threadDetails = emptyMap(),
+                activeItemIdsByThread = emptyMap(),
                 threadItemCache = emptyMap(),
                 approvals = emptyList(),
                     activeTurnIds = emptyMap(),
@@ -367,6 +372,7 @@ internal class AppServerCodexRepository(
                 account = AccountState(),
                 threads = emptyList(),
                 threadDetails = emptyMap(),
+                activeItemIdsByThread = emptyMap(),
                 threadItemCache = if (preserveThreadCache) current.threadItemCache else emptyMap(),
                 approvals = emptyList(),
                 activeTurnIds = emptyMap(),
@@ -425,6 +431,7 @@ internal class AppServerCodexRepository(
                     account = AccountState(),
                     threads = emptyList(),
                     threadDetails = emptyMap(),
+                    activeItemIdsByThread = emptyMap(),
                     approvals = emptyList(),
                     activeTurnIds = emptyMap(),
                 )
@@ -608,6 +615,7 @@ internal class AppServerCodexRepository(
         repositoryState.update { current ->
             current.copy(
                 activeTurnIds = current.activeTurnIds + (threadId to turnId),
+                activeItemIdsByThread = current.activeItemIdsByThread - threadId,
             )
         }
         appendActivity(
@@ -627,10 +635,13 @@ internal class AppServerCodexRepository(
         val turnId = turn.string("id") ?: return
         repositoryState.update { current ->
             if (current.activeTurnIds[threadId] != turnId) {
-                current
+                current.copy(
+                    activeItemIdsByThread = current.activeItemIdsByThread - threadId,
+                )
             } else {
                 current.copy(
                     activeTurnIds = current.activeTurnIds - threadId,
+                    activeItemIdsByThread = current.activeItemIdsByThread - threadId,
                 )
             }
         }
@@ -719,6 +730,11 @@ internal class AppServerCodexRepository(
     private fun handleItemStarted(params: kotlinx.serialization.json.JsonObject): Unit {
         val threadId = params.string("threadId") ?: return
         val item = params.objectAt("item")?.toThreadItem() ?: return
+        markThreadItemActive(
+            threadId = threadId,
+            itemId = item.id,
+            isActive = true,
+        )
         upsertThreadItem(
             threadId = threadId,
             item = item,
@@ -733,6 +749,11 @@ internal class AppServerCodexRepository(
             threadId = threadId,
             item = item,
             replaceExisting = true,
+        )
+        markThreadItemActive(
+            threadId = threadId,
+            itemId = item.id,
+            isActive = false,
         )
         flushPersistLocalState()
     }
@@ -1096,6 +1117,27 @@ internal class AppServerCodexRepository(
                     threadId to detail.copy(activities = updatedActivities)
                     ),
             )
+        }
+    }
+
+    private fun markThreadItemActive(
+        threadId: String,
+        itemId: String,
+        isActive: Boolean,
+    ): Unit {
+        repositoryState.update { current ->
+            val currentIds: Set<String> = current.activeItemIdsByThread[threadId].orEmpty()
+            val updatedIds: Set<String> = if (isActive) {
+                currentIds + itemId
+            } else {
+                currentIds - itemId
+            }
+            val updatedMap: Map<String, Set<String>> = if (updatedIds.isEmpty()) {
+                current.activeItemIdsByThread - threadId
+            } else {
+                current.activeItemIdsByThread + (threadId to updatedIds)
+            }
+            current.copy(activeItemIdsByThread = updatedMap)
         }
     }
 

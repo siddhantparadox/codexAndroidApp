@@ -24,6 +24,8 @@ interface CodexRepository {
 
     fun observeThreadDetail(threadId: String): Flow<ThreadDetail?>
 
+    fun observeActiveItemIds(threadId: String): Flow<Set<String>>
+
     fun observeApprovals(): Flow<List<ApprovalItem>>
 
     suspend fun saveHost(
