@@ -2,15 +2,19 @@ package dev.codex.mobile.feature.threaddetail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -31,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,6 +60,7 @@ import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.core.model.isWaitingOnApproval
 import kotlinx.coroutines.flow.first
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ThreadDetailScreen(
     onNavigateBack: () -> Unit,
@@ -65,7 +71,12 @@ fun ThreadDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val detail = uiState.detail
     val listState = remember(detail?.summary?.id) { LazyListState() }
+    val isUserDragging: Boolean by listState.interactionSource.collectIsDraggedAsState()
+    val isImeVisible: Boolean = WindowInsets.isImeVisible
     var hasInitialScroll by remember(detail?.summary?.id) { mutableStateOf(false) }
+    var followMode by remember(detail?.summary?.id) { mutableStateOf(true) }
+    var scrollToLatestRequestId by remember(detail?.summary?.id) { mutableStateOf(0) }
+    var handledScrollToLatestRequestId by remember(detail?.summary?.id) { mutableStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (detail == null) {
@@ -79,36 +90,75 @@ fun ThreadDetailScreen(
                 items = visibleItems,
                 approvals = uiState.approvals,
             )
-            val latestTranscriptEntryId = transcriptRows.lastOrNull()?.id
             val activityRowCount = if (detail.activities.isEmpty()) 0 else 1
             val transcriptRowCount = if (transcriptRows.isEmpty()) 1 else transcriptRows.size
-            val totalTranscriptRows = 1 + activityRowCount + transcriptRowCount
+            val totalTranscriptRows = 1 + activityRowCount + transcriptRowCount + 1
+            val isNearBottom: Boolean by remember(listState, totalTranscriptRows) {
+                derivedStateOf { listState.isNearBottom(totalTranscriptRows) }
+            }
 
-            LaunchedEffect(detail.summary.id, latestTranscriptEntryId, totalTranscriptRows) {
-                if (latestTranscriptEntryId == null || totalTranscriptRows <= 0) return@LaunchedEffect
+            LaunchedEffect(detail.summary.id, isUserDragging, isNearBottom, hasInitialScroll) {
+                if (!hasInitialScroll) return@LaunchedEffect
+                when {
+                    isUserDragging && followMode != isNearBottom -> {
+                        followMode = isNearBottom
+                        AppLog.action(
+                            name = "thread_follow_mode",
+                            detail = "thread=${detail.summary.id} enabled=$followMode source=drag",
+                        )
+                    }
+
+                    !followMode && isNearBottom -> {
+                        followMode = true
+                        AppLog.action(
+                            name = "thread_follow_mode",
+                            detail = "thread=${detail.summary.id} enabled=true source=returned_to_bottom",
+                        )
+                    }
+                }
+            }
+
+            LaunchedEffect(
+                detail.summary.id,
+                transcriptRows,
+                uiState.activeItemIds,
+                isImeVisible,
+                followMode,
+                scrollToLatestRequestId,
+            ) {
+                if (totalTranscriptRows <= 0) return@LaunchedEffect
                 val laidOutRowCount = snapshotFlow { listState.layoutInfo.totalItemsCount }
                     .first { itemCount -> itemCount >= totalTranscriptRows }
                 val targetIndex = totalTranscriptRows - 1
                 AppLog.action(
                     name = "thread_autoscroll_prepare",
-                    detail = "thread=${detail.summary.id} rows=$totalTranscriptRows laidOut=$laidOutRowCount target=$targetIndex initial=$hasInitialScroll",
+                    detail = "thread=${detail.summary.id} rows=$totalTranscriptRows laidOut=$laidOutRowCount target=$targetIndex initial=$hasInitialScroll follow=$followMode ime=$isImeVisible request=$scrollToLatestRequestId",
                 )
+                val hasExplicitScrollRequest: Boolean =
+                    scrollToLatestRequestId != handledScrollToLatestRequestId
                 if (!hasInitialScroll) {
                     listState.scrollToItem(targetIndex)
                     hasInitialScroll = true
-                } else if (listState.isNearBottom(totalTranscriptRows)) {
-                    listState.animateScrollToItem(targetIndex)
+                    followMode = true
+                } else if (followMode) {
+                    val lastVisibleIndex: Int = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+                    if (lastVisibleIndex < targetIndex || isImeVisible || hasExplicitScrollRequest) {
+                        listState.animateScrollToItem(targetIndex)
+                    }
                 }
+                handledScrollToLatestRequestId = scrollToLatestRequestId
                 val visibleItems = listState.layoutInfo.visibleItemsInfo
                 AppLog.action(
                     name = "thread_autoscroll_result",
-                    detail = "thread=${detail.summary.id} first=${listState.firstVisibleItemIndex} last=${visibleItems.lastOrNull()?.index ?: -1} target=$targetIndex total=${listState.layoutInfo.totalItemsCount}",
+                    detail = "thread=${detail.summary.id} first=${listState.firstVisibleItemIndex} last=${visibleItems.lastOrNull()?.index ?: -1} target=$targetIndex total=${listState.layoutInfo.totalItemsCount} follow=$followMode",
                 )
             }
 
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding(),
                 contentPadding = PaddingValues(
                     start = 20.dp,
                     top = 18.dp,
@@ -140,9 +190,13 @@ fun ThreadDetailScreen(
                         ThreadTranscriptRowView(
                             row = row,
                             activeItemIds = uiState.activeItemIds,
+                            autoRevealExpandedContent = followMode,
                             onDecision = viewModel::resolveApproval,
                         )
                     }
+                }
+                item(key = "thread-bottom-anchor") {
+                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(1.dp))
                 }
             }
         }
@@ -150,7 +204,11 @@ fun ThreadDetailScreen(
         ComposerBar(
             value = uiState.draft,
             onValueChange = viewModel::onDraftChanged,
-            onSend = viewModel::sendReply,
+            onSend = {
+                followMode = true
+                scrollToLatestRequestId += 1
+                viewModel.sendReply()
+            },
             onInterrupt = viewModel::interruptThread,
             modifier = Modifier.align(Alignment.BottomCenter),
         )

@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.CallSplit
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
@@ -42,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -99,6 +102,7 @@ internal fun TechnicalPillStrip(
     items: List<ThreadItem>,
     approvals: List<ApprovalItem>,
     activeItemIds: Set<String>,
+    autoRevealExpandedContent: Boolean,
     onDecision: (String, ApprovalDecision) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -109,6 +113,13 @@ internal fun TechnicalPillStrip(
     val selectedItem: ThreadItem? = items.firstOrNull { item -> item.id == expandedItemId }
     val selectedPresentation: TechnicalPillPresentation? = selectedItem?.let(::technicalPresentation)
     val selectedItemIsLive: Boolean = selectedItem?.isLive(activeItemIds) == true
+    val detailBringIntoViewRequester: BringIntoViewRequester = remember(stripKey) { BringIntoViewRequester() }
+
+    LaunchedEffect(selectedItem?.id, autoRevealExpandedContent) {
+        if (selectedItem != null && autoRevealExpandedContent) {
+            detailBringIntoViewRequester.bringIntoView()
+        }
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -158,6 +169,7 @@ internal fun TechnicalPillStrip(
                             item = selectedItem,
                             presentation = selectedPresentation,
                             isLive = selectedItemIsLive,
+                            modifier = Modifier.bringIntoViewRequester(detailBringIntoViewRequester),
                         )
                     }
                 }
@@ -241,10 +253,11 @@ private fun TechnicalPillDetailPanel(
     item: ThreadItem,
     presentation: TechnicalPillPresentation,
     isLive: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val palette: TechnicalPillPalette = technicalPalette(presentation.family)
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
         shape = RoundedCornerShape(18.dp),
         border = BorderStroke(width = 1.dp, color = palette.border),

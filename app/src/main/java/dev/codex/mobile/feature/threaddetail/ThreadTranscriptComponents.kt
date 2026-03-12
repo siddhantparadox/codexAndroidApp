@@ -46,6 +46,7 @@ import dev.codex.mobile.core.model.label
 internal fun ThreadTranscriptRowView(
     row: TranscriptRow,
     activeItemIds: Set<String>,
+    autoRevealExpandedContent: Boolean,
     onDecision: (String, ApprovalDecision) -> Unit,
 ) {
     when (row) {
@@ -58,6 +59,7 @@ internal fun ThreadTranscriptRowView(
             items = row.items,
             approvals = row.approvals,
             activeItemIds = activeItemIds,
+            autoRevealExpandedContent = autoRevealExpandedContent,
             onDecision = onDecision,
         )
 
