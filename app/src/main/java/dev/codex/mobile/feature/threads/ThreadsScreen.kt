@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -44,6 +45,7 @@ import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.SectionHeader
 import dev.codex.mobile.core.designsystem.component.StatusChip
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
@@ -60,14 +62,21 @@ fun ThreadsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(bottom = CodexSpacing.screenBottom),
         state = rememberLazyListState(),
     ) {
         item {
             Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(
+                    start = CodexSpacing.screenHorizontal,
+                    top = CodexSpacing.topLevelHeaderGap,
+                    end = CodexSpacing.screenHorizontal,
+                    bottom = CodexSpacing.screenTop,
+                ),
+                verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -147,7 +156,7 @@ fun ThreadsScreen(
                 )
                 Row(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(CodexSpacing.listGap),
                 ) {
                     ThreadFilter.entries.forEach { filter ->
                         val selected = filter == uiState.selectedFilter
@@ -158,7 +167,7 @@ fun ThreadsScreen(
                                     shape = CircleShape,
                                 )
                                 .clickable { viewModel.onFilterSelected(filter) }
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
                         ) {
                             Text(
                                 text = when (filter) {
@@ -185,7 +194,7 @@ fun ThreadsScreen(
         item {
             SectionHeader(
                 title = "Recent Activity",
-                modifier = Modifier.padding(horizontal = 20.dp),
+                modifier = Modifier.padding(horizontal = CodexSpacing.screenHorizontal),
             )
         }
         items(
@@ -194,7 +203,10 @@ fun ThreadsScreen(
         ) { thread ->
             ThreadCard(
                 thread = thread,
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                modifier = Modifier.padding(
+                    horizontal = CodexSpacing.screenHorizontal,
+                    vertical = CodexSpacing.microGap,
+                ),
                 onClick = { onOpenThread(thread.id) },
             )
         }
@@ -244,14 +256,14 @@ private fun ThreadCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(CodexSpacing.listGap))
         Text(
             text = threadTitle(thread),
             style = MaterialTheme.typography.titleLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(CodexSpacing.microGap))
         Text(
             text = thread.preview,
             style = MaterialTheme.typography.bodyMedium,
@@ -259,7 +271,7 @@ private fun ThreadCard(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -308,3 +320,4 @@ private fun threadStatusIcon(status: ThreadStatus) = when {
     status.type == ThreadStatusType.SystemError -> Icons.Rounded.Error
     else -> Icons.Rounded.ChatBubbleOutline
 }
+

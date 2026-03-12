@@ -39,6 +39,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.StatusChip
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.HostKind
@@ -55,8 +56,13 @@ fun HostConnectionScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        contentPadding = PaddingValues(
+            start = CodexSpacing.screenHorizontal,
+            top = CodexSpacing.screenTop,
+            end = CodexSpacing.screenHorizontal,
+            bottom = CodexSpacing.screenBottom,
+        ),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
     ) {
         item {
             Row(
@@ -107,8 +113,8 @@ fun HostConnectionScreen(
                     placeholder = { Text("e.g. Remote Server") },
                     singleLine = true,
                 )
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
+                Row(horizontalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap)) {
                     OutlinedTextField(
                         value = uiState.address,
                         onValueChange = viewModel::onAddressChanged,
@@ -125,13 +131,13 @@ fun HostConnectionScreen(
                         singleLine = true,
                     )
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
                         .clickable(onClick = viewModel::saveConnection)
-                        .padding(vertical = 14.dp),
+                        .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -194,7 +200,7 @@ fun HostConnectionScreen(
                                 tint = MaterialTheme.colorScheme.primary,
                             )
                         }
-                        Spacer(modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.size(CodexSpacing.sectionGap))
                         Column {
                             Text(
                                 text = host.name,
@@ -211,7 +217,7 @@ fun HostConnectionScreen(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.size(12.dp))
+                    Spacer(modifier = Modifier.size(CodexSpacing.sectionGap))
                     if (host.isActive) {
                         StatusChip(
                             label = hostStatusLabel(
@@ -239,7 +245,7 @@ fun HostConnectionScreen(
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                     )
-                    Spacer(modifier = Modifier.size(12.dp))
+                    Spacer(modifier = Modifier.size(CodexSpacing.sectionGap))
                     Text(
                         text = "Use a trusted LAN address for codex app-server and keep the host bound to a private endpoint. The mobile client is a control surface for the laptop runtime, not a separate execution environment.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -297,7 +303,7 @@ private fun ConnectionStatusCard(
             )
         }
         connectionMessage?.let { message ->
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(CodexSpacing.listGap))
             Text(
                 text = message,
                 style = MaterialTheme.typography.labelSmall,
@@ -344,3 +350,4 @@ private fun hostConnectionColor(connectionPhase: ConnectionPhase): Color = when 
     ConnectionPhase.Error -> MaterialTheme.colorScheme.error
     ConnectionPhase.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
 }
+

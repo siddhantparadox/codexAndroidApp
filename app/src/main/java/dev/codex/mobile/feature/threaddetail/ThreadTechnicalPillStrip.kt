@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
@@ -123,7 +124,7 @@ internal fun TechnicalPillStrip(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
     ) {
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -138,13 +139,13 @@ internal fun TechnicalPillStrip(
                 modifier = Modifier
                     .fillMaxWidth()
                     .animateContentSize()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
             ) {
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
+                    verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
                 ) {
                     items.forEach { item ->
                         val presentation: TechnicalPillPresentation = technicalPresentation(item)
@@ -223,8 +224,8 @@ private fun TechnicalPill(
                 shape = CircleShape,
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 7.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (isLive) {
@@ -263,8 +264,8 @@ private fun TechnicalPillDetailPanel(
         border = BorderStroke(width = 1.dp, color = palette.border),
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
         ) {
             if (isLive) {
                 LiveAccentLine(color = palette.accent)
@@ -277,7 +278,7 @@ private fun TechnicalPillDetailPanel(
             ) {
                 Row(
                     modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(CodexSpacing.listGap),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
@@ -286,7 +287,7 @@ private fun TechnicalPillDetailPanel(
                                 color = palette.accent.copy(alpha = 0.14f),
                                 shape = CircleShape,
                             )
-                            .padding(8.dp),
+                            .padding(6.dp),
                     ) {
                         Icon(
                             imageVector = presentation.icon,
@@ -297,10 +298,10 @@ private fun TechnicalPillDetailPanel(
                     }
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
                     ) {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Surface(
@@ -311,7 +312,7 @@ private fun TechnicalPillDetailPanel(
                                     text = presentation.badge,
                                     style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
                                     color = palette.accent,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                                 )
                             }
                             when {
@@ -365,7 +366,7 @@ private fun TechnicalItemDetail(
     item: ThreadItem,
     isLive: Boolean,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap)) {
         when (item) {
             is ThreadItem.Plan -> {
                 ThreadRichText(
@@ -595,7 +596,7 @@ private fun CodeBlock(
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap),
         ) {
             Text(
                 text = text,
@@ -616,7 +617,7 @@ private fun CodeBlock(
 
 @Composable
 private fun WrapPills(labels: List<String>) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap)) {
         labels.forEach { label ->
             Surface(
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
@@ -626,7 +627,7 @@ private fun WrapPills(labels: List<String>) {
                     text = label,
                     style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                 )
             }
         }
@@ -639,7 +640,7 @@ private fun AgentStateRow(state: CollabAgentState) {
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f),
         shape = MaterialTheme.shapes.small,
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(8.dp)) {
             Text(
                 text = "${state.threadId} • ${state.status}",
                 style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Monospace),
@@ -903,3 +904,4 @@ private fun loadingLabelForItem(item: ThreadItem): String = when (item) {
     is ThreadItem.AgentMessage,
     -> "Working"
 }
+

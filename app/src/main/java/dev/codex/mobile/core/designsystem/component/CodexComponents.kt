@@ -40,12 +40,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.designsystem.theme.cardBorder
 
 @Composable
 fun CodexCard(
     modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues(18.dp),
+    contentPadding: PaddingValues = PaddingValues(CodexSpacing.cardPadding),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
@@ -96,7 +97,7 @@ fun StatusChip(
         modifier = modifier
             .clip(CircleShape)
             .background(color.copy(alpha = 0.14f))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (pulsingDot) {
@@ -140,7 +141,7 @@ fun CodexBottomBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceAround,
         ) {
             TopLevelDestination.entries.forEach { destination ->
@@ -158,7 +159,7 @@ fun CodexBottomBar(
                             interactionSource = interactionSource,
                             indication = null,
                         ) { onDestinationSelected(destination) }
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                        .padding(horizontal = 12.dp, vertical = 5.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(contentAlignment = Alignment.TopEnd) {
@@ -167,7 +168,7 @@ fun CodexBottomBar(
                                 modifier = Modifier
                                     .clip(CircleShape)
                                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.16f))
-                                    .padding(horizontal = 18.dp, vertical = 6.dp),
+                                    .padding(horizontal = 16.dp, vertical = 5.dp),
                             ) {
                                 Icon(
                                     imageVector = destination.icon,
@@ -194,7 +195,7 @@ fun CodexBottomBar(
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = destination.label.uppercase(),
                         style = MaterialTheme.typography.labelSmall,
@@ -207,3 +208,4 @@ fun CodexBottomBar(
         }
     }
 }
+

@@ -51,6 +51,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.StatusChip
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.util.AppLog
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadStatus
@@ -160,12 +161,12 @@ fun ThreadDetailScreen(
                     .fillMaxSize()
                     .imePadding(),
                 contentPadding = PaddingValues(
-                    start = 20.dp,
-                    top = 18.dp,
-                    end = 20.dp,
-                    bottom = 140.dp,
+                    start = CodexSpacing.screenHorizontal,
+                    top = CodexSpacing.screenTop,
+                    end = CodexSpacing.screenHorizontal,
+                    bottom = 128.dp,
                 ),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
             ) {
                 item {
                     ThreadDetailHeader(
@@ -221,8 +222,11 @@ private fun EmptyThreadState(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier.padding(horizontal = 20.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        modifier = modifier.padding(
+            horizontal = CodexSpacing.screenHorizontal,
+            vertical = CodexSpacing.screenTop,
+        ),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onNavigateBack) {
@@ -241,7 +245,7 @@ private fun EmptyThreadState(
                 text = "Thread data is unavailable.",
                 style = MaterialTheme.typography.titleMedium,
             )
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
             Text(
                 text = "Reconnect to the host or reopen the thread after the next sync.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -258,7 +262,7 @@ private fun EmptyTranscriptState() {
             text = "This thread has no transcript items yet.",
             style = MaterialTheme.typography.titleMedium,
         )
-        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(8.dp))
+        androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
         Text(
             text = "New user messages, Codex replies, tool calls, and approvals will appear here as the thread runs.",
             style = MaterialTheme.typography.bodyMedium,
@@ -303,7 +307,7 @@ private fun ThreadDetailHeader(
                 )
             }
         }
-        androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(12.dp))
+        androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(CodexSpacing.sectionGap))
         StatusChip(
             label = threadStatusLabel(summary.status),
             color = threadStatusColor(summary.status),
@@ -349,9 +353,12 @@ private fun ComposerBar(
             .background(MaterialTheme.colorScheme.background.copy(alpha = 0.96f))
             .navigationBarsPadding()
             .imePadding()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(
+                horizontal = CodexSpacing.composerHorizontal,
+                vertical = CodexSpacing.composerVertical,
+            ),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(CodexSpacing.listGap),
     ) {
         IconButton(onClick = onInterrupt) {
             Icon(
@@ -397,3 +404,4 @@ private fun shouldRenderTranscriptItem(item: ThreadItem): Boolean = when (item) 
     is ThreadItem.Reasoning -> item.summary.isNotBlank() || item.contentText.isNotBlank()
     else -> true
 }
+

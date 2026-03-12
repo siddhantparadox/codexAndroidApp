@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 
 @Composable
 internal fun LiveStatusBadge(
@@ -45,8 +46,8 @@ internal fun LiveStatusBadge(
         shape = CircleShape,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -195,7 +196,7 @@ private fun LiveDots(
     )
 
     Row(
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LiveDot(color = color, alpha = dotOneAlpha)
@@ -216,3 +217,4 @@ private fun LiveDot(
             .background(color = color, shape = RoundedCornerShape(999.dp)),
     )
 }
+

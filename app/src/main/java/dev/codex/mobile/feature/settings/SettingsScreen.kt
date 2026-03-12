@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.ThemePreference
 
 @Composable
@@ -50,9 +52,16 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(
+            start = CodexSpacing.screenHorizontal,
+            top = CodexSpacing.topLevelHeaderGap,
+            end = CodexSpacing.screenHorizontal,
+            bottom = CodexSpacing.screenBottom,
+        ),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
     ) {
         item {
             Text(
@@ -120,7 +129,7 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.medium)
                     .clickable(onClick = onOpenHostConnection)
-                    .padding(18.dp),
+                    .padding(CodexSpacing.cardPadding),
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -167,7 +176,7 @@ fun SettingsScreen(
                                 shape = CircleShape,
                             )
                             .clickable { viewModel.setThemePreference(option) }
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
                     ) {
                         Text(
                             text = option.name,
@@ -194,7 +203,7 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(CodexSpacing.listGap))
                 Text(
                     text = "This client is designed for trusted local-network app-server connections. Keep the host bound to a private endpoint and avoid exposing it directly to the public internet.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -241,10 +250,10 @@ private fun PreferenceCard(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(CodexSpacing.listGap),
         ) {
             content()
         }
@@ -295,3 +304,4 @@ private fun TogglePreference(
         }
     }
 }
+

@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.StatusChip
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
@@ -78,7 +79,7 @@ internal fun ThreadActivityPanel(
 
     CodexCard(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(14.dp),
+        contentPadding = PaddingValues(CodexSpacing.cardPadding),
     ) {
         Row(
             modifier = Modifier
@@ -105,19 +106,19 @@ internal fun ThreadActivityPanel(
         }
         if (expanded) {
             activities.forEach { activity ->
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(CodexSpacing.listGap))
                 Surface(
                     color = activityBackground(activity.emphasis),
                     shape = MaterialTheme.shapes.small,
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(CodexSpacing.sectionGap)) {
                         Text(
                             text = activity.title,
                             style = MaterialTheme.typography.labelLarge,
                             color = activityContent(activity.emphasis),
                         )
                         activity.detail?.let { detail ->
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(CodexSpacing.microGap))
                             Text(
                                 text = detail,
                                 style = MaterialTheme.typography.bodySmall,
@@ -138,7 +139,7 @@ internal fun InlineApprovalCard(
 ) {
     CodexCard(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(14.dp),
+        contentPadding = PaddingValues(CodexSpacing.cardPadding),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -158,7 +159,7 @@ internal fun InlineApprovalCard(
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                 )
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(CodexSpacing.listGap))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = approvalHeadline(approval),
@@ -182,8 +183,8 @@ internal fun InlineApprovalCard(
                 color = Color(0xFFD59734),
             )
         }
-        Spacer(modifier = Modifier.height(12.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(modifier = Modifier.height(CodexSpacing.listGap))
+        Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap)) {
             approval.availableDecisions.forEach { decision ->
                 Box(
                     modifier = Modifier
@@ -193,7 +194,7 @@ internal fun InlineApprovalCard(
                             shape = MaterialTheme.shapes.small,
                         )
                         .clickable { onDecision(approval.id, decision) }
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -232,7 +233,7 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
             }
         } else {
             textParts.forEachIndexed { index, textPart ->
-                if (index > 0) Spacer(modifier = Modifier.height(8.dp))
+                if (index > 0) Spacer(modifier = Modifier.height(CodexSpacing.tightGap))
                 ThreadRichText(
                     text = textPart.text,
                     textColor = MaterialTheme.colorScheme.onPrimary,
@@ -243,7 +244,7 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
             }
         }
         if (nonTextParts.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
             NonTextUserInputs(
                 items = nonTextParts,
                 isUser = true,
@@ -273,7 +274,7 @@ private fun AgentBubble(
     ) {
         if (isLive) {
             LiveAccentLine(color = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
         }
         ThreadRichText(
             text = entry.text,
@@ -305,7 +306,7 @@ private fun BubbleRow(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
         ) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -325,12 +326,17 @@ private fun BubbleRow(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(CodexSpacing.microGap))
             Surface(
                 color = bubbleColor,
                 shape = MaterialTheme.shapes.medium,
             ) {
-                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                Column(
+                    modifier = Modifier.padding(
+                        horizontal = CodexSpacing.bubbleHorizontal,
+                        vertical = CodexSpacing.bubbleVertical,
+                    ),
+                ) {
                     content()
                 }
             }
@@ -355,7 +361,7 @@ private fun NonTextUserInputs(
     items: List<UserInputContent>,
     isUser: Boolean,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap)) {
         items.forEach { item ->
             ThreadUserAttachment(
                 item = item,
@@ -406,3 +412,4 @@ private fun activityContent(emphasis: ThreadActivityEmphasis): Color = when (emp
     ThreadActivityEmphasis.Error -> MaterialTheme.colorScheme.error
     ThreadActivityEmphasis.Neutral -> MaterialTheme.colorScheme.onSurface
 }
+

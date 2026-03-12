@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -62,6 +63,17 @@ fun CodexNavHost(
         currentScreen?.let(AppLog::screen)
     }
 
+    fun navigateToTopLevelDestination(destination: TopLevelDestination) {
+        AppLog.action(name = "bottom_nav_select", detail = destination.name)
+        val route = when (destination) {
+            TopLevelDestination.Dashboard -> DashboardRoute
+            TopLevelDestination.Threads -> ThreadsRoute
+            TopLevelDestination.Approvals -> ApprovalsRoute
+            TopLevelDestination.Settings -> SettingsRoute
+        }
+        navController.navigateToTopLevel(route)
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets.navigationBars.only(WindowInsetsSides.Bottom),
         bottomBar = {
@@ -69,22 +81,7 @@ fun CodexNavHost(
                 CodexBottomBar(
                     currentDestination = topLevelDestination,
                     pendingApprovals = pendingApprovals,
-                    onDestinationSelected = { destination ->
-                        AppLog.action(name = "bottom_nav_select", detail = destination.name)
-                        val route = when (destination) {
-                            TopLevelDestination.Dashboard -> DashboardRoute
-                            TopLevelDestination.Threads -> ThreadsRoute
-                            TopLevelDestination.Approvals -> ApprovalsRoute
-                            TopLevelDestination.Settings -> SettingsRoute
-                        }
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = isOnTopLevelDestination
-                            }
-                            launchSingleTop = true
-                            restoreState = isOnTopLevelDestination
-                        }
-                    },
+                    onDestinationSelected = ::navigateToTopLevelDestination,
                 )
             }
         },
@@ -98,7 +95,7 @@ fun CodexNavHost(
                 DashboardScreen(
                     onOpenThreads = {
                         AppLog.action(name = "open_threads", detail = "from_dashboard")
-                        navController.navigate(ThreadsRoute)
+                        navigateToTopLevelDestination(TopLevelDestination.Threads)
                     },
                     onOpenHostConnection = {
                         AppLog.action(name = "open_host_connection", detail = "from_dashboard")
@@ -151,5 +148,15 @@ fun CodexNavHost(
                 )
             }
         }
+    }
+}
+
+private fun NavHostController.navigateToTopLevel(route: Any) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) {
+            saveState = true
+        }
+        launchSingleTop = true
+        restoreState = true
     }
 }

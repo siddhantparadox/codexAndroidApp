@@ -28,6 +28,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.UserInputContent
 import java.util.Base64
 
@@ -102,8 +103,8 @@ private fun ImageAttachmentCard(
         shape = MaterialTheme.shapes.small,
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
         ) {
             Text(
                 text = "IMAGE",
@@ -129,9 +130,9 @@ private fun ImageAttachmentCard(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 18.dp),
+                            .padding(vertical = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Image,
@@ -183,8 +184,8 @@ private fun LabeledAttachmentCard(
         shape = MaterialTheme.shapes.small,
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 7.dp),
+            verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
         ) {
             Text(
                 text = badge,
@@ -275,3 +276,4 @@ private fun decodeInlineDataImage(value: String): ByteArray? = runCatching {
     val base64Payload = value.substringAfter("base64,", missingDelimiterValue = "")
     if (base64Payload.isBlank()) null else Base64.getDecoder().decode(base64Payload)
 }.getOrNull()
+

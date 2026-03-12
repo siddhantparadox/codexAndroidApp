@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,6 +41,7 @@ import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.SectionHeader
 import dev.codex.mobile.core.designsystem.component.StatusChip
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.HostKind
@@ -62,14 +64,16 @@ fun DashboardScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding(),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 20.dp,
-            top = 18.dp,
-            end = 20.dp,
-            bottom = 28.dp,
+            start = CodexSpacing.screenHorizontal,
+            top = CodexSpacing.topLevelHeaderGap,
+            end = CodexSpacing.screenHorizontal,
+            bottom = CodexSpacing.screenBottom,
         ),
-        verticalArrangement = Arrangement.spacedBy(22.dp),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
     ) {
         item { DashboardHeader() }
         item {
@@ -203,7 +207,7 @@ private fun ConnectionCard(
         ) {
             Row(
                 modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
             ) {
                 Box(
                     modifier = Modifier
@@ -218,7 +222,7 @@ private fun ConnectionCard(
                         tint = MaterialTheme.colorScheme.primary,
                     )
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap)) {
                     Text(
                         text = "Trusted LAN Endpoint".uppercase(),
                         style = MaterialTheme.typography.labelSmall,
@@ -241,13 +245,13 @@ private fun ConnectionCard(
                 pulsingDot = connectionPhase == ConnectionPhase.Connected,
             )
         }
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
         Text(
             text = "$address:$port",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
         Text(
             text = account.summary,
             style = MaterialTheme.typography.bodyMedium,
@@ -256,7 +260,7 @@ private fun ConnectionCard(
             overflow = TextOverflow.Ellipsis,
         )
         connectionMessage?.takeIf { it != "$address:$port" }?.let { message ->
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
             Text(
                 text = message,
                 style = MaterialTheme.typography.labelSmall,
@@ -273,7 +277,7 @@ private fun ActiveThreadCard(
     thread: ThreadSummary,
     onClick: () -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap)) {
         SectionHeader(
             title = "Active Thread",
             trailing = {
@@ -296,14 +300,14 @@ private fun ActiveThreadCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
             Text(
                 text = threadTitle(thread),
                 style = MaterialTheme.typography.titleLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(CodexSpacing.tightGap))
             Text(
                 text = thread.preview,
                 style = MaterialTheme.typography.bodyMedium,
@@ -311,7 +315,7 @@ private fun ActiveThreadCard(
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
             Text(
                 text = if (thread.status.isWaitingOnApproval) {
                     "Approval is blocking the current turn."
@@ -423,3 +427,4 @@ private fun connectionColor(phase: ConnectionPhase): Color = when (phase) {
     ConnectionPhase.Error -> MaterialTheme.colorScheme.error
     ConnectionPhase.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
 }
+

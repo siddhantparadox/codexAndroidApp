@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -34,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
@@ -49,12 +51,19 @@ fun ApprovalsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(
+            start = CodexSpacing.screenHorizontal,
+            top = CodexSpacing.topLevelHeaderGap,
+            end = CodexSpacing.screenHorizontal,
+            bottom = CodexSpacing.screenBottom,
+        ),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -97,7 +106,7 @@ fun ApprovalsScreen(
                         text = "Approval queue is clear.",
                         style = MaterialTheme.typography.titleMedium,
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
                     Text(
                         text = "New command and file-change requests will appear here when app-server asks for a decision.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -134,7 +143,7 @@ private fun ApprovalCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -163,7 +172,7 @@ private fun ApprovalCard(
                     )
                 }
             }
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(modifier = Modifier.padding(CodexSpacing.cardPadding)) {
                 Text(
                     text = approvalHeadline(approval),
                     style = MaterialTheme.typography.titleMedium,
@@ -171,14 +180,14 @@ private fun ApprovalCard(
                     overflow = TextOverflow.Ellipsis,
                 )
                 approval.reason?.let { reason ->
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
                     Text(
                         text = reason,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(CodexSpacing.listGap))
                 Text(
                     text = approvalDetail(approval),
                     style = MaterialTheme.typography.bodyMedium,
@@ -186,7 +195,7 @@ private fun ApprovalCard(
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
                 approval.availableDecisions.forEachIndexed { index, decision ->
                     ApprovalButton(
                         label = decision.label,
@@ -195,7 +204,7 @@ private fun ApprovalCard(
                         onClick = { onDecision(decision) },
                     )
                     if (index != approval.availableDecisions.lastIndex) {
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(CodexSpacing.listGap))
                     }
                 }
             }
@@ -255,7 +264,7 @@ private fun ApprovalButton(
             .fillMaxWidth()
             .background(containerColor, MaterialTheme.shapes.small)
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -265,3 +274,4 @@ private fun ApprovalButton(
         )
     }
 }
+

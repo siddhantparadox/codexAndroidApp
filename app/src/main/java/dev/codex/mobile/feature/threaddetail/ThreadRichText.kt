@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 
 private sealed interface RichTextBlock {
     data class Paragraph(
@@ -46,7 +47,7 @@ internal fun ThreadRichText(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
     ) {
         blocks.forEach { block ->
             when (block) {
@@ -70,7 +71,7 @@ internal fun ThreadRichText(
                             style = MaterialTheme.typography.labelSmall,
                             color = textColor.copy(alpha = 0.84f),
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(CodexSpacing.microGap))
                     }
                     Surface(
                         color = codeBackground,
@@ -81,7 +82,7 @@ internal fun ThreadRichText(
                             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                             color = codeColor,
                             overflow = TextOverflow.Clip,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                         )
                     }
                 }
@@ -180,3 +181,4 @@ private fun buildInlineRichText(
         }
     }
 }
+
