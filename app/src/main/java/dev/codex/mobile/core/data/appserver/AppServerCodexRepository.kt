@@ -274,9 +274,17 @@ internal class AppServerCodexRepository(
     }
 
     override suspend fun interruptThread(threadId: String) {
-        val turnId = repositoryState.value.activeTurnIds[threadId] ?: return
         val currentSession = session ?: return
-        AppLog.action(name = "interrupt_thread", detail = threadId)
+        var turnId = repositoryState.value.activeTurnIds[threadId]
+        if (turnId == null) {
+            openThread(threadId)
+            turnId = repositoryState.value.activeTurnIds[threadId]
+        }
+        if (turnId == null) {
+            AppLog.action(name = "interrupt_thread_unavailable", detail = threadId)
+            error("No active turn available to interrupt for thread $threadId")
+        }
+        AppLog.action(name = "interrupt_thread", detail = "$threadId turn=$turnId")
         currentSession.turnInterrupt(
             threadId = threadId,
             turnId = turnId,

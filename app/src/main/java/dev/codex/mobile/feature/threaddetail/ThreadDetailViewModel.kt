@@ -12,6 +12,7 @@ import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.navigation.ThreadDetailRoute
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,6 +27,8 @@ data class ThreadDetailUiState(
     val activeItemIds: Set<String> = emptySet(),
     val approvals: List<ApprovalItem> = emptyList(),
     val draft: String = "",
+    val canInterrupt: Boolean = false,
+    val isInterrupting: Boolean = false,
 )
 
 class ThreadDetailViewModel(
@@ -34,10 +37,18 @@ class ThreadDetailViewModel(
 ) : ViewModel() {
     private val route = savedStateHandle.toRoute<ThreadDetailRoute>()
     private val draft = MutableStateFlow("")
+    private val interruptRequested = MutableStateFlow(false)
 
     init {
         viewModelScope.launch {
             repository.openThread(route.threadId)
+        }
+        viewModelScope.launch {
+            repository.observeThreadDetail(route.threadId).collect { detail ->
+                if (detail?.summary?.status?.isActive != true) {
+                    interruptRequested.update { false }
+                }
+            }
         }
     }
 
@@ -46,12 +57,16 @@ class ThreadDetailViewModel(
         repository.observeActiveItemIds(route.threadId),
         repository.observeApprovals(),
         draft,
-    ) { detail, activeItemIds, approvals, currentDraft ->
+        interruptRequested,
+    ) { detail, activeItemIds, approvals, currentDraft, interruptInFlight ->
+        val canInterrupt = detail?.summary?.status?.isActive == true
         ThreadDetailUiState(
             detail = detail,
             activeItemIds = activeItemIds,
             approvals = approvals.filter { approval -> approval.threadId == route.threadId },
             draft = currentDraft,
+            canInterrupt = canInterrupt,
+            isInterrupting = canInterrupt && interruptInFlight,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -73,8 +88,14 @@ class ThreadDetailViewModel(
     }
 
     fun interruptThread() {
+        if (interruptRequested.value) return
+        interruptRequested.update { true }
         viewModelScope.launch {
-            repository.interruptThread(route.threadId)
+            runCatching {
+                repository.interruptThread(route.threadId)
+            }.onFailure {
+                interruptRequested.update { false }
+            }
         }
     }
 

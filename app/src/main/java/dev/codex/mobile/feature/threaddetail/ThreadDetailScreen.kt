@@ -1,7 +1,5 @@
 package dev.codex.mobile.feature.threaddetail
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,23 +13,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.StopCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -202,7 +193,7 @@ fun ThreadDetailScreen(
             }
         }
 
-        ComposerBar(
+        ThreadComposerBar(
             value = uiState.draft,
             onValueChange = viewModel::onDraftChanged,
             onSend = {
@@ -211,6 +202,8 @@ fun ThreadDetailScreen(
                 viewModel.sendReply()
             },
             onInterrupt = viewModel::interruptThread,
+            canInterrupt = uiState.canInterrupt,
+            isInterrupting = uiState.isInterrupting,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
@@ -337,61 +330,6 @@ private fun threadStatusColor(status: ThreadStatus): Color = when {
     status.type == ThreadStatusType.Active -> MaterialTheme.colorScheme.primary
     status.type == ThreadStatusType.SystemError -> MaterialTheme.colorScheme.error
     else -> MaterialTheme.colorScheme.onSurfaceVariant
-}
-
-@Composable
-private fun ComposerBar(
-    value: String,
-    onValueChange: (String) -> Unit,
-    onSend: () -> Unit,
-    onInterrupt: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.96f))
-            .navigationBarsPadding()
-            .imePadding()
-            .padding(
-                horizontal = CodexSpacing.composerHorizontal,
-                vertical = CodexSpacing.composerVertical,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(CodexSpacing.listGap),
-    ) {
-        IconButton(onClick = onInterrupt) {
-            Icon(
-                imageVector = Icons.Rounded.StopCircle,
-                contentDescription = "Interrupt thread",
-                tint = MaterialTheme.colorScheme.error,
-            )
-        }
-        OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier
-                .weight(1f)
-                .widthIn(min = 0.dp),
-            placeholder = {
-                Text("Reply or steer the active turn...")
-            },
-            shape = RoundedCornerShape(28.dp),
-            maxLines = 3,
-        )
-        IconButton(
-            onClick = onSend,
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.primary, CircleShape)
-                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), CircleShape),
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.Send,
-                contentDescription = "Send",
-                tint = MaterialTheme.colorScheme.onPrimary,
-            )
-        }
-    }
 }
 
 private fun androidx.compose.foundation.lazy.LazyListState.isNearBottom(totalRows: Int): Boolean {
