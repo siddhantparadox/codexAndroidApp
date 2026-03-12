@@ -1,6 +1,8 @@
 package dev.codex.mobile.core.data.appserver
 
 import android.content.Context
+import android.net.Uri
+import android.util.Base64
 import dev.codex.mobile.BuildConfig
 import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.data.local.AppLocalStateStore
@@ -9,10 +11,14 @@ import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
+import dev.codex.mobile.core.model.ComposerCatalog
+import dev.codex.mobile.core.model.ComposerPersonality
+import dev.codex.mobile.core.model.ComposerReasoningEffort
 import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.HostKind
 import dev.codex.mobile.core.model.HostProfile
+import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadActivity
 import dev.codex.mobile.core.model.ThreadActivityEmphasis
@@ -34,6 +40,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonPrimitive
@@ -54,6 +61,7 @@ private data class RepositoryState(
     val threadItemCache: Map<String, List<ThreadItem>> = emptyMap(),
     val approvals: List<ApprovalItem> = emptyList(),
     val activeTurnIds: Map<String, String> = emptyMap(),
+    val composerCatalog: ComposerCatalog = ComposerCatalog(),
 )
 
 private data class PendingApprovalRequest(
@@ -67,8 +75,9 @@ internal class AppServerCodexRepository(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder().build(),
 ) : CodexRepository {
+    private val appContext: Context = context.applicationContext
     private val localStateStore: AppLocalStateStore = AppLocalStateStore(
-        context = context.applicationContext,
+        context = appContext,
         json = appServerJson,
         ioDispatcher = ioDispatcher,
     )
@@ -109,6 +118,8 @@ internal class AppServerCodexRepository(
         repositoryState.map { it.activeItemIdsByThread[threadId].orEmpty() }
 
     override fun observeApprovals(): Flow<List<ApprovalItem>> = repositoryState.map { it.approvals }
+
+    override fun observeComposerCatalog(): Flow<ComposerCatalog> = repositoryState.map { it.composerCatalog }
 
     override suspend fun saveHost(
         name: String,
@@ -224,34 +235,51 @@ internal class AppServerCodexRepository(
         applyThreadSnapshot(thread)
     }
 
+    override suspend fun refreshComposerCatalog() {
+        val currentSession = session ?: return
+        val catalog = runCatching {
+            loadComposerCatalog(currentSession = currentSession, forceReload = true)
+        }.getOrElse {
+            AppLog.action(name = "refresh_composer_catalog_failed", detail = it.message.orEmpty())
+            return
+        }
+        repositoryState.update { current ->
+            current.copy(composerCatalog = catalog)
+        }
+    }
+
     override suspend fun sendReply(
         threadId: String,
-        message: String,
+        request: ThreadReplyRequest,
     ) {
-        val trimmedMessage = message.trim()
-        if (trimmedMessage.isEmpty()) return
+        if (!request.hasPayload) return
 
         val currentSession = session ?: return
         if (threadId !in openedThreadIds) {
             openThread(threadId)
         }
 
+        val input = buildReplyInput(request)
+        if (input.isEmpty()) return
         val activeTurnId = repositoryState.value.activeTurnIds[threadId]
         AppLog.action(
             name = "send_reply",
-            detail = "thread=$threadId chars=${trimmedMessage.length}",
+            detail = "thread=$threadId chars=${request.message.trim().length} input=${input.size}",
         )
 
         if (activeTurnId != null) {
             currentSession.turnSteer(
                 threadId = threadId,
                 expectedTurnId = activeTurnId,
-                message = trimmedMessage,
+                input = input,
             )
         } else {
             val response = currentSession.turnStart(
                 threadId = threadId,
-                message = trimmedMessage,
+                input = input,
+                model = request.modelId,
+                effort = request.reasoningEffort.toWireValue(),
+                personality = request.personality.toWireValue(),
             )
             val turnId = response.objectAt("turn")?.string("id")
             if (turnId != null) {
@@ -362,7 +390,8 @@ internal class AppServerCodexRepository(
                 activeItemIdsByThread = emptyMap(),
                 threadItemCache = emptyMap(),
                 approvals = emptyList(),
-                    activeTurnIds = emptyMap(),
+                activeTurnIds = emptyMap(),
+                composerCatalog = ComposerCatalog(),
                 )
             }
             schedulePersistLocalState()
@@ -384,6 +413,7 @@ internal class AppServerCodexRepository(
                 threadItemCache = if (preserveThreadCache) current.threadItemCache else emptyMap(),
                 approvals = emptyList(),
                 activeTurnIds = emptyMap(),
+                composerCatalog = ComposerCatalog(),
             )
         }
         schedulePersistLocalState()
@@ -404,6 +434,12 @@ internal class AppServerCodexRepository(
                 ?.map { it.jsonObject.toThreadSummary() }
                 .orEmpty()
                 .syncThreadOrdering()
+            val composerCatalog = runCatching {
+                loadComposerCatalog(currentSession = newSession)
+            }.getOrElse {
+                AppLog.action(name = "load_composer_catalog_failed", detail = it.message.orEmpty())
+                ComposerCatalog()
+            }
 
             session = newSession
             repositoryState.update { current ->
@@ -416,6 +452,7 @@ internal class AppServerCodexRepository(
                     account = account,
                     threads = threads,
                     threadDetails = current.threadDetails.syncWithThreads(threads),
+                    composerCatalog = composerCatalog,
                 )
             }
 
@@ -1191,6 +1228,50 @@ internal class AppServerCodexRepository(
     ): ThreadItem? = repositoryState.value.threadDetails[threadId]
         ?.items
         ?.firstOrNull { item -> item.id == itemId }
+
+    private suspend fun loadComposerCatalog(
+        currentSession: CodexAppServerSession,
+        forceReload: Boolean = false,
+    ): ComposerCatalog = catalogFromResponses(
+        modelResponse = currentSession.modelList(),
+        skillsResponse = currentSession.skillsList(forceReload = forceReload),
+    )
+
+    private suspend fun buildReplyInput(request: ThreadReplyRequest): List<kotlinx.serialization.json.JsonObject> {
+        val inputs = mutableListOf<kotlinx.serialization.json.JsonObject>()
+        val text = request.toWireMessageText()
+        if (text.isNotBlank()) {
+            inputs += text.toTextInput()
+        }
+
+        val imageDataUrl = request.image?.contentUri?.let { contentUri ->
+            contentUriToDataUrl(contentUri)
+        }
+        if (imageDataUrl != null) {
+            inputs += buildJsonObject {
+                put("type", "image")
+                put("url", imageDataUrl)
+            }
+        }
+
+        request.skill?.let { skill ->
+            inputs += buildJsonObject {
+                put("type", "skill")
+                put("name", skill.name)
+                put("path", skill.path)
+            }
+        }
+        return inputs
+    }
+
+    private suspend fun contentUriToDataUrl(contentUri: String): String? = withContext(ioDispatcher) {
+        val uri = Uri.parse(contentUri)
+        val mimeType = appContext.contentResolver.getType(uri) ?: "image/jpeg"
+        val bytes = appContext.contentResolver.openInputStream(uri)?.use { input ->
+            input.readBytes()
+        } ?: return@withContext null
+        "data:$mimeType;base64,${Base64.encodeToString(bytes, Base64.NO_WRAP)}"
+    }
 }
 
 internal fun mergeThreadItems(
@@ -1289,4 +1370,28 @@ private fun previewForItem(
     is ThreadItem.ReviewMode -> item.review.ifBlank { fallback }
     is ThreadItem.ContextCompaction -> "Conversation compacted"
     is ThreadItem.Unknown -> item.typeName.ifBlank { fallback }
+}
+
+private fun ThreadReplyRequest.toWireMessageText(): String {
+    val trimmedMessage = message.trim()
+    val skillPrefix = skill?.let { "$${it.name}" }
+    return listOfNotNull(skillPrefix, trimmedMessage.takeIf { it.isNotBlank() })
+        .joinToString(separator = " ")
+        .trim()
+}
+
+private fun ComposerReasoningEffort?.toWireValue(): String? = when (this) {
+    ComposerReasoningEffort.None -> "none"
+    ComposerReasoningEffort.Minimal -> "minimal"
+    ComposerReasoningEffort.Low -> "low"
+    ComposerReasoningEffort.Medium -> "medium"
+    ComposerReasoningEffort.High -> "high"
+    ComposerReasoningEffort.XHigh -> "xhigh"
+    null -> null
+}
+
+private fun ComposerPersonality.toWireValue(): String? = when (this) {
+    ComposerPersonality.Default -> null
+    ComposerPersonality.Friendly -> "friendly"
+    ComposerPersonality.Pragmatic -> "pragmatic"
 }

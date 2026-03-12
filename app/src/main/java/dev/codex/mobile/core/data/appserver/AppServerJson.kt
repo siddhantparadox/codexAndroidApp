@@ -6,8 +6,8 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
@@ -112,6 +112,16 @@ internal fun threadListParamsPayload(): JsonObject = buildJsonObject {
     put("sortKey", "updated_at")
 }
 
+internal fun modelListParamsPayload(): JsonObject = buildJsonObject {
+    put("limit", 50)
+    put("includeHidden", false)
+}
+
+internal fun skillsListParamsPayload(forceReload: Boolean): JsonObject = buildJsonObject {
+    put("forceReload", forceReload)
+    putJsonArray("cwds") {}
+}
+
 internal fun threadStartParamsPayload(): JsonObject = emptyJsonObject
 
 internal fun threadResumeParamsPayload(threadId: String): JsonObject = buildJsonObject {
@@ -130,24 +140,26 @@ internal fun accountReadParamsPayload(): JsonObject = emptyJsonObject
 
 internal fun turnStartParamsPayload(
     threadId: String,
-    message: String,
+    input: List<JsonObject>,
+    model: String? = null,
+    effort: String? = null,
+    personality: String? = null,
 ): JsonObject = buildJsonObject {
     put("threadId", threadId)
-    putJsonArray("input") {
-        add(message.toTextInput())
-    }
+    model?.let { put("model", it) }
+    effort?.let { put("effort", it) }
+    personality?.let { put("personality", it) }
+    put("input", buildJsonArray { input.forEach(::add) })
 }
 
 internal fun turnSteerParamsPayload(
     threadId: String,
     expectedTurnId: String,
-    message: String,
+    input: List<JsonObject>,
 ): JsonObject = buildJsonObject {
     put("threadId", threadId)
     put("expectedTurnId", expectedTurnId)
-    putJsonArray("input") {
-        add(message.toTextInput())
-    }
+    put("input", buildJsonArray { input.forEach(::add) })
 }
 
 internal fun turnInterruptParamsPayload(

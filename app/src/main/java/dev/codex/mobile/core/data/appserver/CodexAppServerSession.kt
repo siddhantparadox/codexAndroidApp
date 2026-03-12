@@ -29,6 +29,16 @@ internal class CodexAppServerSession(
         params = accountReadParamsPayload(),
     ).jsonObject
 
+    suspend fun modelList(): JsonObject = transport.request(
+        method = "model/list",
+        params = modelListParamsPayload(),
+    ).jsonObject
+
+    suspend fun skillsList(forceReload: Boolean = false): JsonObject = transport.request(
+        method = "skills/list",
+        params = skillsListParamsPayload(forceReload = forceReload),
+    ).jsonObject
+
     suspend fun threadList(): JsonObject = transport.request(
         method = "thread/list",
         params = threadListParamsPayload(),
@@ -57,25 +67,31 @@ internal class CodexAppServerSession(
 
     suspend fun turnStart(
         threadId: String,
-        message: String,
+        input: List<JsonObject>,
+        model: String? = null,
+        effort: String? = null,
+        personality: String? = null,
     ): JsonObject = transport.request(
         method = "turn/start",
         params = turnStartParamsPayload(
             threadId = threadId,
-            message = message,
+            input = input,
+            model = model,
+            effort = effort,
+            personality = personality,
         ),
     ).jsonObject
 
     suspend fun turnSteer(
         threadId: String,
         expectedTurnId: String,
-        message: String,
+        input: List<JsonObject>,
     ): JsonObject = transport.request(
         method = "turn/steer",
         params = turnSteerParamsPayload(
             threadId = threadId,
             expectedTurnId = expectedTurnId,
-            message = message,
+            input = input,
         ),
     ).jsonObject
 

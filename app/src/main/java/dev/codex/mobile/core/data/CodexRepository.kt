@@ -4,8 +4,10 @@ import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
+import dev.codex.mobile.core.model.ComposerCatalog
 import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.HostProfile
+import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.ThemePreference
@@ -28,6 +30,8 @@ interface CodexRepository {
 
     fun observeApprovals(): Flow<List<ApprovalItem>>
 
+    fun observeComposerCatalog(): Flow<ComposerCatalog>
+
     suspend fun saveHost(
         name: String,
         address: String,
@@ -49,9 +53,11 @@ interface CodexRepository {
 
     suspend fun openThread(threadId: String)
 
+    suspend fun refreshComposerCatalog()
+
     suspend fun sendReply(
         threadId: String,
-        message: String,
+        request: ThreadReplyRequest,
     )
 
     suspend fun interruptThread(threadId: String)

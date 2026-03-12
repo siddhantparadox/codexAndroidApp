@@ -7,11 +7,17 @@ import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
+import dev.codex.mobile.core.model.ComposerCatalog
+import dev.codex.mobile.core.model.ComposerModelOption
+import dev.codex.mobile.core.model.ComposerReasoningEffort
+import dev.codex.mobile.core.model.ComposerReasoningEffortOption
+import dev.codex.mobile.core.model.ComposerSkillOption
 import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.FileChangeEntry
 import dev.codex.mobile.core.model.HostKind
 import dev.codex.mobile.core.model.HostProfile
+import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadItemStatus
@@ -44,6 +50,7 @@ private data class DemoStoreState(
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
     val activeItemIdsByThread: Map<String, Set<String>> = emptyMap(),
     val approvals: List<ApprovalItem> = emptyList(),
+    val composerCatalog: ComposerCatalog = demoComposerCatalog(),
 )
 
 class DemoCodexRepository : CodexRepository {
@@ -96,6 +103,8 @@ class DemoCodexRepository : CodexRepository {
         store.map { it.activeItemIdsByThread[threadId].orEmpty() }
 
     override fun observeApprovals(): Flow<List<ApprovalItem>> = store.map { it.approvals }
+
+    override fun observeComposerCatalog(): Flow<ComposerCatalog> = store.map { it.composerCatalog }
 
     override suspend fun saveHost(name: String, address: String, port: Int) {
         val trimmedName = name.trim()
@@ -207,9 +216,15 @@ class DemoCodexRepository : CodexRepository {
         AppLog.action(name = "open_thread", detail = threadId)
     }
 
-    override suspend fun sendReply(threadId: String, message: String) {
-        val cleanMessage = message.trim()
-        if (cleanMessage.isEmpty()) return
+    override suspend fun refreshComposerCatalog() {
+        AppLog.action(name = "refresh_composer_catalog", detail = "demo")
+    }
+
+    override suspend fun sendReply(threadId: String, request: ThreadReplyRequest) {
+        val cleanMessage = request.message.trim().ifBlank {
+            request.skill?.let { "$${it.name}" } ?: request.image?.label.orEmpty()
+        }
+        if (!request.hasPayload) return
 
         AppLog.action(
             name = "send_reply",
@@ -498,6 +513,50 @@ private fun demoApprovals(): List<ApprovalItem> = listOf(
             ApprovalDecision.AcceptForSession,
             ApprovalDecision.Decline,
             ApprovalDecision.Cancel,
+        ),
+    ),
+)
+
+private fun demoComposerCatalog(): ComposerCatalog = ComposerCatalog(
+    models = listOf(
+        ComposerModelOption(
+            id = "gpt-5.4",
+            displayName = "GPT-5.4",
+            defaultReasoningEffort = ComposerReasoningEffort.Medium,
+            supportedReasoningEfforts = listOf(
+                ComposerReasoningEffortOption(ComposerReasoningEffort.Low, "Lower latency"),
+                ComposerReasoningEffortOption(ComposerReasoningEffort.Medium, "Balanced"),
+                ComposerReasoningEffortOption(ComposerReasoningEffort.High, "Deeper reasoning"),
+            ),
+            supportsPersonality = true,
+            supportsImageInput = true,
+            isDefault = true,
+        ),
+        ComposerModelOption(
+            id = "gpt-5.1-codex",
+            displayName = "GPT-5.1 Codex",
+            defaultReasoningEffort = ComposerReasoningEffort.Medium,
+            supportedReasoningEfforts = listOf(
+                ComposerReasoningEffortOption(ComposerReasoningEffort.Minimal, "Fastest"),
+                ComposerReasoningEffortOption(ComposerReasoningEffort.Medium, "Balanced"),
+                ComposerReasoningEffortOption(ComposerReasoningEffort.XHigh, "Maximum depth"),
+            ),
+            supportsPersonality = true,
+            supportsImageInput = false,
+        ),
+    ),
+    skills = listOf(
+        ComposerSkillOption(
+            name = "brainstorming",
+            path = "/demo/skills/brainstorming/SKILL.md",
+            displayName = "Brainstorming",
+            shortDescription = "Explore options before implementation.",
+        ),
+        ComposerSkillOption(
+            name = "compose-ui",
+            path = "/demo/skills/compose-ui/SKILL.md",
+            displayName = "Compose UI",
+            shortDescription = "Compose design and refactor guidance.",
         ),
     ),
 )

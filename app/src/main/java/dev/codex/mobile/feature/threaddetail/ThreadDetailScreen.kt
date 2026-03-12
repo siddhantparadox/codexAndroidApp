@@ -1,5 +1,8 @@
 package dev.codex.mobile.feature.threaddetail
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +26,8 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,7 +57,7 @@ import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.core.model.isWaitingOnApproval
 import kotlinx.coroutines.flow.first
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ThreadDetailScreen(
     onNavigateBack: () -> Unit,
@@ -69,6 +74,16 @@ fun ThreadDetailScreen(
     var followMode by remember(detail?.summary?.id) { mutableStateOf(true) }
     var scrollToLatestRequestId by remember(detail?.summary?.id) { mutableStateOf(0) }
     var handledScrollToLatestRequestId by remember(detail?.summary?.id) { mutableStateOf(0) }
+    var composerSheetContent by remember(detail?.summary?.id) {
+        mutableStateOf<ThreadComposerSheetContent?>(null)
+    }
+    val photoPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        uri?.let { pickedUri ->
+            viewModel.attachImage(pickedUri.toString())
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (detail == null) {
@@ -195,17 +210,76 @@ fun ThreadDetailScreen(
 
         ThreadComposerBar(
             value = uiState.draft,
-            onValueChange = viewModel::onDraftChanged,
+            onValueChange = { nextValue ->
+                val opensSkillPicker = nextValue.endsWith("$") && !uiState.draft.endsWith("$")
+                viewModel.onDraftChanged(nextValue)
+                if (opensSkillPicker) {
+                    composerSheetContent = ThreadComposerSheetContent.Skill
+                }
+            },
             onSend = {
                 followMode = true
                 scrollToLatestRequestId += 1
                 viewModel.sendReply()
             },
             onInterrupt = viewModel::interruptThread,
+            onModelClick = {
+                composerSheetContent = ThreadComposerSheetContent.Model
+            },
+            onEffortClick = {
+                composerSheetContent = ThreadComposerSheetContent.Effort
+            },
+            onMoreClick = {
+                composerSheetContent = ThreadComposerSheetContent.QuickActions
+            },
+            onClearSkill = viewModel::clearSkill,
+            onClearImage = viewModel::clearImage,
+            modelLabel = uiState.selectedModel?.displayName ?: "Model",
+            effortLabel = uiState.selectedEffort.displayLabel(),
+            selectedSkillLabel = uiState.selectedSkill?.let { "$${it.name}" },
+            imageLabel = uiState.selectedImage?.label,
+            canChangeTurnSettings = !uiState.canInterrupt,
             canInterrupt = uiState.canInterrupt,
             isInterrupting = uiState.isInterrupting,
+            sendEnabled = uiState.sendEnabled,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
+    }
+
+    val visibleSheetContent = composerSheetContent
+    if (visibleSheetContent != null) {
+        ModalBottomSheet(
+            onDismissRequest = { composerSheetContent = null },
+        ) {
+            ThreadComposerSheetContentView(
+                content = visibleSheetContent,
+                uiState = uiState,
+                onShowModels = { composerSheetContent = ThreadComposerSheetContent.Model },
+                onShowEfforts = { composerSheetContent = ThreadComposerSheetContent.Effort },
+                onShowPersonality = { composerSheetContent = ThreadComposerSheetContent.Personality },
+                onShowSkills = { composerSheetContent = ThreadComposerSheetContent.Skill },
+                onSelectModel = { modelId ->
+                    viewModel.selectModel(modelId)
+                    composerSheetContent = null
+                },
+                onSelectEffort = { effort ->
+                    viewModel.selectEffort(effort)
+                    composerSheetContent = null
+                },
+                onSelectPersonality = { personality ->
+                    viewModel.selectPersonality(personality)
+                    composerSheetContent = null
+                },
+                onSelectSkill = { skill ->
+                    viewModel.selectSkill(skill)
+                    composerSheetContent = null
+                },
+                onPickPhoto = {
+                    composerSheetContent = null
+                    photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+            )
+        }
     }
 }
 
@@ -341,5 +415,14 @@ private fun androidx.compose.foundation.lazy.LazyListState.isNearBottom(totalRow
 private fun shouldRenderTranscriptItem(item: ThreadItem): Boolean = when (item) {
     is ThreadItem.Reasoning -> item.summary.isNotBlank() || item.contentText.isNotBlank()
     else -> true
+}
+
+private fun dev.codex.mobile.core.model.ComposerReasoningEffort.displayLabel(): String = when (this) {
+    dev.codex.mobile.core.model.ComposerReasoningEffort.None -> "None"
+    dev.codex.mobile.core.model.ComposerReasoningEffort.Minimal -> "Minimal"
+    dev.codex.mobile.core.model.ComposerReasoningEffort.Low -> "Low"
+    dev.codex.mobile.core.model.ComposerReasoningEffort.Medium -> "Medium"
+    dev.codex.mobile.core.model.ComposerReasoningEffort.High -> "High"
+    dev.codex.mobile.core.model.ComposerReasoningEffort.XHigh -> "XHigh"
 }
 

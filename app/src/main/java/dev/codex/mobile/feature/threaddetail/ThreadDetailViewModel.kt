@@ -11,6 +11,13 @@ import androidx.navigation.toRoute
 import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
+import dev.codex.mobile.core.model.ComposerCatalog
+import dev.codex.mobile.core.model.ComposerImageAttachment
+import dev.codex.mobile.core.model.ComposerModelOption
+import dev.codex.mobile.core.model.ComposerPersonality
+import dev.codex.mobile.core.model.ComposerReasoningEffort
+import dev.codex.mobile.core.model.ComposerSkillOption
+import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.navigation.ThreadDetailRoute
@@ -29,6 +36,38 @@ data class ThreadDetailUiState(
     val draft: String = "",
     val canInterrupt: Boolean = false,
     val isInterrupting: Boolean = false,
+    val composerCatalog: ComposerCatalog = ComposerCatalog(),
+    val selectedModel: ComposerModelOption? = null,
+    val selectedEffort: ComposerReasoningEffort = ComposerReasoningEffort.Medium,
+    val selectedPersonality: ComposerPersonality = ComposerPersonality.Default,
+    val selectedSkill: ComposerSkillOption? = null,
+    val selectedImage: ComposerImageAttachment? = null,
+    val sendEnabled: Boolean = false,
+)
+
+private data class ComposerSelectionState(
+    val catalog: ComposerCatalog = ComposerCatalog(),
+    val selectedModel: ComposerModelOption? = null,
+    val selectedEffort: ComposerReasoningEffort = ComposerReasoningEffort.Medium,
+    val selectedPersonality: ComposerPersonality = ComposerPersonality.Default,
+    val selectedSkill: ComposerSkillOption? = null,
+    val selectedImage: ComposerImageAttachment? = null,
+)
+
+private data class ComposerSelectionInputs(
+    val currentEffort: ComposerReasoningEffort? = null,
+    val personality: ComposerPersonality = ComposerPersonality.Default,
+    val skill: ComposerSkillOption? = null,
+    val image: ComposerImageAttachment? = null,
+)
+
+private data class ThreadBaseUiState(
+    val detail: ThreadDetail? = null,
+    val activeItemIds: Set<String> = emptySet(),
+    val approvals: List<ApprovalItem> = emptyList(),
+    val draft: String = "",
+    val canInterrupt: Boolean = false,
+    val isInterrupting: Boolean = false,
 )
 
 class ThreadDetailViewModel(
@@ -38,10 +77,18 @@ class ThreadDetailViewModel(
     private val route = savedStateHandle.toRoute<ThreadDetailRoute>()
     private val draft = MutableStateFlow("")
     private val interruptRequested = MutableStateFlow(false)
+    private val selectedModelId = MutableStateFlow<String?>(null)
+    private val selectedEffort = MutableStateFlow<ComposerReasoningEffort?>(null)
+    private val selectedPersonality = MutableStateFlow(ComposerPersonality.Default)
+    private val selectedSkill = MutableStateFlow<ComposerSkillOption?>(null)
+    private val selectedImage = MutableStateFlow<ComposerImageAttachment?>(null)
 
     init {
         viewModelScope.launch {
             repository.openThread(route.threadId)
+        }
+        viewModelScope.launch {
+            repository.refreshComposerCatalog()
         }
         viewModelScope.launch {
             repository.observeThreadDetail(route.threadId).collect { detail ->
@@ -52,7 +99,43 @@ class ThreadDetailViewModel(
         }
     }
 
-    val uiState: StateFlow<ThreadDetailUiState> = combine(
+    private val composerSelectionInputs = combine(
+        selectedEffort,
+        selectedPersonality,
+        selectedSkill,
+        selectedImage,
+    ) { currentEffort, personality, skill, image ->
+        ComposerSelectionInputs(
+            currentEffort = currentEffort,
+            personality = personality,
+            skill = skill,
+            image = image,
+        )
+    }
+
+    private val composerSelection = combine(
+        repository.observeComposerCatalog(),
+        selectedModelId,
+        composerSelectionInputs,
+    ) { catalog, currentModelId, inputs ->
+        val selectedModel = catalog.models.firstOrNull { it.id == currentModelId }
+            ?: catalog.models.firstOrNull { it.isDefault }
+            ?: catalog.models.firstOrNull()
+        val resolvedEffort = inputs.currentEffort
+            ?.takeIf { effort -> selectedModel?.supportedReasoningEfforts?.any { it.effort == effort } != false }
+            ?: selectedModel?.defaultReasoningEffort
+            ?: ComposerReasoningEffort.Medium
+        ComposerSelectionState(
+            catalog = catalog,
+            selectedModel = selectedModel,
+            selectedEffort = resolvedEffort,
+            selectedPersonality = inputs.personality,
+            selectedSkill = inputs.skill,
+            selectedImage = inputs.image,
+        )
+    }
+
+    private val baseUiState = combine(
         repository.observeThreadDetail(route.threadId),
         repository.observeActiveItemIds(route.threadId),
         repository.observeApprovals(),
@@ -60,13 +143,34 @@ class ThreadDetailViewModel(
         interruptRequested,
     ) { detail, activeItemIds, approvals, currentDraft, interruptInFlight ->
         val canInterrupt = detail?.summary?.status?.isActive == true
-        ThreadDetailUiState(
+        ThreadBaseUiState(
             detail = detail,
             activeItemIds = activeItemIds,
             approvals = approvals.filter { approval -> approval.threadId == route.threadId },
             draft = currentDraft,
             canInterrupt = canInterrupt,
             isInterrupting = canInterrupt && interruptInFlight,
+        )
+    }
+
+    val uiState: StateFlow<ThreadDetailUiState> = combine(
+        baseUiState,
+        composerSelection,
+    ) { base, composer ->
+        ThreadDetailUiState(
+            detail = base.detail,
+            activeItemIds = base.activeItemIds,
+            approvals = base.approvals,
+            draft = base.draft,
+            canInterrupt = base.canInterrupt,
+            isInterrupting = base.isInterrupting,
+            composerCatalog = composer.catalog,
+            selectedModel = composer.selectedModel,
+            selectedEffort = composer.selectedEffort,
+            selectedPersonality = composer.selectedPersonality,
+            selectedSkill = composer.selectedSkill,
+            selectedImage = composer.selectedImage,
+            sendEnabled = base.draft.isNotBlank() || composer.selectedSkill != null || composer.selectedImage != null,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -79,11 +183,24 @@ class ThreadDetailViewModel(
     }
 
     fun sendReply() {
-        val message = draft.value
-        if (message.isBlank()) return
+        val request = ThreadReplyRequest(
+            message = draft.value,
+            modelId = selectedModelId.value,
+            reasoningEffort = selectedEffort.value,
+            personality = if (uiState.value.selectedModel?.supportsPersonality == true) {
+                uiState.value.selectedPersonality
+            } else {
+                ComposerPersonality.Default
+            },
+            skill = uiState.value.selectedSkill,
+            image = uiState.value.selectedImage,
+        )
+        if (!request.hasPayload) return
         draft.update { "" }
+        selectedSkill.update { null }
+        selectedImage.update { null }
         viewModelScope.launch {
-            repository.sendReply(route.threadId, message)
+            repository.sendReply(route.threadId, request)
         }
     }
 
@@ -97,6 +214,44 @@ class ThreadDetailViewModel(
                 interruptRequested.update { false }
             }
         }
+    }
+
+    fun selectModel(modelId: String) {
+        selectedModelId.update { modelId }
+        val model = uiState.value.composerCatalog.models.firstOrNull { it.id == modelId } ?: return
+        selectedEffort.update { effort ->
+            effort?.takeIf { current ->
+                model.supportedReasoningEfforts.any { it.effort == current }
+            } ?: model.defaultReasoningEffort
+        }
+        if (!model.supportsPersonality) {
+            selectedPersonality.update { ComposerPersonality.Default }
+        }
+    }
+
+    fun selectEffort(effort: ComposerReasoningEffort) {
+        selectedEffort.update { effort }
+    }
+
+    fun selectPersonality(personality: ComposerPersonality) {
+        selectedPersonality.update { personality }
+    }
+
+    fun selectSkill(skill: ComposerSkillOption) {
+        selectedSkill.update { skill }
+        draft.update { current -> current.removeSuffix("$").trimEnd() }
+    }
+
+    fun clearSkill() {
+        selectedSkill.update { null }
+    }
+
+    fun attachImage(contentUri: String) {
+        selectedImage.update { ComposerImageAttachment(contentUri = contentUri) }
+    }
+
+    fun clearImage() {
+        selectedImage.update { null }
     }
 
     fun resolveApproval(

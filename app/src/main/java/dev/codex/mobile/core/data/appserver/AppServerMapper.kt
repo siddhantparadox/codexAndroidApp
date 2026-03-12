@@ -5,6 +5,11 @@ import dev.codex.mobile.core.model.AccountStatus
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
+import dev.codex.mobile.core.model.ComposerCatalog
+import dev.codex.mobile.core.model.ComposerModelOption
+import dev.codex.mobile.core.model.ComposerReasoningEffort
+import dev.codex.mobile.core.model.ComposerReasoningEffortOption
+import dev.codex.mobile.core.model.ComposerSkillOption
 import dev.codex.mobile.core.model.CollabAgentState
 import dev.codex.mobile.core.model.CommandActionHint
 import dev.codex.mobile.core.model.FileChangeEntry
@@ -22,6 +27,25 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
+internal fun catalogFromResponses(
+    modelResponse: JsonObject,
+    skillsResponse: JsonObject,
+): ComposerCatalog = ComposerCatalog(
+    models = modelResponse.arrayAt("data")
+        ?.map { model -> model.jsonObject.toComposerModelOption() }
+        .orEmpty()
+        .sortedWith(compareByDescending<ComposerModelOption> { it.isDefault }.thenBy { it.displayName.lowercase() }),
+    skills = skillsResponse.arrayAt("data")
+        ?.flatMap { entry ->
+            entry.jsonObject.arrayAt("skills")
+                ?.map { skill -> skill.jsonObject.toComposerSkillOption() }
+                .orEmpty()
+        }
+        .orEmpty()
+        .distinctBy { it.path }
+        .sortedBy { it.displayName.lowercase() },
+)
 
 internal fun JsonObject.toAccountState(): AccountState {
     val account = objectAt("account")
@@ -124,6 +148,43 @@ internal fun JsonObject.toThreadStatus(): ThreadStatus = when (string("type")) {
     "idle" -> ThreadStatus(type = ThreadStatusType.Idle)
     "systemError" -> ThreadStatus(type = ThreadStatusType.SystemError)
     else -> ThreadStatus(type = ThreadStatusType.NotLoaded)
+}
+
+internal fun JsonObject.toComposerModelOption(): ComposerModelOption = ComposerModelOption(
+    id = string("model") ?: requireNotNull(string("id")),
+    displayName = string("displayName") ?: string("model").orEmpty(),
+    defaultReasoningEffort = string("defaultReasoningEffort").toComposerReasoningEffort(),
+    supportedReasoningEfforts = arrayAt("supportedReasoningEfforts")
+        ?.mapNotNull { item ->
+            item.jsonObject.string("reasoningEffort")
+                ?.let { effort ->
+                    ComposerReasoningEffortOption(
+                        effort = effort.toComposerReasoningEffort(),
+                        description = item.jsonObject.string("description").orEmpty(),
+                    )
+                }
+        }
+        .orEmpty(),
+    supportsPersonality = boolean("supportsPersonality") ?: false,
+    supportsImageInput = arrayAt("inputModalities")
+        ?.map { it.jsonPrimitive.content }
+        ?.contains("image")
+        ?: true,
+    isDefault = boolean("isDefault") ?: false,
+)
+
+internal fun JsonObject.toComposerSkillOption(): ComposerSkillOption {
+    val interfaceObject = objectAt("interface")
+    return ComposerSkillOption(
+        name = requireNotNull(string("name")),
+        path = requireNotNull(string("path")),
+        displayName = interfaceObject?.string("displayName")
+            ?: string("name")
+            .orEmpty(),
+        shortDescription = interfaceObject?.string("shortDescription")
+            ?: interfaceObject?.string("defaultPrompt")
+            ?: string("description"),
+    )
 }
 
 internal fun JsonObject.toThreadItem(): ThreadItem = when (string("type")) {
@@ -412,4 +473,13 @@ private fun String?.toThreadItemStatus(): ThreadItemStatus = when (this) {
     "failed" -> ThreadItemStatus.Failed
     "declined" -> ThreadItemStatus.Declined
     else -> ThreadItemStatus.InProgress
+}
+
+private fun String?.toComposerReasoningEffort(): ComposerReasoningEffort = when (this) {
+    "none" -> ComposerReasoningEffort.None
+    "minimal" -> ComposerReasoningEffort.Minimal
+    "low" -> ComposerReasoningEffort.Low
+    "high" -> ComposerReasoningEffort.High
+    "xhigh" -> ComposerReasoningEffort.XHigh
+    else -> ComposerReasoningEffort.Medium
 }
