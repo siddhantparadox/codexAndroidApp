@@ -20,6 +20,7 @@ import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.designsystem.theme.cardBorder
 import dev.codex.mobile.core.model.ComposerPersonality
 import dev.codex.mobile.core.model.ComposerReasoningEffort
+import dev.codex.mobile.core.model.ComposerSandboxMode
 import dev.codex.mobile.core.model.ComposerSkillOption
 
 internal enum class ThreadComposerSheetContent {
@@ -27,6 +28,7 @@ internal enum class ThreadComposerSheetContent {
     Model,
     Effort,
     Personality,
+    Permissions,
     Skill,
 }
 
@@ -37,19 +39,25 @@ internal fun ThreadComposerSheetContentView(
     onShowModels: () -> Unit,
     onShowEfforts: () -> Unit,
     onShowPersonality: () -> Unit,
+    onShowPermissions: () -> Unit,
     onShowSkills: () -> Unit,
     onSelectModel: (String) -> Unit,
     onSelectEffort: (ComposerReasoningEffort) -> Unit,
     onSelectPersonality: (ComposerPersonality) -> Unit,
+    onSelectSandboxMode: (ComposerSandboxMode) -> Unit,
     onSelectSkill: (ComposerSkillOption) -> Unit,
     onPickPhoto: () -> Unit,
 ) {
     when (content) {
         ThreadComposerSheetContent.QuickActions -> QuickActionsSheet(
             personalityLabel = uiState.selectedPersonality.displayLabel(),
+            personalitySupported = uiState.selectedModel?.supportsPersonality == true,
+            permissionLabel = uiState.selectedSandboxMode.displayLabel(),
             canChangePersonality = uiState.selectedModel?.supportsPersonality == true && !uiState.canInterrupt,
+            canChangePermissions = !uiState.canInterrupt,
             canAttachImage = uiState.selectedModel?.supportsImageInput != false,
             onShowPersonality = onShowPersonality,
+            onShowPermissions = onShowPermissions,
             onShowSkills = onShowSkills,
             onPickPhoto = onPickPhoto,
         )
@@ -103,6 +111,21 @@ internal fun ThreadComposerSheetContentView(
             },
         )
 
+        ThreadComposerSheetContent.Permissions -> ModelSelectionSheet(
+            title = "Permissions",
+            options = ComposerSandboxMode.entries.map { sandboxMode ->
+                SheetListOption(
+                    key = sandboxMode.name,
+                    title = sandboxMode.displayLabel(),
+                    subtitle = sandboxMode.subtitle(),
+                    selected = sandboxMode == uiState.selectedSandboxMode,
+                )
+            },
+            onSelect = { key ->
+                ComposerSandboxMode.entries.firstOrNull { it.name == key }?.let(onSelectSandboxMode)
+            },
+        )
+
         ThreadComposerSheetContent.Skill -> SkillSelectionSheet(
             skills = uiState.composerCatalog.skills,
             selectedSkillPath = uiState.selectedSkill?.path,
@@ -114,9 +137,13 @@ internal fun ThreadComposerSheetContentView(
 @Composable
 private fun QuickActionsSheet(
     personalityLabel: String,
+    personalitySupported: Boolean,
+    permissionLabel: String,
     canChangePersonality: Boolean,
+    canChangePermissions: Boolean,
     canAttachImage: Boolean,
     onShowPersonality: () -> Unit,
+    onShowPermissions: () -> Unit,
     onShowSkills: () -> Unit,
     onPickPhoto: () -> Unit,
 ) {
@@ -133,9 +160,25 @@ private fun QuickActionsSheet(
         )
         QuickActionCard(
             title = "Personality",
-            subtitle = personalityLabel,
+            subtitle = if (!personalitySupported) {
+                "This model does not support personality"
+            } else if (canChangePersonality) {
+                personalityLabel
+            } else {
+                "$personalityLabel • applies next turn"
+            },
             enabled = canChangePersonality,
             onClick = onShowPersonality,
+        )
+        QuickActionCard(
+            title = "Permissions",
+            subtitle = if (canChangePermissions) {
+                permissionLabel
+            } else {
+                "$permissionLabel • applies next turn"
+            },
+            enabled = canChangePermissions,
+            onClick = onShowPermissions,
         )
         QuickActionCard(
             title = "Photo",
@@ -324,4 +367,18 @@ private fun ComposerPersonality.displayLabel(): String = when (this) {
     ComposerPersonality.Default -> "Default"
     ComposerPersonality.Friendly -> "Friendly"
     ComposerPersonality.Pragmatic -> "Pragmatic"
+}
+
+private fun ComposerSandboxMode.displayLabel(): String = when (this) {
+    ComposerSandboxMode.Default -> "Default"
+    ComposerSandboxMode.ReadOnly -> "Read Only"
+    ComposerSandboxMode.WorkspaceWrite -> "Workspace Write"
+    ComposerSandboxMode.FullAccess -> "Full Access"
+}
+
+private fun ComposerSandboxMode.subtitle(): String = when (this) {
+    ComposerSandboxMode.Default -> "Use the host's current sandbox settings"
+    ComposerSandboxMode.ReadOnly -> "Inspect files and run safe reads only"
+    ComposerSandboxMode.WorkspaceWrite -> "Allow edits inside the workspace"
+    ComposerSandboxMode.FullAccess -> "Allow unrestricted execution on the host"
 }

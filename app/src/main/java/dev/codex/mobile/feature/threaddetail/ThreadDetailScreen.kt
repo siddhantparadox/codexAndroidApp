@@ -234,10 +234,12 @@ fun ThreadDetailScreen(
             },
             onClearSkill = viewModel::clearSkill,
             onClearImage = viewModel::clearImage,
+            onClearPermission = viewModel::clearSandboxMode,
             modelLabel = uiState.selectedModel?.displayName ?: "Model",
             effortLabel = uiState.selectedEffort.displayLabel(),
             selectedSkillLabel = uiState.selectedSkill?.let { "$${it.name}" },
             imageLabel = uiState.selectedImage?.label,
+            permissionLabel = uiState.selectedSandboxMode.tokenLabel(),
             canChangeTurnSettings = !uiState.canInterrupt,
             canInterrupt = uiState.canInterrupt,
             isInterrupting = uiState.isInterrupting,
@@ -257,6 +259,7 @@ fun ThreadDetailScreen(
                 onShowModels = { composerSheetContent = ThreadComposerSheetContent.Model },
                 onShowEfforts = { composerSheetContent = ThreadComposerSheetContent.Effort },
                 onShowPersonality = { composerSheetContent = ThreadComposerSheetContent.Personality },
+                onShowPermissions = { composerSheetContent = ThreadComposerSheetContent.Permissions },
                 onShowSkills = { composerSheetContent = ThreadComposerSheetContent.Skill },
                 onSelectModel = { modelId ->
                     viewModel.selectModel(modelId)
@@ -268,6 +271,10 @@ fun ThreadDetailScreen(
                 },
                 onSelectPersonality = { personality ->
                     viewModel.selectPersonality(personality)
+                    composerSheetContent = null
+                },
+                onSelectSandboxMode = { sandboxMode ->
+                    viewModel.selectSandboxMode(sandboxMode)
                     composerSheetContent = null
                 },
                 onSelectSkill = { skill ->
@@ -424,5 +431,12 @@ private fun dev.codex.mobile.core.model.ComposerReasoningEffort.displayLabel(): 
     dev.codex.mobile.core.model.ComposerReasoningEffort.Medium -> "Medium"
     dev.codex.mobile.core.model.ComposerReasoningEffort.High -> "High"
     dev.codex.mobile.core.model.ComposerReasoningEffort.XHigh -> "XHigh"
+}
+
+private fun dev.codex.mobile.core.model.ComposerSandboxMode.tokenLabel(): String? = when (this) {
+    dev.codex.mobile.core.model.ComposerSandboxMode.Default -> null
+    dev.codex.mobile.core.model.ComposerSandboxMode.ReadOnly -> "Read Only"
+    dev.codex.mobile.core.model.ComposerSandboxMode.WorkspaceWrite -> "Workspace Write"
+    dev.codex.mobile.core.model.ComposerSandboxMode.FullAccess -> "Full Access"
 }
 

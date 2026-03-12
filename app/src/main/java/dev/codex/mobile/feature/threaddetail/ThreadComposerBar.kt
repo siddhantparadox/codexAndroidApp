@@ -48,10 +48,12 @@ internal fun ThreadComposerBar(
     onMoreClick: () -> Unit,
     onClearSkill: () -> Unit,
     onClearImage: () -> Unit,
+    onClearPermission: () -> Unit,
     modelLabel: String,
     effortLabel: String,
     selectedSkillLabel: String?,
     imageLabel: String?,
+    permissionLabel: String?,
     canChangeTurnSettings: Boolean,
     canInterrupt: Boolean,
     isInterrupting: Boolean,
@@ -85,7 +87,7 @@ internal fun ThreadComposerBar(
             )
         }
 
-        if (selectedSkillLabel != null || imageLabel != null) {
+        if (selectedSkillLabel != null || imageLabel != null || permissionLabel != null) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -101,6 +103,12 @@ internal fun ThreadComposerBar(
                     ComposerAttachmentToken(
                         label = label,
                         onClear = onClearImage,
+                    )
+                }
+                permissionLabel?.let { label ->
+                    ComposerAttachmentToken(
+                        label = label,
+                        onClear = onClearPermission,
                     )
                 }
             }

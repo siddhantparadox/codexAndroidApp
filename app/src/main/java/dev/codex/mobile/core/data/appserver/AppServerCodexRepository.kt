@@ -14,6 +14,7 @@ import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ComposerCatalog
 import dev.codex.mobile.core.model.ComposerPersonality
 import dev.codex.mobile.core.model.ComposerReasoningEffort
+import dev.codex.mobile.core.model.ComposerSandboxMode
 import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.HostKind
@@ -280,6 +281,7 @@ internal class AppServerCodexRepository(
                 model = request.modelId,
                 effort = request.reasoningEffort.toWireValue(),
                 personality = request.personality.toWireValue(),
+                sandboxPolicy = request.sandboxMode.toSandboxPolicyPayload(),
             )
             val turnId = response.objectAt("turn")?.string("id")
             if (turnId != null) {
@@ -1394,4 +1396,19 @@ private fun ComposerPersonality.toWireValue(): String? = when (this) {
     ComposerPersonality.Default -> null
     ComposerPersonality.Friendly -> "friendly"
     ComposerPersonality.Pragmatic -> "pragmatic"
+}
+
+private fun ComposerSandboxMode.toSandboxPolicyPayload(): kotlinx.serialization.json.JsonObject? = when (this) {
+    ComposerSandboxMode.Default -> null
+    ComposerSandboxMode.ReadOnly -> buildJsonObject {
+        put("type", "readOnly")
+    }
+
+    ComposerSandboxMode.WorkspaceWrite -> buildJsonObject {
+        put("type", "workspaceWrite")
+    }
+
+    ComposerSandboxMode.FullAccess -> buildJsonObject {
+        put("type", "dangerFullAccess")
+    }
 }

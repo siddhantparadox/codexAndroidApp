@@ -16,6 +16,7 @@ import dev.codex.mobile.core.model.ComposerImageAttachment
 import dev.codex.mobile.core.model.ComposerModelOption
 import dev.codex.mobile.core.model.ComposerPersonality
 import dev.codex.mobile.core.model.ComposerReasoningEffort
+import dev.codex.mobile.core.model.ComposerSandboxMode
 import dev.codex.mobile.core.model.ComposerSkillOption
 import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
@@ -40,6 +41,7 @@ data class ThreadDetailUiState(
     val selectedModel: ComposerModelOption? = null,
     val selectedEffort: ComposerReasoningEffort = ComposerReasoningEffort.Medium,
     val selectedPersonality: ComposerPersonality = ComposerPersonality.Default,
+    val selectedSandboxMode: ComposerSandboxMode = ComposerSandboxMode.Default,
     val selectedSkill: ComposerSkillOption? = null,
     val selectedImage: ComposerImageAttachment? = null,
     val sendEnabled: Boolean = false,
@@ -50,6 +52,7 @@ private data class ComposerSelectionState(
     val selectedModel: ComposerModelOption? = null,
     val selectedEffort: ComposerReasoningEffort = ComposerReasoningEffort.Medium,
     val selectedPersonality: ComposerPersonality = ComposerPersonality.Default,
+    val selectedSandboxMode: ComposerSandboxMode = ComposerSandboxMode.Default,
     val selectedSkill: ComposerSkillOption? = null,
     val selectedImage: ComposerImageAttachment? = null,
 )
@@ -57,6 +60,7 @@ private data class ComposerSelectionState(
 private data class ComposerSelectionInputs(
     val currentEffort: ComposerReasoningEffort? = null,
     val personality: ComposerPersonality = ComposerPersonality.Default,
+    val sandboxMode: ComposerSandboxMode = ComposerSandboxMode.Default,
     val skill: ComposerSkillOption? = null,
     val image: ComposerImageAttachment? = null,
 )
@@ -80,6 +84,7 @@ class ThreadDetailViewModel(
     private val selectedModelId = MutableStateFlow<String?>(null)
     private val selectedEffort = MutableStateFlow<ComposerReasoningEffort?>(null)
     private val selectedPersonality = MutableStateFlow(ComposerPersonality.Default)
+    private val selectedSandboxMode = MutableStateFlow(ComposerSandboxMode.Default)
     private val selectedSkill = MutableStateFlow<ComposerSkillOption?>(null)
     private val selectedImage = MutableStateFlow<ComposerImageAttachment?>(null)
 
@@ -102,12 +107,14 @@ class ThreadDetailViewModel(
     private val composerSelectionInputs = combine(
         selectedEffort,
         selectedPersonality,
+        selectedSandboxMode,
         selectedSkill,
         selectedImage,
-    ) { currentEffort, personality, skill, image ->
+    ) { currentEffort, personality, sandboxMode, skill, image ->
         ComposerSelectionInputs(
             currentEffort = currentEffort,
             personality = personality,
+            sandboxMode = sandboxMode,
             skill = skill,
             image = image,
         )
@@ -130,6 +137,7 @@ class ThreadDetailViewModel(
             selectedModel = selectedModel,
             selectedEffort = resolvedEffort,
             selectedPersonality = inputs.personality,
+            selectedSandboxMode = inputs.sandboxMode,
             selectedSkill = inputs.skill,
             selectedImage = inputs.image,
         )
@@ -168,6 +176,7 @@ class ThreadDetailViewModel(
             selectedModel = composer.selectedModel,
             selectedEffort = composer.selectedEffort,
             selectedPersonality = composer.selectedPersonality,
+            selectedSandboxMode = composer.selectedSandboxMode,
             selectedSkill = composer.selectedSkill,
             selectedImage = composer.selectedImage,
             sendEnabled = base.draft.isNotBlank() || composer.selectedSkill != null || composer.selectedImage != null,
@@ -192,6 +201,7 @@ class ThreadDetailViewModel(
             } else {
                 ComposerPersonality.Default
             },
+            sandboxMode = uiState.value.selectedSandboxMode,
             skill = uiState.value.selectedSkill,
             image = uiState.value.selectedImage,
         )
@@ -235,6 +245,14 @@ class ThreadDetailViewModel(
 
     fun selectPersonality(personality: ComposerPersonality) {
         selectedPersonality.update { personality }
+    }
+
+    fun selectSandboxMode(sandboxMode: ComposerSandboxMode) {
+        selectedSandboxMode.update { sandboxMode }
+    }
+
+    fun clearSandboxMode() {
+        selectedSandboxMode.update { ComposerSandboxMode.Default }
     }
 
     fun selectSkill(skill: ComposerSkillOption) {

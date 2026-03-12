@@ -35,6 +35,13 @@ enum class ComposerPersonality {
     Pragmatic,
 }
 
+enum class ComposerSandboxMode {
+    Default,
+    ReadOnly,
+    WorkspaceWrite,
+    FullAccess,
+}
+
 data class ComposerSkillOption(
     val name: String,
     val path: String,
@@ -52,6 +59,7 @@ data class ThreadReplyRequest(
     val modelId: String? = null,
     val reasoningEffort: ComposerReasoningEffort? = null,
     val personality: ComposerPersonality = ComposerPersonality.Default,
+    val sandboxMode: ComposerSandboxMode = ComposerSandboxMode.Default,
     val skill: ComposerSkillOption? = null,
     val image: ComposerImageAttachment? = null,
 ) {

@@ -71,6 +71,7 @@ internal class CodexAppServerSession(
         model: String? = null,
         effort: String? = null,
         personality: String? = null,
+        sandboxPolicy: JsonObject? = null,
     ): JsonObject = transport.request(
         method = "turn/start",
         params = turnStartParamsPayload(
@@ -79,6 +80,7 @@ internal class CodexAppServerSession(
             model = model,
             effort = effort,
             personality = personality,
+            sandboxPolicy = sandboxPolicy,
         ),
     ).jsonObject
 

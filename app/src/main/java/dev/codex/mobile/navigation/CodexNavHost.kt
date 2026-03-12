@@ -98,8 +98,8 @@ fun CodexNavHost(
                         navigateToTopLevelDestination(TopLevelDestination.Threads)
                     },
                     onOpenHostConnection = {
-                        AppLog.action(name = "open_host_connection", detail = "from_dashboard")
-                        navController.navigate(HostConnectionRoute)
+                        AppLog.action(name = "open_settings", detail = "from_dashboard_connection")
+                        navigateToTopLevelDestination(TopLevelDestination.Settings)
                     },
                     onOpenThread = { threadId ->
                         AppLog.action(name = "open_thread", detail = threadId)

@@ -144,11 +144,13 @@ internal fun turnStartParamsPayload(
     model: String? = null,
     effort: String? = null,
     personality: String? = null,
+    sandboxPolicy: JsonObject? = null,
 ): JsonObject = buildJsonObject {
     put("threadId", threadId)
     model?.let { put("model", it) }
     effort?.let { put("effort", it) }
     personality?.let { put("personality", it) }
+    sandboxPolicy?.let { put("sandboxPolicy", it) }
     put("input", buildJsonArray { input.forEach(::add) })
 }
 
