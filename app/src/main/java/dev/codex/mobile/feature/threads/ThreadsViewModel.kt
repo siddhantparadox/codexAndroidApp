@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.isActive
@@ -35,6 +36,7 @@ data class ThreadsUiState(
     val isRefreshing: Boolean = false,
     val lastRefreshAtEpochSeconds: Long? = null,
     val refreshErrorMessage: String? = null,
+    val unreadResultDigests: Map<String, ThreadResultDigest> = emptyMap(),
     val threads: List<ThreadSummary> = emptyList(),
 )
 
@@ -42,6 +44,13 @@ private data class ThreadsRefreshState(
     val isRefreshing: Boolean = false,
     val lastRefreshAtEpochSeconds: Long? = null,
     val refreshErrorMessage: String? = null,
+)
+
+private data class ThreadListingState(
+    val canCreateThread: Boolean = false,
+    val canRefresh: Boolean = false,
+    val unreadResultDigests: Map<String, ThreadResultDigest> = emptyMap(),
+    val threads: List<ThreadSummary> = emptyList(),
 )
 
 class ThreadsViewModel(
@@ -52,21 +61,17 @@ class ThreadsViewModel(
     private val refreshState = MutableStateFlow(ThreadsRefreshState())
     private var refreshJob: Job? = null
 
-    val uiState: StateFlow<ThreadsUiState> = combine(
+    private val threadListingState = combine(
         repository.observeThreads(),
         repository.observeConnection(),
+        repository.observeUnreadThreadResultDigests(),
         query,
         selectedFilter,
-        refreshState,
-    ) { threads, connection, searchQuery, filter, refresh ->
-        ThreadsUiState(
-            query = searchQuery,
-            selectedFilter = filter,
+    ) { threads, connection, unreadResultDigests, searchQuery, filter ->
+        ThreadListingState(
             canCreateThread = connection.isConnected,
             canRefresh = connection.isConnected,
-            isRefreshing = refresh.isRefreshing,
-            lastRefreshAtEpochSeconds = refresh.lastRefreshAtEpochSeconds,
-            refreshErrorMessage = refresh.refreshErrorMessage,
+            unreadResultDigests = unreadResultDigests,
             threads = threads.filter { thread ->
                 val matchesQuery = searchQuery.isBlank() ||
                     thread.name.orEmpty().contains(searchQuery, ignoreCase = true) ||
@@ -79,6 +84,25 @@ class ThreadsViewModel(
                 }
                 matchesQuery && matchesFilter
             },
+        )
+    }
+
+    val uiState: StateFlow<ThreadsUiState> = combine(
+        threadListingState,
+        query,
+        selectedFilter,
+        refreshState,
+    ) { listing, searchQuery, filter, refresh ->
+        ThreadsUiState(
+            query = searchQuery,
+            selectedFilter = filter,
+            canCreateThread = listing.canCreateThread,
+            canRefresh = listing.canRefresh,
+            isRefreshing = refresh.isRefreshing,
+            lastRefreshAtEpochSeconds = refresh.lastRefreshAtEpochSeconds,
+            refreshErrorMessage = refresh.refreshErrorMessage,
+            unreadResultDigests = listing.unreadResultDigests,
+            threads = listing.threads,
         )
     }.stateIn(
         scope = viewModelScope,

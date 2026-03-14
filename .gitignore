@@ -38,6 +38,7 @@ key.properties
 hs_err_pid*
 replay_pid*
 .tmp/
+.codex-tmp/
 
 # Local device screenshots
 design/device-*.png

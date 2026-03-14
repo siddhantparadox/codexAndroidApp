@@ -49,6 +49,7 @@ internal fun ThreadTranscriptRowView(
     activeItemIds: Set<String>,
     autoRevealExpandedContent: Boolean,
     onDecision: (String, ApprovalDecision) -> Unit,
+    onSubmitUserInput: (String, Map<String, List<String>>) -> Unit,
     onReviewDiff: (dev.codex.mobile.core.model.FileChangeEntry) -> Unit,
 ) {
     when (row) {
@@ -60,15 +61,22 @@ internal fun ThreadTranscriptRowView(
         is TranscriptRow.TechnicalStrip -> TechnicalPillStrip(
             items = row.items,
             approvals = row.approvals,
+            userInputRequests = row.userInputRequests,
             activeItemIds = activeItemIds,
             autoRevealExpandedContent = autoRevealExpandedContent,
             onDecision = onDecision,
+            onSubmitUserInput = onSubmitUserInput,
             onReviewDiff = onReviewDiff,
         )
 
         is TranscriptRow.OrphanApproval -> InlineApprovalCard(
             approval = row.approval,
             onDecision = onDecision,
+        )
+
+        is TranscriptRow.OrphanUserInputRequest -> InlineUserInputRequestCard(
+            request = row.request,
+            onSubmit = onSubmitUserInput,
         )
     }
 }

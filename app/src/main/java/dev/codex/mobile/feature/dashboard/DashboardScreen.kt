@@ -50,6 +50,7 @@ import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.displayMetaLabel
 import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.model.isWaitingOnUserInput
 import dev.codex.mobile.core.model.summary
 import dev.codex.mobile.core.util.relativeTimeLabel
 
@@ -285,7 +286,7 @@ private fun ActiveThreadCard(
                 StatusChip(
                     label = threadStatusLabel(thread.status),
                     color = threadStatusColor(thread.status),
-                    pulsingDot = !thread.status.isWaitingOnApproval,
+                    pulsingDot = !thread.status.isWaitingOnApproval && !thread.status.isWaitingOnUserInput,
                 )
             },
         )
@@ -318,10 +319,10 @@ private fun ActiveThreadCard(
             )
             Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
             Text(
-                text = if (thread.status.isWaitingOnApproval) {
-                    "Approval is blocking the current turn."
-                } else {
-                    "Open the live thread to steer or interrupt the turn."
+                text = when {
+                    thread.status.isWaitingOnApproval -> "Approval is blocking the current turn."
+                    thread.status.isWaitingOnUserInput -> "Codex is waiting for a short answer before it can continue."
+                    else -> "Open the live thread to steer or interrupt the turn."
                 },
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
@@ -388,6 +389,7 @@ private fun threadMetaLabel(thread: ThreadSummary): String = thread.displayMetaL
 
 private fun threadStatusLabel(status: ThreadStatus): String = when {
     status.isWaitingOnApproval -> "Needs Approval"
+    status.isWaitingOnUserInput -> "Needs Input"
     status.type == ThreadStatusType.Active -> "Active"
     status.type == ThreadStatusType.SystemError -> "Error"
     status.type == ThreadStatusType.Idle -> "Idle"
@@ -397,6 +399,7 @@ private fun threadStatusLabel(status: ThreadStatus): String = when {
 @Composable
 private fun threadStatusColor(status: ThreadStatus): Color = when {
     status.isWaitingOnApproval -> Color(0xFFD59734)
+    status.isWaitingOnUserInput -> Color(0xFF3A7BD5)
     status.type == ThreadStatusType.Active -> MaterialTheme.colorScheme.primary
     status.type == ThreadStatusType.SystemError -> MaterialTheme.colorScheme.error
     else -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -404,6 +407,7 @@ private fun threadStatusColor(status: ThreadStatus): Color = when {
 
 private fun threadStatusIcon(status: ThreadStatus) = when {
     status.isWaitingOnApproval -> Icons.Rounded.FolderOpen
+    status.isWaitingOnUserInput -> Icons.Rounded.ChatBubbleOutline
     status.type == ThreadStatusType.Active -> Icons.Rounded.Refresh
     status.type == ThreadStatusType.SystemError -> Icons.Rounded.Error
     else -> Icons.Rounded.ChatBubbleOutline

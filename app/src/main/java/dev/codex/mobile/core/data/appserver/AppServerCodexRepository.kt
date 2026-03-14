@@ -20,16 +20,21 @@ import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.HostKind
 import dev.codex.mobile.core.model.HostProfile
+import dev.codex.mobile.core.model.InAppThreadNotification
 import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadActivity
 import dev.codex.mobile.core.model.ThreadActivityEmphasis
 import dev.codex.mobile.core.model.ThreadItem
+import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThemePreference
 import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.model.isWaitingOnUserInput
+import dev.codex.mobile.core.model.previewText
 import dev.codex.mobile.core.util.AppLog
 import java.net.UnknownHostException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -63,13 +68,22 @@ private data class RepositoryState(
     val threadItemCache: Map<String, List<ThreadItem>> = emptyMap(),
     val threadSettingsCache: Map<String, PersistedThreadSettings> = emptyMap(),
     val approvals: List<ApprovalItem> = emptyList(),
+    val userInputRequests: List<ThreadUserInputRequest> = emptyList(),
     val activeTurnIds: Map<String, String> = emptyMap(),
     val composerCatalog: ComposerCatalog = ComposerCatalog(),
+    val unreadThreadResultDigests: Map<String, ThreadResultDigest> = emptyMap(),
+    val inAppThreadNotifications: List<InAppThreadNotification> = emptyList(),
+    val visibleThreadId: String? = null,
+    val lastResultTurnIdByThread: Map<String, String> = emptyMap(),
 )
 
 private data class PendingApprovalRequest(
     val requestId: JsonPrimitive,
     val method: String,
+)
+
+private data class PendingUserInputRequest(
+    val requestId: JsonPrimitive,
 )
 
 internal class AppServerCodexRepository(
@@ -89,6 +103,7 @@ internal class AppServerCodexRepository(
     private val threadsRefreshMutex: Mutex = Mutex()
     private val openedThreadIds: MutableSet<String> = linkedSetOf()
     private val pendingApprovalRequests: MutableMap<String, PendingApprovalRequest> = linkedMapOf()
+    private val pendingUserInputRequests: MutableMap<String, PendingUserInputRequest> = linkedMapOf()
 
     @Volatile
     private var session: CodexAppServerSession? = null
@@ -123,7 +138,16 @@ internal class AppServerCodexRepository(
 
     override fun observeApprovals(): Flow<List<ApprovalItem>> = repositoryState.map { it.approvals }
 
+    override fun observeUserInputRequests(): Flow<List<ThreadUserInputRequest>> =
+        repositoryState.map { it.userInputRequests }
+
     override fun observeComposerCatalog(): Flow<ComposerCatalog> = repositoryState.map { it.composerCatalog }
+
+    override fun observeUnreadThreadResultDigests(): Flow<Map<String, ThreadResultDigest>> =
+        repositoryState.map { it.unreadThreadResultDigests }
+
+    override fun observeInAppThreadNotifications(): Flow<List<InAppThreadNotification>> =
+        repositoryState.map { it.inAppThreadNotifications }
 
     override suspend fun saveHost(
         name: String,
@@ -221,6 +245,7 @@ internal class AppServerCodexRepository(
     }
 
     override suspend fun openThread(threadId: String) {
+        clearThreadResultSignals(threadId)
         openedThreadIds += threadId
         val currentSession = session ?: return
         val resumedResponse = runCatching {
@@ -242,6 +267,26 @@ internal class AppServerCodexRepository(
         applyThreadSnapshot(thread, resumedSettings)
     }
 
+    override fun setVisibleThread(threadId: String?) {
+        repositoryState.update { current ->
+            current.copy(
+                visibleThreadId = threadId,
+                unreadThreadResultDigests = if (threadId == null) {
+                    current.unreadThreadResultDigests
+                } else {
+                    current.unreadThreadResultDigests - threadId
+                },
+                inAppThreadNotifications = if (threadId == null) {
+                    current.inAppThreadNotifications
+                } else {
+                    current.inAppThreadNotifications.filterNot { notification ->
+                        notification.threadId == threadId
+                    }
+                },
+            )
+        }
+    }
+
     override suspend fun refreshThreads() {
         val currentSession = session ?: return
         threadsRefreshMutex.withLock {
@@ -250,6 +295,9 @@ internal class AppServerCodexRepository(
                 currentSession = currentSession,
                 composerCatalog = current.composerCatalog,
                 threadSettingsCache = current.threadSettingsCache,
+                approvals = current.approvals,
+                userInputRequests = current.userInputRequests,
+                activeTurnIds = current.activeTurnIds,
             )
             AppLog.action(name = "refresh_threads", detail = "count=${threads.size}")
             repositoryState.update { latest ->
@@ -260,6 +308,38 @@ internal class AppServerCodexRepository(
             }
             flushPersistLocalState()
         }
+    }
+
+    override suspend fun dismissInAppThreadNotification(notificationId: String) {
+        repositoryState.update { current ->
+            current.copy(
+                inAppThreadNotifications = current.inAppThreadNotifications.filterNot { notification ->
+                    notification.id == notificationId
+                },
+            )
+        }
+    }
+
+    override suspend fun respondToUserInput(
+        requestId: String,
+        answers: Map<String, List<String>>,
+    ) {
+        val pending = pendingUserInputRequests[requestId] ?: return
+        val currentSession = session ?: return
+        val sanitizedAnswers: Map<String, List<String>> = answers.mapValues { (_, values) ->
+            values.map(String::trim).filter(String::isNotBlank)
+        }.filterValues { values -> values.isNotEmpty() }
+        if (sanitizedAnswers.isEmpty()) return
+
+        AppLog.action(
+            name = "respond_user_input",
+            detail = "request=$requestId answers=${sanitizedAnswers.size}",
+        )
+
+        currentSession.respondToRequest(
+            requestId = pending.requestId,
+            result = toolRequestUserInputResponsePayload(sanitizedAnswers),
+        )
     }
 
     override suspend fun refreshComposerCatalog() {
@@ -412,6 +492,7 @@ internal class AppServerCodexRepository(
         session?.close()
         session = null
         pendingApprovalRequests.clear()
+        pendingUserInputRequests.clear()
 
         val activeHost = repositoryState.value.hosts.firstOrNull { it.isActive }
         val preserveThreadCache = shouldPreserveThreadCache(
@@ -430,8 +511,13 @@ internal class AppServerCodexRepository(
                 threadItemCache = emptyMap(),
                 threadSettingsCache = emptyMap(),
                 approvals = emptyList(),
+                userInputRequests = emptyList(),
                 activeTurnIds = emptyMap(),
                 composerCatalog = ComposerCatalog(),
+                unreadThreadResultDigests = emptyMap(),
+                inAppThreadNotifications = emptyList(),
+                visibleThreadId = null,
+                lastResultTurnIdByThread = emptyMap(),
                 )
             }
             schedulePersistLocalState()
@@ -453,8 +539,12 @@ internal class AppServerCodexRepository(
                 threadItemCache = if (preserveThreadCache) current.threadItemCache else emptyMap(),
                 threadSettingsCache = if (preserveThreadCache) current.threadSettingsCache else emptyMap(),
                 approvals = emptyList(),
+                userInputRequests = emptyList(),
                 activeTurnIds = emptyMap(),
                 composerCatalog = ComposerCatalog(),
+                unreadThreadResultDigests = emptyMap(),
+                inAppThreadNotifications = emptyList(),
+                lastResultTurnIdByThread = emptyMap(),
             )
         }
         schedulePersistLocalState()
@@ -481,6 +571,9 @@ internal class AppServerCodexRepository(
                 currentSession = newSession,
                 composerCatalog = composerCatalog,
                 threadSettingsCache = cachedThreadSettings,
+                approvals = emptyList(),
+                userInputRequests = emptyList(),
+                activeTurnIds = emptyMap(),
             )
 
             session = newSession
@@ -520,7 +613,11 @@ internal class AppServerCodexRepository(
                     threadDetails = emptyMap(),
                     activeItemIdsByThread = emptyMap(),
                     approvals = emptyList(),
+                    userInputRequests = emptyList(),
                     activeTurnIds = emptyMap(),
+                    unreadThreadResultDigests = emptyMap(),
+                    inAppThreadNotifications = emptyList(),
+                    lastResultTurnIdByThread = emptyMap(),
                 )
             }
             schedulePersistLocalState()
@@ -532,6 +629,68 @@ internal class AppServerCodexRepository(
         ids.forEach { threadId ->
             runCatching {
                 openThread(threadId)
+            }
+        }
+    }
+
+    private fun clearThreadResultSignals(threadId: String): Unit {
+        repositoryState.update { current ->
+            current.copy(
+                unreadThreadResultDigests = current.unreadThreadResultDigests - threadId,
+                inAppThreadNotifications = current.inAppThreadNotifications.filterNot { notification ->
+                    notification.threadId == threadId
+                },
+            )
+        }
+    }
+
+    private suspend fun synthesizeThreadResult(
+        threadId: String,
+        turnId: String,
+        turnStatus: String,
+        turnError: String?,
+    ) {
+        if (turnStatus == "interrupted") return
+
+        val stateSnapshot: RepositoryState = repositoryState.value
+        if (stateSnapshot.visibleThreadId == threadId) {
+            clearThreadResultSignals(threadId)
+            return
+        }
+        if (stateSnapshot.lastResultTurnIdByThread[threadId] == turnId) return
+
+        val currentSession: CodexAppServerSession = session ?: return
+        val threadObject = runCatching {
+            currentSession.threadRead(
+                threadId = threadId,
+                includeTurns = true,
+            ).objectAt("thread")
+        }.getOrNull() ?: return
+        val turnResult: ThreadTurnResult = threadObject.toThreadTurnResult(
+            turnId = turnId,
+            fallbackTurnStatus = turnStatus,
+            fallbackTurnError = turnError,
+        ) ?: return
+        AppLog.action(
+            name = "thread_result_ready",
+            detail = "thread=$threadId turn=$turnId kind=${turnResult.digest.kind.name}",
+        )
+        repositoryState.update { current ->
+            if (current.visibleThreadId == threadId || current.lastResultTurnIdByThread[threadId] == turnId) {
+                current
+            } else {
+                current.copy(
+                    unreadThreadResultDigests = current.unreadThreadResultDigests + (threadId to turnResult.digest),
+                    inAppThreadNotifications = listOf(
+                        turnResult.toInAppThreadNotification(
+                            turnId = turnId,
+                            createdAtEpochSeconds = currentEpochSeconds(),
+                        ),
+                    ) + current.inAppThreadNotifications.filterNot { notification ->
+                        notification.threadId == threadId
+                    }.take(MAX_IN_APP_THREAD_NOTIFICATIONS - 1),
+                    lastResultTurnIdByThread = current.lastResultTurnIdByThread + (threadId to turnId),
+                )
             }
         }
     }
@@ -584,61 +743,141 @@ internal class AppServerCodexRepository(
             put("method", request.method)
             put("params", request.params)
         }
+        val threadId = request.params.string("threadId") ?: return
         val derivedItem = findThreadItem(
-            threadId = request.params.string("threadId").orEmpty(),
+            threadId = threadId,
             itemId = request.params.string("itemId").orEmpty(),
         )
-        val approval = wrapper.toApprovalItem(request.requestId)?.let { base ->
-            when (derivedItem) {
-                is ThreadItem.CommandExecution -> base.copy(
-                    command = base.command ?: derivedItem.command,
-                    cwd = base.cwd ?: derivedItem.cwd,
+
+        when (request.method) {
+            "item/commandExecution/requestApproval",
+            "item/fileChange/requestApproval",
+            -> {
+                val approval = wrapper.toApprovalItem(request.requestId)?.let { base ->
+                    when (derivedItem) {
+                        is ThreadItem.CommandExecution -> base.copy(
+                            command = base.command ?: derivedItem.command,
+                            cwd = base.cwd ?: derivedItem.cwd,
+                        )
+
+                        is ThreadItem.FileChange -> base.copy(
+                            filePaths = derivedItem.changes.map { it.path },
+                        )
+
+                        else -> base
+                    }
+                } ?: return
+
+                pendingApprovalRequests[approval.id] = PendingApprovalRequest(
+                    requestId = request.requestId,
+                    method = request.method,
                 )
 
-                is ThreadItem.FileChange -> base.copy(
-                    filePaths = derivedItem.changes.map { it.path },
-                )
-
-                else -> base
+                repositoryState.update { current ->
+                    val updatedApprovals = (current.approvals.filterNot { it.id == approval.id } + approval)
+                        .sortedBy { it.threadId }
+                    current.copy(
+                        approvals = updatedApprovals,
+                        threads = current.threads.map { thread ->
+                            if (thread.id == approval.threadId) {
+                                thread.copy(
+                                    status = statusWithPendingRequests(
+                                        baseStatus = thread.status,
+                                        threadId = thread.id,
+                                        approvals = updatedApprovals,
+                                        userInputRequests = current.userInputRequests,
+                                        activeTurnId = current.activeTurnIds[thread.id],
+                                    ),
+                                )
+                            } else {
+                                thread
+                            }
+                        }.syncThreadOrdering(),
+                        threadDetails = current.threadDetails.mapValues { (currentThreadId, detail) ->
+                            if (currentThreadId == approval.threadId) {
+                                detail.copy(
+                                    summary = detail.summary.copy(
+                                        status = statusWithPendingRequests(
+                                            baseStatus = detail.summary.status,
+                                            threadId = currentThreadId,
+                                            approvals = updatedApprovals,
+                                            userInputRequests = current.userInputRequests,
+                                            activeTurnId = current.activeTurnIds[currentThreadId],
+                                        ),
+                                    ),
+                                )
+                            } else {
+                                detail
+                            }
+                        },
+                    )
+                }
             }
-        } ?: return
 
-        pendingApprovalRequests[approval.id] = PendingApprovalRequest(
-            requestId = request.requestId,
-            method = request.method,
-        )
+            "item/tool/requestUserInput" -> {
+                val userInputRequest = wrapper.toThreadUserInputRequest(request.requestId) ?: return
+                pendingUserInputRequests[userInputRequest.requestId] = PendingUserInputRequest(
+                    requestId = request.requestId,
+                )
+                AppLog.action(
+                    name = "user_input_requested",
+                    detail = "thread=${userInputRequest.threadId} request=${userInputRequest.requestId}",
+                )
+                appendActivity(
+                    threadId = userInputRequest.threadId,
+                    activity = ThreadActivity(
+                        id = "user-input-${userInputRequest.requestId}",
+                        title = "User input requested",
+                        detail = userInputRequest.previewText,
+                        emphasis = ThreadActivityEmphasis.Warning,
+                    ),
+                )
+                repositoryState.update { current ->
+                    val updatedUserInputRequests = current.userInputRequests
+                        .filterNot { pending -> pending.requestId == userInputRequest.requestId } + userInputRequest
+                    current.copy(
+                        userInputRequests = updatedUserInputRequests,
+                        threads = current.threads.map { thread ->
+                            if (thread.id == userInputRequest.threadId) {
+                                thread.copy(
+                                    preview = userInputRequest.previewText,
+                                    updatedAtEpochSeconds = currentEpochSeconds(),
+                                    status = statusWithPendingRequests(
+                                        baseStatus = thread.status,
+                                        threadId = thread.id,
+                                        approvals = current.approvals,
+                                        userInputRequests = updatedUserInputRequests,
+                                        activeTurnId = current.activeTurnIds[thread.id],
+                                    ),
+                                )
+                            } else {
+                                thread
+                            }
+                        }.syncThreadOrdering(),
+                        threadDetails = current.threadDetails.mapValues { (currentThreadId, detail) ->
+                            if (currentThreadId == userInputRequest.threadId) {
+                                detail.copy(
+                                    summary = detail.summary.copy(
+                                        preview = userInputRequest.previewText,
+                                        updatedAtEpochSeconds = currentEpochSeconds(),
+                                        status = statusWithPendingRequests(
+                                            baseStatus = detail.summary.status,
+                                            threadId = currentThreadId,
+                                            approvals = current.approvals,
+                                            userInputRequests = updatedUserInputRequests,
+                                            activeTurnId = current.activeTurnIds[currentThreadId],
+                                        ),
+                                    ),
+                                )
+                            } else {
+                                detail
+                            }
+                        },
+                    )
+                }
+            }
 
-        repositoryState.update { current ->
-            current.copy(
-                approvals = (current.approvals.filterNot { it.id == approval.id } + approval)
-                    .sortedBy { it.threadId },
-                threads = current.threads.map { thread ->
-                    if (thread.id == approval.threadId) {
-                        thread.copy(
-                            status = ThreadStatus(
-                                type = ThreadStatusType.Active,
-                                activeFlags = setOf("waitingOnApproval"),
-                            ),
-                        )
-                    } else {
-                        thread
-                    }
-                }.syncThreadOrdering(),
-                threadDetails = current.threadDetails.mapValues { (threadId, detail) ->
-                    if (threadId == approval.threadId) {
-                        detail.copy(
-                            summary = detail.summary.copy(
-                                status = ThreadStatus(
-                                    type = ThreadStatusType.Active,
-                                    activeFlags = setOf("waitingOnApproval"),
-                                ),
-                            ),
-                        )
-                    } else {
-                        detail
-                    }
-                },
-            )
+            else -> Unit
         }
     }
 
@@ -650,6 +889,7 @@ internal class AppServerCodexRepository(
 
         session = null
         pendingApprovalRequests.clear()
+        pendingUserInputRequests.clear()
         repositoryState.update { current ->
             current.copy(
                 connection = ConnectionState(
@@ -659,14 +899,25 @@ internal class AppServerCodexRepository(
                 ),
                 account = AccountState(),
                 approvals = emptyList(),
+                userInputRequests = emptyList(),
                 activeTurnIds = emptyMap(),
+                unreadThreadResultDigests = emptyMap(),
+                inAppThreadNotifications = emptyList(),
+                lastResultTurnIdByThread = emptyMap(),
             )
         }
     }
 
     private fun handleThreadStatusChanged(params: kotlinx.serialization.json.JsonObject): Unit {
         val threadId = params.string("threadId") ?: return
-        val status = params.objectAt("status")?.toThreadStatus() ?: return
+        val incomingStatus = params.objectAt("status")?.toThreadStatus() ?: return
+        val status = statusWithPendingRequests(
+            baseStatus = incomingStatus,
+            threadId = threadId,
+            approvals = repositoryState.value.approvals,
+            userInputRequests = repositoryState.value.userInputRequests,
+            activeTurnId = repositoryState.value.activeTurnIds[threadId],
+        )
         repositoryState.update { current ->
             current.copy(
                 threads = current.threads.map { thread ->
@@ -699,6 +950,7 @@ internal class AppServerCodexRepository(
     private fun handleTurnStarted(params: kotlinx.serialization.json.JsonObject): Unit {
         val threadId = params.string("threadId") ?: return
         val turnId = params.objectAt("turn")?.string("id") ?: return
+        clearThreadResultSignals(threadId)
         repositoryState.update { current ->
             current.copy(
                 activeTurnIds = current.activeTurnIds + (threadId to turnId),
@@ -748,6 +1000,14 @@ internal class AppServerCodexRepository(
                 },
             ),
         )
+        applicationScope.launch {
+            synthesizeThreadResult(
+                threadId = threadId,
+                turnId = turnId,
+                turnStatus = turnStatus,
+                turnError = turnError,
+            )
+        }
     }
 
     private fun handleTurnDiffUpdated(params: kotlinx.serialization.json.JsonObject): Unit {
@@ -1085,24 +1345,29 @@ internal class AppServerCodexRepository(
     }
 
     private fun handleServerRequestResolved(params: kotlinx.serialization.json.JsonObject): Unit {
-        val approvalId = params["requestId"]?.jsonPrimitive?.content ?: return
-        pendingApprovalRequests.remove(approvalId)
+        val requestId = params["requestId"]?.jsonPrimitive?.content ?: return
+        val threadId = params.string("threadId") ?: return
+        pendingApprovalRequests.remove(requestId)
+        pendingUserInputRequests.remove(requestId)
         repositoryState.update { current ->
-            val remainingApprovals = current.approvals.filterNot { it.id == approvalId }
+            val remainingApprovals = current.approvals.filterNot { it.id == requestId }
+            val remainingUserInputRequests = current.userInputRequests.filterNot { it.requestId == requestId }
             current.copy(
                 approvals = remainingApprovals,
+                userInputRequests = remainingUserInputRequests,
                 threads = current.threads.map { thread ->
                     if (
-                        thread.status.isWaitingOnApproval &&
-                        remainingApprovals.none { it.threadId == thread.id }
+                        thread.id == threadId &&
+                        (thread.status.isWaitingOnApproval || thread.status.isWaitingOnUserInput)
                     ) {
-                        val activeTurnId = current.activeTurnIds[thread.id]
                         thread.copy(
-                            status = if (activeTurnId != null) {
-                                ThreadStatus(type = ThreadStatusType.Active)
-                            } else {
-                                ThreadStatus(type = ThreadStatusType.Idle)
-                            },
+                            status = statusWithPendingRequests(
+                                baseStatus = thread.status,
+                                threadId = thread.id,
+                                approvals = remainingApprovals,
+                                userInputRequests = remainingUserInputRequests,
+                                activeTurnId = current.activeTurnIds[thread.id],
+                            ),
                         )
                     } else {
                         thread
@@ -1110,17 +1375,18 @@ internal class AppServerCodexRepository(
                 }.syncThreadOrdering(),
                 threadDetails = current.threadDetails.mapValues { (threadId, detail) ->
                     if (
-                        detail.summary.status.isWaitingOnApproval &&
-                        remainingApprovals.none { it.threadId == threadId }
+                        threadId == detail.summary.id &&
+                        (detail.summary.status.isWaitingOnApproval || detail.summary.status.isWaitingOnUserInput)
                     ) {
-                        val activeTurnId = current.activeTurnIds[threadId]
                         detail.copy(
                             summary = detail.summary.copy(
-                                status = if (activeTurnId != null) {
-                                    ThreadStatus(type = ThreadStatusType.Active)
-                                } else {
-                                    ThreadStatus(type = ThreadStatusType.Idle)
-                                },
+                                status = statusWithPendingRequests(
+                                    baseStatus = detail.summary.status,
+                                    threadId = threadId,
+                                    approvals = remainingApprovals,
+                                    userInputRequests = remainingUserInputRequests,
+                                    activeTurnId = current.activeTurnIds[threadId],
+                                ),
                             ),
                         )
                     } else {
@@ -1276,6 +1542,17 @@ internal class AppServerCodexRepository(
                 .copy(
                     contextRemainingPercent = existingDetail?.summary?.contextRemainingPercent,
                 )
+                .let { summary ->
+                    statusWithPendingRequests(
+                        baseStatus = summary.status,
+                        threadId = summary.id,
+                        approvals = current.approvals,
+                        userInputRequests = current.userInputRequests,
+                        activeTurnId = activeTurnId ?: current.activeTurnIds[summary.id],
+                    ).let { status ->
+                        summary.copy(status = status)
+                    }
+                }
             val mergedDetail = detail.copy(
                 items = mergeThreadItems(
                     existingItems = if (cachedItems.isNotEmpty()) cachedItems else existingDetail?.items.orEmpty(),
@@ -1416,6 +1693,9 @@ internal class AppServerCodexRepository(
         currentSession: CodexAppServerSession,
         composerCatalog: ComposerCatalog,
         threadSettingsCache: Map<String, PersistedThreadSettings>,
+        approvals: List<ApprovalItem>,
+        userInputRequests: List<ThreadUserInputRequest>,
+        activeTurnIds: Map<String, String>,
     ): List<ThreadSummary> = currentSession.threadList()
         .arrayAt("data")
         ?.map { it.jsonObject.toThreadSummary() }
@@ -1424,6 +1704,15 @@ internal class AppServerCodexRepository(
                 settings = threadSettingsCache[thread.id],
                 catalog = composerCatalog,
             )
+                .copy(
+                    status = statusWithPendingRequests(
+                        baseStatus = thread.status,
+                        threadId = thread.id,
+                        approvals = approvals,
+                        userInputRequests = userInputRequests,
+                        activeTurnId = activeTurnIds[thread.id],
+                    ),
+                )
         }
         .orEmpty()
         .syncThreadOrdering()
@@ -1464,6 +1753,45 @@ internal fun shouldPreserveThreadCache(
 private fun List<ThreadSummary>.syncThreadOrdering(): List<ThreadSummary> = distinctBy { it.id }
     .sortedByDescending { it.updatedAtEpochSeconds }
 
+private fun statusWithPendingRequests(
+    baseStatus: ThreadStatus,
+    threadId: String,
+    approvals: List<ApprovalItem>,
+    userInputRequests: List<ThreadUserInputRequest>,
+    activeTurnId: String?,
+): ThreadStatus {
+    val retainedFlags = baseStatus.activeFlags - setOf(
+        "waitingOnApproval",
+        "waitingOnUserInput",
+    )
+    val pendingFlags = buildSet {
+        if (approvals.any { approval -> approval.threadId == threadId }) {
+            add("waitingOnApproval")
+        }
+        if (userInputRequests.any { request -> request.threadId == threadId }) {
+            add("waitingOnUserInput")
+        }
+    }
+
+    return when {
+        pendingFlags.isNotEmpty() -> ThreadStatus(
+            type = ThreadStatusType.Active,
+            activeFlags = retainedFlags + pendingFlags,
+        )
+
+        baseStatus.type == ThreadStatusType.Active &&
+            retainedFlags.isEmpty() &&
+            retainedFlags != baseStatus.activeFlags &&
+            activeTurnId == null ->
+            ThreadStatus(type = ThreadStatusType.Idle)
+
+        baseStatus.type == ThreadStatusType.Active ->
+            baseStatus.copy(activeFlags = retainedFlags)
+
+        else -> baseStatus
+    }
+}
+
 private fun Map<String, ThreadDetail>.syncWithThreads(
     threads: List<ThreadSummary>,
 ): Map<String, ThreadDetail> {
@@ -1490,6 +1818,7 @@ private fun hostId(
 ): String = "${name.lowercase().replace(" ", "-")}-$address-$port"
 
 private const val MAX_THREAD_ACTIVITIES: Int = 40
+private const val MAX_IN_APP_THREAD_NOTIFICATIONS: Int = 6
 
 private fun currentEpochSeconds(): Long = System.currentTimeMillis() / 1_000
 
@@ -1500,6 +1829,7 @@ private fun Throwable.toConnectionMessage(): String = when (this) {
 
 private fun statusLabel(status: ThreadStatus): String = when {
     status.isWaitingOnApproval -> "Waiting on approval"
+    status.isWaitingOnUserInput -> "Waiting on input"
     status.type == ThreadStatusType.Active -> "Active"
     status.type == ThreadStatusType.SystemError -> "System error"
     status.type == ThreadStatusType.Idle -> "Idle"

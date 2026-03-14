@@ -20,6 +20,7 @@ import dev.codex.mobile.core.model.ComposerSandboxMode
 import dev.codex.mobile.core.model.ComposerSkillOption
 import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.navigation.ThreadDetailRoute
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,7 @@ data class ThreadDetailUiState(
     val isInitialLoadInFlight: Boolean = true,
     val activeItemIds: Set<String> = emptySet(),
     val approvals: List<ApprovalItem> = emptyList(),
+    val userInputRequests: List<ThreadUserInputRequest> = emptyList(),
     val draft: String = "",
     val canInterrupt: Boolean = false,
     val isInterrupting: Boolean = false,
@@ -71,6 +73,7 @@ private data class ThreadBaseUiState(
     val isInitialLoadInFlight: Boolean = true,
     val activeItemIds: Set<String> = emptySet(),
     val approvals: List<ApprovalItem> = emptyList(),
+    val userInputRequests: List<ThreadUserInputRequest> = emptyList(),
     val draft: String = "",
     val canInterrupt: Boolean = false,
     val isInterrupting: Boolean = false,
@@ -169,18 +172,27 @@ class ThreadDetailViewModel(
         )
     }
 
+    private val pendingRequestState = combine(
+        repository.observeApprovals(),
+        repository.observeUserInputRequests(),
+    ) { approvals, userInputRequests ->
+        approvals to userInputRequests
+    }
+
     private val baseUiState = combine(
         threadLoadState,
         repository.observeActiveItemIds(route.threadId),
-        repository.observeApprovals(),
+        pendingRequestState,
         draft,
         interruptRequested,
     ) { threadLoad: ThreadLoadState,
         activeItemIds: Set<String>,
-        approvals: List<ApprovalItem>,
+        pendingRequests: Pair<List<ApprovalItem>, List<ThreadUserInputRequest>>,
         currentDraft: String,
-        interruptInFlight: Boolean,
+        interruptInFlight: Boolean
         ->
+        val approvals = pendingRequests.first
+        val userInputRequests = pendingRequests.second
         val detail = threadLoad.detail
         val canInterrupt = detail?.summary?.status?.isActive == true
         ThreadBaseUiState(
@@ -188,6 +200,7 @@ class ThreadDetailViewModel(
             isInitialLoadInFlight = threadLoad.isInitialLoadInFlight,
             activeItemIds = activeItemIds,
             approvals = approvals.filter { approval -> approval.threadId == route.threadId },
+            userInputRequests = userInputRequests.filter { request -> request.threadId == route.threadId },
             draft = currentDraft,
             canInterrupt = canInterrupt,
             isInterrupting = canInterrupt && interruptInFlight,
@@ -203,6 +216,7 @@ class ThreadDetailViewModel(
             isInitialLoadInFlight = base.isInitialLoadInFlight,
             activeItemIds = base.activeItemIds,
             approvals = base.approvals,
+            userInputRequests = base.userInputRequests,
             draft = base.draft,
             canInterrupt = base.canInterrupt,
             isInterrupting = base.isInterrupting,
@@ -314,6 +328,18 @@ class ThreadDetailViewModel(
     ) {
         viewModelScope.launch {
             repository.resolveApproval(approvalId, decision)
+        }
+    }
+
+    fun respondToUserInput(
+        requestId: String,
+        answers: Map<String, List<String>>,
+    ) {
+        viewModelScope.launch {
+            repository.respondToUserInput(
+                requestId = requestId,
+                answers = answers,
+            )
         }
     }
 

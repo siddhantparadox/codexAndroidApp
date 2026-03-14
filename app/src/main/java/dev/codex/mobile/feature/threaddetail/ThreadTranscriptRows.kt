@@ -2,6 +2,7 @@ package dev.codex.mobile.feature.threaddetail
 
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ThreadItem
+import dev.codex.mobile.core.model.ThreadUserInputRequest
 
 internal sealed interface TranscriptRow {
     val id: String
@@ -22,6 +23,7 @@ internal sealed interface TranscriptRow {
         override val id: String,
         val items: List<ThreadItem>,
         val approvals: List<ApprovalItem>,
+        val userInputRequests: List<ThreadUserInputRequest>,
     ) : TranscriptRow
 
     data class OrphanApproval(
@@ -29,19 +31,31 @@ internal sealed interface TranscriptRow {
     ) : TranscriptRow {
         override val id: String = approval.id
     }
+
+    data class OrphanUserInputRequest(
+        val request: ThreadUserInputRequest,
+    ) : TranscriptRow {
+        override val id: String = request.requestId
+    }
 }
 
 internal fun buildTranscriptRows(
     items: List<ThreadItem>,
     approvals: List<ApprovalItem>,
+    userInputRequests: List<ThreadUserInputRequest>,
 ): List<TranscriptRow> {
-    if (items.isEmpty() && approvals.isEmpty()) return emptyList()
+    if (items.isEmpty() && approvals.isEmpty() && userInputRequests.isEmpty()) return emptyList()
 
     val itemIds: Set<String> = items.map { item -> item.id }.toSet()
     val approvalsByItemId: Map<String, List<ApprovalItem>> = approvals
         .filter { approval -> approval.itemId in itemIds }
         .groupBy { approval -> approval.itemId }
+    val userInputRequestsByItemId: Map<String, List<ThreadUserInputRequest>> = userInputRequests
+        .filter { request -> request.itemId in itemIds }
+        .groupBy { request -> request.itemId }
     val orphanApprovals: List<ApprovalItem> = approvals.filter { approval -> approval.itemId !in itemIds }
+    val orphanUserInputRequests: List<ThreadUserInputRequest> = userInputRequests
+        .filter { request -> request.itemId !in itemIds }
 
     val rows: MutableList<TranscriptRow> = mutableListOf()
     var index: Int = 0
@@ -60,6 +74,7 @@ internal fun buildTranscriptRows(
             else -> {
                 val stripItems: MutableList<ThreadItem> = mutableListOf()
                 val stripApprovals: MutableList<ApprovalItem> = mutableListOf()
+                val stripUserInputRequests: MutableList<ThreadUserInputRequest> = mutableListOf()
 
                 while (index < items.size) {
                     val nextItem: ThreadItem = items[index]
@@ -68,6 +83,7 @@ internal fun buildTranscriptRows(
                     }
                     stripItems += nextItem
                     stripApprovals += approvalsByItemId[nextItem.id].orEmpty()
+                    stripUserInputRequests += userInputRequestsByItemId[nextItem.id].orEmpty()
                     index += 1
                 }
 
@@ -76,6 +92,7 @@ internal fun buildTranscriptRows(
                         id = "strip-${stripItems.first().id}-${stripItems.last().id}",
                         items = stripItems,
                         approvals = stripApprovals,
+                        userInputRequests = stripUserInputRequests,
                     )
                 }
             }
@@ -83,5 +100,6 @@ internal fun buildTranscriptRows(
     }
 
     rows += orphanApprovals.map { approval -> TranscriptRow.OrphanApproval(approval) }
+    rows += orphanUserInputRequests.map { request -> TranscriptRow.OrphanUserInputRequest(request) }
     return rows
 }

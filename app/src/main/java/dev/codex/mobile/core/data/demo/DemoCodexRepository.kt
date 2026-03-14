@@ -17,14 +17,17 @@ import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.FileChangeEntry
 import dev.codex.mobile.core.model.HostKind
 import dev.codex.mobile.core.model.HostProfile
+import dev.codex.mobile.core.model.InAppThreadNotification
 import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadItemStatus
+import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadSourceKind
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThemePreference
 import dev.codex.mobile.core.util.AppLog
 import kotlinx.coroutines.delay
@@ -51,7 +54,10 @@ private data class DemoStoreState(
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
     val activeItemIdsByThread: Map<String, Set<String>> = emptyMap(),
     val approvals: List<ApprovalItem> = emptyList(),
+    val userInputRequests: List<ThreadUserInputRequest> = emptyList(),
     val composerCatalog: ComposerCatalog = demoComposerCatalog(),
+    val unreadThreadResultDigests: Map<String, ThreadResultDigest> = emptyMap(),
+    val inAppThreadNotifications: List<InAppThreadNotification> = emptyList(),
 )
 
 class DemoCodexRepository : CodexRepository {
@@ -105,7 +111,16 @@ class DemoCodexRepository : CodexRepository {
 
     override fun observeApprovals(): Flow<List<ApprovalItem>> = store.map { it.approvals }
 
+    override fun observeUserInputRequests(): Flow<List<ThreadUserInputRequest>> =
+        store.map { it.userInputRequests }
+
     override fun observeComposerCatalog(): Flow<ComposerCatalog> = store.map { it.composerCatalog }
+
+    override fun observeUnreadThreadResultDigests(): Flow<Map<String, ThreadResultDigest>> =
+        store.map { it.unreadThreadResultDigests }
+
+    override fun observeInAppThreadNotifications(): Flow<List<InAppThreadNotification>> =
+        store.map { it.inAppThreadNotifications }
 
     override suspend fun saveHost(name: String, address: String, port: Int) {
         val trimmedName = name.trim()
@@ -215,11 +230,58 @@ class DemoCodexRepository : CodexRepository {
 
     override suspend fun openThread(threadId: String) {
         AppLog.action(name = "open_thread", detail = threadId)
+        store.update { current ->
+            current.copy(
+                unreadThreadResultDigests = current.unreadThreadResultDigests - threadId,
+                inAppThreadNotifications = current.inAppThreadNotifications.filterNot { notification ->
+                    notification.threadId == threadId
+                },
+            )
+        }
+    }
+
+    override fun setVisibleThread(threadId: String?) {
+        if (threadId == null) return
+        store.update { current ->
+            current.copy(
+                unreadThreadResultDigests = current.unreadThreadResultDigests - threadId,
+                inAppThreadNotifications = current.inAppThreadNotifications.filterNot { notification ->
+                    notification.threadId == threadId
+                },
+            )
+        }
     }
 
     override suspend fun refreshThreads() {
         AppLog.action(name = "refresh_threads", detail = "demo")
         delay(250)
+    }
+
+    override suspend fun dismissInAppThreadNotification(notificationId: String) {
+        store.update { current ->
+            current.copy(
+                inAppThreadNotifications = current.inAppThreadNotifications.filterNot { notification ->
+                    notification.id == notificationId
+                },
+            )
+        }
+    }
+
+    override suspend fun respondToUserInput(
+        requestId: String,
+        answers: Map<String, List<String>>,
+    ) {
+        AppLog.action(
+            name = "respond_user_input",
+            detail = "demo request=$requestId answers=${answers.size}",
+        )
+        store.update { current ->
+            current.copy(
+                userInputRequests = current.userInputRequests.filterNot { request ->
+                    request.requestId == requestId
+                },
+            )
+        }
     }
 
     override suspend fun refreshComposerCatalog() {

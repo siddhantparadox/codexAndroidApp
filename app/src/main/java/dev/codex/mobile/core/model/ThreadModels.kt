@@ -22,6 +22,9 @@ val ThreadStatus.isActive: Boolean
 val ThreadStatus.isWaitingOnApproval: Boolean
     get() = isActive && "waitingOnApproval" in activeFlags
 
+val ThreadStatus.isWaitingOnUserInput: Boolean
+    get() = isActive && "waitingOnUserInput" in activeFlags
+
 enum class ThreadSourceKind {
     Cli,
     VsCode,

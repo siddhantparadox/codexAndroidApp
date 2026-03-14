@@ -103,7 +103,7 @@ internal fun initializeParamsPayload(
         put("version", versionName)
     }
     putJsonObject("capabilities") {
-        put("experimentalApi", false)
+        put("experimentalApi", true)
     }
 }
 

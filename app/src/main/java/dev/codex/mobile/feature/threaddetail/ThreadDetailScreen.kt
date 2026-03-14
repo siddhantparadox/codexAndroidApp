@@ -57,6 +57,7 @@ import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.model.isWaitingOnUserInput
 import dev.codex.mobile.core.model.displayMetaLabel
 import kotlinx.coroutines.flow.first
 
@@ -109,6 +110,7 @@ fun ThreadDetailScreen(
             val transcriptRows = buildTranscriptRows(
                 items = visibleItems,
                 approvals = uiState.approvals,
+                userInputRequests = uiState.userInputRequests,
             )
             val activityRowCount = if (detail.activities.isEmpty()) 0 else 1
             val transcriptRowCount = if (transcriptRows.isEmpty()) 1 else transcriptRows.size
@@ -212,6 +214,7 @@ fun ThreadDetailScreen(
                             activeItemIds = uiState.activeItemIds,
                             autoRevealExpandedContent = followMode,
                             onDecision = viewModel::resolveApproval,
+                            onSubmitUserInput = viewModel::respondToUserInput,
                             onReviewDiff = { change ->
                                 reviewedDiff = change
                             },
@@ -458,7 +461,9 @@ private fun ThreadDetailHeader(
         StatusChip(
             label = threadStatusLabel(summary.status),
             color = threadStatusColor(summary.status),
-            pulsingDot = summary.status.isActive && !summary.status.isWaitingOnApproval,
+            pulsingDot = summary.status.isActive &&
+                !summary.status.isWaitingOnApproval &&
+                !summary.status.isWaitingOnUserInput,
         )
     }
 }
@@ -469,6 +474,7 @@ private fun threadMetaLabel(summary: ThreadSummary): String = summary.displayMet
 
 private fun threadStatusLabel(status: ThreadStatus): String = when {
     status.isWaitingOnApproval -> "Needs Approval"
+    status.isWaitingOnUserInput -> "Needs Input"
     status.type == ThreadStatusType.Active -> "Active"
     status.type == ThreadStatusType.SystemError -> "Error"
     status.type == ThreadStatusType.Idle -> "Idle"
@@ -478,6 +484,7 @@ private fun threadStatusLabel(status: ThreadStatus): String = when {
 @Composable
 private fun threadStatusColor(status: ThreadStatus): Color = when {
     status.isWaitingOnApproval -> Color(0xFFD59734)
+    status.isWaitingOnUserInput -> Color(0xFF3A7BD5)
     status.type == ThreadStatusType.Active -> MaterialTheme.colorScheme.primary
     status.type == ThreadStatusType.SystemError -> MaterialTheme.colorScheme.error
     else -> MaterialTheme.colorScheme.onSurfaceVariant

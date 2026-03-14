@@ -5,11 +5,14 @@ import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ComposerCatalog
+import dev.codex.mobile.core.model.InAppThreadNotification
 import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.HostProfile
 import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThemePreference
 import kotlinx.coroutines.flow.Flow
 
@@ -30,7 +33,13 @@ interface CodexRepository {
 
     fun observeApprovals(): Flow<List<ApprovalItem>>
 
+    fun observeUserInputRequests(): Flow<List<ThreadUserInputRequest>>
+
     fun observeComposerCatalog(): Flow<ComposerCatalog>
+
+    fun observeUnreadThreadResultDigests(): Flow<Map<String, ThreadResultDigest>>
+
+    fun observeInAppThreadNotifications(): Flow<List<InAppThreadNotification>>
 
     suspend fun saveHost(
         name: String,
@@ -53,7 +62,16 @@ interface CodexRepository {
 
     suspend fun openThread(threadId: String)
 
+    fun setVisibleThread(threadId: String?)
+
     suspend fun refreshThreads()
+
+    suspend fun dismissInAppThreadNotification(notificationId: String)
+
+    suspend fun respondToUserInput(
+        requestId: String,
+        answers: Map<String, List<String>>,
+    )
 
     suspend fun refreshComposerCatalog()
 

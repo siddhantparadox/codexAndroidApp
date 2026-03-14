@@ -61,11 +61,15 @@ import dev.codex.mobile.core.designsystem.component.SectionHeader
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.ThreadSourceKind
+import dev.codex.mobile.core.model.ThreadResultDigest
+import dev.codex.mobile.core.model.ThreadResultDigestKind
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.displayText
 import dev.codex.mobile.core.model.displayMetaLabel
 import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.model.isWaitingOnUserInput
 import dev.codex.mobile.core.model.runtimeSettingsLabel
 import dev.codex.mobile.core.util.relativeTimeLabel
 import kotlinx.coroutines.delay
@@ -240,6 +244,7 @@ fun ThreadsScreen(
             ) { thread ->
                 ThreadCard(
                     thread = thread,
+                    resultDigest = uiState.unreadResultDigests[thread.id],
                     modifier = Modifier.padding(
                         horizontal = CodexSpacing.screenHorizontal,
                         vertical = CodexSpacing.microGap,
@@ -298,6 +303,7 @@ private fun RefreshThreadsButton(
 @Composable
 private fun ThreadCard(
     thread: ThreadSummary,
+    resultDigest: ThreadResultDigest?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -353,6 +359,21 @@ private fun ThreadCard(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        if (
+            resultDigest != null &&
+            thread.status.type != ThreadStatusType.Active &&
+            !thread.status.isWaitingOnApproval &&
+            !thread.status.isWaitingOnUserInput
+        ) {
+            Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+            Text(
+                text = resultDigest.displayText,
+                style = MaterialTheme.typography.labelLarge,
+                color = threadResultDigestColor(resultDigest),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -372,7 +393,9 @@ private fun ThreadCard(
             StatusChip(
                 label = threadStatusLabel(thread.status),
                 color = threadStatusColor(thread.status),
-                pulsingDot = thread.status.type == ThreadStatusType.Active && !thread.status.isWaitingOnApproval,
+                pulsingDot = thread.status.type == ThreadStatusType.Active &&
+                    !thread.status.isWaitingOnApproval &&
+                    !thread.status.isWaitingOnUserInput,
             )
         }
     }
@@ -386,6 +409,7 @@ private fun threadRuntimeLabel(thread: ThreadSummary): String? = thread.runtimeS
 
 private fun threadStatusLabel(status: ThreadStatus): String = when {
     status.isWaitingOnApproval -> "Needs Approval"
+    status.isWaitingOnUserInput -> "Needs Input"
     status.type == ThreadStatusType.Active -> "Active"
     status.type == ThreadStatusType.SystemError -> "Error"
     status.type == ThreadStatusType.Idle -> "Idle"
@@ -395,13 +419,23 @@ private fun threadStatusLabel(status: ThreadStatus): String = when {
 @Composable
 private fun threadStatusColor(status: ThreadStatus): Color = when {
     status.isWaitingOnApproval -> Color(0xFFD59734)
+    status.isWaitingOnUserInput -> Color(0xFF3A7BD5)
     status.type == ThreadStatusType.Active -> MaterialTheme.colorScheme.primary
     status.type == ThreadStatusType.SystemError -> MaterialTheme.colorScheme.error
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
+@Composable
+private fun threadResultDigestColor(resultDigest: ThreadResultDigest): Color = when (resultDigest.kind) {
+    ThreadResultDigestKind.PatchReady -> MaterialTheme.colorScheme.primary
+    ThreadResultDigestKind.ReplyReady -> MaterialTheme.colorScheme.primary
+    ThreadResultDigestKind.Failed -> MaterialTheme.colorScheme.error
+    ThreadResultDigestKind.Completed -> MaterialTheme.colorScheme.onSurfaceVariant
+}
+
 private fun threadCardIcon(thread: ThreadSummary) = when {
     thread.status.isWaitingOnApproval -> Icons.Rounded.FolderOpen
+    thread.status.isWaitingOnUserInput -> Icons.Rounded.ChatBubbleOutline
     thread.status.type == ThreadStatusType.Active -> Icons.Rounded.Refresh
     thread.status.type == ThreadStatusType.SystemError -> Icons.Rounded.Error
     else -> threadSourceIcon(thread.source)

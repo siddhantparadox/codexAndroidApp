@@ -21,13 +21,20 @@ import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.ToolContentItem
+import dev.codex.mobile.core.model.ThreadUserInputOption
+import dev.codex.mobile.core.model.ThreadUserInputQuestion
+import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.UserInputContent
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 internal data class ThreadSessionSettings(
     val modelId: String? = null,
@@ -151,6 +158,23 @@ internal fun JsonObject.toApprovalItem(requestId: JsonPrimitive): ApprovalItem? 
                 ApprovalDecision.Decline,
                 ApprovalDecision.Cancel,
             ),
+        )
+    }
+
+    else -> null
+}
+
+internal fun JsonObject.toThreadUserInputRequest(requestId: JsonPrimitive): ThreadUserInputRequest? = when (string("method")) {
+    "item/tool/requestUserInput" -> {
+        val params = requireNotNull(objectAt("params"))
+        ThreadUserInputRequest(
+            requestId = requestId.content,
+            threadId = requireNotNull(params.string("threadId")),
+            turnId = requireNotNull(params.string("turnId")),
+            itemId = requireNotNull(params.string("itemId")),
+            questions = params.arrayAt("questions")
+                ?.mapNotNull { question -> question.jsonObject.toThreadUserInputQuestion() }
+                .orEmpty(),
         )
     }
 
@@ -365,6 +389,49 @@ internal fun fileChangeApprovalDecisionPayload(decision: ApprovalDecision): Json
     ApprovalDecision.AcceptForSession -> JsonPrimitive("acceptForSession")
     ApprovalDecision.Decline -> JsonPrimitive("decline")
     ApprovalDecision.Cancel -> JsonPrimitive("cancel")
+}
+
+internal fun toolRequestUserInputResponsePayload(
+    answers: Map<String, List<String>>,
+): JsonObject = buildJsonObject {
+    putJsonObject("answers") {
+        answers.forEach { (questionId, values) ->
+            putJsonObject(questionId) {
+                put(
+                    "answers",
+                    buildJsonArray {
+                        values.filter { value -> value.isNotBlank() }
+                            .forEach { value -> add(JsonPrimitive(value)) }
+                    },
+                )
+            }
+        }
+    }
+}
+
+private fun JsonObject.toThreadUserInputQuestion(): ThreadUserInputQuestion? {
+    val id = string("id") ?: return null
+    val header = string("header") ?: return null
+    val prompt = string("question") ?: return null
+    return ThreadUserInputQuestion(
+        id = id,
+        header = header,
+        prompt = prompt,
+        options = arrayAt("options")
+            ?.mapNotNull { option -> option.jsonObject.toThreadUserInputOption() }
+            .orEmpty(),
+        isOtherAllowed = boolean("isOther") ?: false,
+        isSecret = boolean("isSecret") ?: false,
+    )
+}
+
+private fun JsonObject.toThreadUserInputOption(): ThreadUserInputOption? {
+    val label = string("label") ?: return null
+    val description = string("description") ?: return null
+    return ThreadUserInputOption(
+        label = label,
+        description = description,
+    )
 }
 
 private fun JsonObject.toCommandActionHint(): CommandActionHint? {
