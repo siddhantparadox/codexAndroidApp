@@ -8,6 +8,8 @@ import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.data.local.AppLocalStateStore
 import dev.codex.mobile.core.data.local.PersistedAppState
 import dev.codex.mobile.core.data.local.PersistedThreadSettings
+import dev.codex.mobile.core.model.AccountRateLimit
+import dev.codex.mobile.core.model.AccountRateLimits
 import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.ApprovalDecision
@@ -34,6 +36,7 @@ import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThemePreference
 import dev.codex.mobile.core.model.isWaitingOnApproval
 import dev.codex.mobile.core.model.isWaitingOnUserInput
+import dev.codex.mobile.core.model.mergeUpdatedBucket
 import dev.codex.mobile.core.model.previewText
 import dev.codex.mobile.core.util.AppLog
 import java.net.UnknownHostException
@@ -62,6 +65,7 @@ private data class RepositoryState(
     val hosts: List<HostProfile> = emptyList(),
     val connection: ConnectionState = ConnectionState(),
     val account: AccountState = AccountState(),
+    val rateLimits: AccountRateLimits? = null,
     val threads: List<ThreadSummary> = emptyList(),
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
     val activeItemIdsByThread: Map<String, Set<String>> = emptyMap(),
@@ -127,6 +131,8 @@ internal class AppServerCodexRepository(
     override fun observeConnection(): Flow<ConnectionState> = repositoryState.map { it.connection }
 
     override fun observeAccount(): Flow<AccountState> = repositoryState.map { it.account }
+
+    override fun observeRateLimits(): Flow<AccountRateLimits?> = repositoryState.map { it.rateLimits }
 
     override fun observeThreads(): Flow<List<ThreadSummary>> = repositoryState.map { it.threads }
 
@@ -504,20 +510,21 @@ internal class AppServerCodexRepository(
             repositoryState.update { current ->
                 current.copy(
                     connection = ConnectionState(phase = ConnectionPhase.Idle),
-                account = AccountState(),
-                threads = emptyList(),
-                threadDetails = emptyMap(),
-                activeItemIdsByThread = emptyMap(),
-                threadItemCache = emptyMap(),
-                threadSettingsCache = emptyMap(),
-                approvals = emptyList(),
-                userInputRequests = emptyList(),
-                activeTurnIds = emptyMap(),
-                composerCatalog = ComposerCatalog(),
-                unreadThreadResultDigests = emptyMap(),
-                inAppThreadNotifications = emptyList(),
-                visibleThreadId = null,
-                lastResultTurnIdByThread = emptyMap(),
+                    account = AccountState(),
+                    rateLimits = null,
+                    threads = emptyList(),
+                    threadDetails = emptyMap(),
+                    activeItemIdsByThread = emptyMap(),
+                    threadItemCache = emptyMap(),
+                    threadSettingsCache = emptyMap(),
+                    approvals = emptyList(),
+                    userInputRequests = emptyList(),
+                    activeTurnIds = emptyMap(),
+                    composerCatalog = ComposerCatalog(),
+                    unreadThreadResultDigests = emptyMap(),
+                    inAppThreadNotifications = emptyList(),
+                    visibleThreadId = null,
+                    lastResultTurnIdByThread = emptyMap(),
                 )
             }
             schedulePersistLocalState()
@@ -533,6 +540,7 @@ internal class AppServerCodexRepository(
                     message = "Connecting to $socketUrl",
                 ),
                 account = AccountState(),
+                rateLimits = null,
                 threads = emptyList(),
                 threadDetails = emptyMap(),
                 activeItemIdsByThread = emptyMap(),
@@ -560,6 +568,9 @@ internal class AppServerCodexRepository(
         runCatching {
             newSession.connect()
             val account = newSession.accountRead().toAccountState()
+            val rateLimits = runCatching {
+                newSession.accountRateLimitsRead().toAccountRateLimits()
+            }.getOrNull()
             val cachedThreadSettings = repositoryState.value.threadSettingsCache
             val composerCatalog = runCatching {
                 loadComposerCatalog(currentSession = newSession)
@@ -585,6 +596,7 @@ internal class AppServerCodexRepository(
                         message = socketUrl,
                     ),
                     account = account,
+                    rateLimits = rateLimits,
                     threads = threads,
                     threadDetails = current.threadDetails.syncWithThreads(threads),
                     composerCatalog = composerCatalog,
@@ -609,6 +621,7 @@ internal class AppServerCodexRepository(
                         message = error.toConnectionMessage(),
                     ),
                     account = AccountState(),
+                    rateLimits = null,
                     threads = emptyList(),
                     threadDetails = emptyMap(),
                     activeItemIdsByThread = emptyMap(),
@@ -711,6 +724,7 @@ internal class AppServerCodexRepository(
         method: String,
         params: kotlinx.serialization.json.JsonObject,
     ): Unit = when (method) {
+        "account/rateLimits/updated" -> handleRateLimitsUpdated(params)
         "thread/status/changed" -> handleThreadStatusChanged(params)
         "turn/started" -> handleTurnStarted(params)
         "turn/completed" -> handleTurnCompleted(params)
@@ -898,6 +912,7 @@ internal class AppServerCodexRepository(
                     message = event.message ?: if (event.isError) "Connection lost." else "Disconnected.",
                 ),
                 account = AccountState(),
+                rateLimits = null,
                 approvals = emptyList(),
                 userInputRequests = emptyList(),
                 activeTurnIds = emptyMap(),
@@ -1046,11 +1061,26 @@ internal class AppServerCodexRepository(
         )
     }
 
+    private fun handleRateLimitsUpdated(params: kotlinx.serialization.json.JsonObject): Unit {
+        val updatedBucket: AccountRateLimit = params.objectAt("rateLimits")?.toAccountRateLimit() ?: return
+        repositoryState.update { current ->
+            current.copy(
+                rateLimits = current.rateLimits?.mergeUpdatedBucket(updatedBucket)
+                    ?: AccountRateLimits(
+                        current = updatedBucket,
+                        byLimitId = mapOf(updatedBucket.limitId to updatedBucket),
+                    ),
+            )
+        }
+    }
+
     private fun handleThreadTokenUsageUpdated(params: kotlinx.serialization.json.JsonObject): Unit {
         val threadId = params.string("threadId") ?: return
         val tokenUsage = params.objectAt("tokenUsage") ?: return
         val total = tokenUsage.objectAt("total")
         val last = tokenUsage.objectAt("last")
+        val lastTurnTotalTokens = last?.long("totalTokens")
+        val threadTotalTokens = total?.long("totalTokens")
         val contextRemainingPercent = tokenUsage.contextRemainingPercent()
         val detail = buildString {
             last?.let { lastUsage ->
@@ -1075,7 +1105,11 @@ internal class AppServerCodexRepository(
             current.copy(
                 threads = current.threads.map { thread ->
                     if (thread.id == threadId) {
-                        thread.copy(contextRemainingPercent = contextRemainingPercent)
+                        thread.copy(
+                            lastTurnTotalTokens = lastTurnTotalTokens,
+                            threadTotalTokens = threadTotalTokens,
+                            contextRemainingPercent = contextRemainingPercent,
+                        )
                     } else {
                         thread
                     }
@@ -1084,6 +1118,8 @@ internal class AppServerCodexRepository(
                     if (id == threadId) {
                         threadDetail.copy(
                             summary = threadDetail.summary.copy(
+                                lastTurnTotalTokens = lastTurnTotalTokens,
+                                threadTotalTokens = threadTotalTokens,
                                 contextRemainingPercent = contextRemainingPercent,
                             ),
                         )
@@ -1540,6 +1576,8 @@ internal class AppServerCodexRepository(
                     catalog = current.composerCatalog,
                 )
                 .copy(
+                    lastTurnTotalTokens = existingDetail?.summary?.lastTurnTotalTokens,
+                    threadTotalTokens = existingDetail?.summary?.threadTotalTokens,
                     contextRemainingPercent = existingDetail?.summary?.contextRemainingPercent,
                 )
                 .let { summary ->

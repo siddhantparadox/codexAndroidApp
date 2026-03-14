@@ -2,6 +2,7 @@ package dev.codex.mobile.core.data
 
 import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.AccountState
+import dev.codex.mobile.core.model.AccountRateLimits
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ComposerCatalog
@@ -24,6 +25,8 @@ interface CodexRepository {
     fun observeConnection(): Flow<ConnectionState>
 
     fun observeAccount(): Flow<AccountState>
+
+    fun observeRateLimits(): Flow<AccountRateLimits?>
 
     fun observeThreads(): Flow<List<ThreadSummary>>
 

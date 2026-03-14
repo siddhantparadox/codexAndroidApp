@@ -138,6 +138,8 @@ internal fun threadReadParamsPayload(
 
 internal fun accountReadParamsPayload(): JsonObject = emptyJsonObject
 
+internal fun accountRateLimitsReadParamsPayload(): JsonObject = emptyJsonObject
+
 internal fun turnStartParamsPayload(
     threadId: String,
     input: List<JsonObject>,

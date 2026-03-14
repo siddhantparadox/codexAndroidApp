@@ -29,6 +29,11 @@ internal class CodexAppServerSession(
         params = accountReadParamsPayload(),
     ).jsonObject
 
+    suspend fun accountRateLimitsRead(): JsonObject = transport.request(
+        method = "account/rateLimits/read",
+        params = accountRateLimitsReadParamsPayload(),
+    ).jsonObject
+
     suspend fun modelList(): JsonObject = transport.request(
         method = "model/list",
         params = modelListParamsPayload(),

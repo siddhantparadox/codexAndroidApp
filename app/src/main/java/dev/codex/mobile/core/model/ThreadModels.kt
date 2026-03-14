@@ -51,6 +51,8 @@ data class ThreadSummary(
     val currentModelId: String? = null,
     val currentModelName: String? = null,
     val currentReasoningEffort: ComposerReasoningEffort? = null,
+    val lastTurnTotalTokens: Long? = null,
+    val threadTotalTokens: Long? = null,
     val contextRemainingPercent: Int? = null,
 )
 

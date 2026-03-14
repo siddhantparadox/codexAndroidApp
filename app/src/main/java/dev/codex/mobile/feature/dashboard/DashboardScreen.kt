@@ -6,30 +6,33 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Computer
-import androidx.compose.material.icons.rounded.Error
-import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.LaptopMac
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.QueryStats
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,12 +42,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.R
+import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
-import dev.codex.mobile.core.designsystem.component.SectionHeader
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
+import dev.codex.mobile.core.model.AccountStatus
 import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.HostKind
@@ -54,9 +57,11 @@ import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.displayMetaLabel
 import dev.codex.mobile.core.model.isWaitingOnApproval
 import dev.codex.mobile.core.model.isWaitingOnUserInput
+import dev.codex.mobile.core.model.runtimeSettingsLabel
 import dev.codex.mobile.core.model.summary
-import dev.codex.mobile.core.util.relativeTimeLabel
+import dev.codex.mobile.core.model.workspaceFolderName
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     onOpenThreads: () -> Unit,
@@ -67,68 +72,94 @@ fun DashboardScreen(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = CodexSpacing.screenHorizontal,
-            top = CodexSpacing.topLevelHeaderGap,
-            end = CodexSpacing.screenHorizontal,
-            bottom = CodexSpacing.screenBottom,
-        ),
-        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
-    ) {
-        item { DashboardHeader() }
-        item {
-            uiState.activeHost?.let { host ->
-                ConnectionCard(
-                    hostName = host.name,
-                    address = host.address,
-                    port = host.port,
-                    hostKind = host.kind,
-                    connectionPhase = uiState.connection.phase,
-                    connectionMessage = uiState.connection.message,
-                    account = uiState.account,
-                    onClick = onOpenHostConnection,
-                )
-            }
-        }
-        item {
-            uiState.activeThread?.let { activeThread ->
-                ActiveThreadCard(
-                    thread = activeThread,
-                    onClick = { onOpenThread(activeThread.id) },
-                )
-            }
-        }
-        item {
-            SectionHeader(
-                title = "Recent Threads",
-                trailing = {
-                    Text(
-                        text = "View All",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.clickable(onClick = onOpenThreads),
-                    )
-                },
+    var isUsageSheetVisible by rememberSaveable { mutableStateOf(false) }
+    var isAccountSheetVisible by rememberSaveable { mutableStateOf(false) }
+    DashboardContent(
+        uiState = uiState,
+        onOpenThreads = onOpenThreads,
+        onOpenHostConnection = onOpenHostConnection,
+        onOpenThread = onOpenThread,
+        onOpenUsage = { isUsageSheetVisible = true },
+        onOpenAccount = { isAccountSheetVisible = true },
+        modifier = Modifier.fillMaxSize(),
+    )
+    if (isUsageSheetVisible) {
+        ModalBottomSheet(
+            onDismissRequest = { isUsageSheetVisible = false },
+        ) {
+            DashboardUsageSheet(
+                usageSheet = uiState.usageSheet,
             )
         }
-        items(uiState.recentThreads) { thread ->
-            RecentThreadRow(
-                thread = thread,
-                onClick = { onOpenThread(thread.id) },
+    }
+    if (isAccountSheetVisible) {
+        ModalBottomSheet(
+            onDismissRequest = { isAccountSheetVisible = false },
+        ) {
+            DashboardAccountSheet(
+                account = uiState.account,
             )
         }
     }
 }
 
 @Composable
-private fun DashboardHeader() {
+private fun DashboardContent(
+    uiState: DashboardUiState,
+    onOpenThreads: () -> Unit,
+    onOpenHostConnection: () -> Unit,
+    onOpenThread: (String) -> Unit,
+    onOpenUsage: () -> Unit,
+    onOpenAccount: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .statusBarsPadding()
+            .padding(
+                start = CodexSpacing.screenHorizontal,
+                top = CodexSpacing.topLevelHeaderGap,
+                end = CodexSpacing.screenHorizontal,
+                bottom = CodexSpacing.screenBottom,
+            ),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
+    ) {
+        DashboardHeader(
+            onOpenUsage = onOpenUsage,
+            onOpenAccount = onOpenAccount,
+        )
+        ConnectionStrip(
+            activeHost = uiState.activeHost,
+            connection = uiState.connection,
+            onClick = onOpenHostConnection,
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+        ) {
+            ActiveThreadPanel(
+                thread = uiState.activeThread,
+                modifier = Modifier.fillMaxSize(),
+                onClick = onOpenThread,
+            )
+        }
+        DashboardFooter(
+            syncedThreadCount = uiState.syncedThreadCount,
+            attentionCount = uiState.attentionCount,
+            onOpenThreads = onOpenThreads,
+        )
+    }
+}
+
+@Composable
+private fun DashboardHeader(
+    onOpenUsage: () -> Unit,
+    onOpenAccount: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -151,25 +182,19 @@ private fun DashboardHeader() {
         }
         Spacer(modifier = Modifier.width(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
+            HeaderActionChip(
+                onClick = onOpenUsage,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Search,
-                    contentDescription = "Search",
+                    imageVector = Icons.Rounded.QueryStats,
+                    contentDescription = "Usage",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center,
+            HeaderActionChip(
+                onClick = onOpenAccount,
+                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
             ) {
                 Text(
                     text = "SG",
@@ -182,86 +207,213 @@ private fun DashboardHeader() {
 }
 
 @Composable
-private fun ConnectionCard(
-    hostName: String,
-    address: String,
-    port: Int,
-    hostKind: HostKind,
-    connectionPhase: ConnectionPhase,
-    connectionMessage: String?,
-    account: AccountState,
+private fun HeaderActionChip(
     onClick: () -> Unit,
+    containerColor: Color,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(containerColor)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun ConnectionStrip(
+    activeHost: dev.codex.mobile.core.model.HostProfile?,
+    connection: dev.codex.mobile.core.model.ConnectionState,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     CodexCard(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
     ) {
+        if (activeHost == null) {
+            Text(
+                text = "Connect a desktop app-server",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(modifier = Modifier.height(CodexSpacing.microGap))
+            Text(
+                text = "Add a trusted LAN host to start syncing threads and usage.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            return@CodexCard
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                horizontalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(MaterialTheme.shapes.small)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = if (hostKind == HostKind.Laptop) Icons.Rounded.LaptopMac else Icons.Rounded.Computer,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap)) {
-                    Text(
-                        text = "Trusted LAN Endpoint".uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = hostName,
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+                Icon(
+                    imageVector = if (activeHost.kind == HostKind.Laptop) {
+                        Icons.Rounded.LaptopMac
+                    } else {
+                        Icons.Rounded.Computer
+                    },
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = activeHost.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = buildConnectionDetail(
+                        address = activeHost.address,
+                        port = activeHost.port,
+                        connectionMessage = connection.message,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             StatusChip(
-                label = connectionLabel(connectionPhase),
-                color = connectionColor(connectionPhase),
-                pulsingDot = connectionPhase == ConnectionPhase.Connected,
+                label = connectionLabel(connection.phase),
+                color = connectionColor(connection.phase),
+                pulsingDot = connection.phase == ConnectionPhase.Connected,
             )
         }
-        Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
-        Text(
-            text = "$address:$port",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
-        Text(
-            text = account.summary,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        connectionMessage?.takeIf { it != "$address:$port" }?.let { message ->
-            Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+    }
+}
+
+@Composable
+private fun ActiveThreadPanel(
+    thread: ThreadSummary?,
+    onClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (thread == null) {
+        CodexCard(
+            modifier = modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+                ) {
+                    Text(
+                        text = "ACTIVE THREAD",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = "No active turn",
+                        style = MaterialTheme.typography.headlineSmall,
+                    )
+                    Text(
+                        text = "Open Threads to resume a conversation or start a new one from the connected desktop.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                Text(
+                    text = "Usage lives in the header sheet and updates when the desktop syncs ChatGPT rate limits.",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        return
+    }
+
+    CodexCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick(thread.id) },
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
+                    ) {
+                        Text(
+                            text = "ACTIVE THREAD",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = threadTitle(thread),
+                            style = MaterialTheme.typography.headlineSmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    StatusChip(
+                        label = threadStatusLabel(thread.status),
+                        color = threadStatusColor(thread.status),
+                        pulsingDot = !thread.status.isWaitingOnApproval && !thread.status.isWaitingOnUserInput,
+                    )
+                }
+                Text(
+                    text = buildThreadMetaLine(thread),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = thread.preview.ifBlank { "Open the thread to inspect the latest streamed output." },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
-                text = message,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = when {
+                    thread.status.isWaitingOnApproval -> "Approval is blocking the current turn."
+                    thread.status.isWaitingOnUserInput -> "Codex is waiting for a short answer before it can continue."
+                    else -> "Open the thread to steer the run, inspect diffs, or interrupt it."
+                },
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -270,117 +422,276 @@ private fun ConnectionCard(
 }
 
 @Composable
-private fun ActiveThreadCard(
-    thread: ThreadSummary,
-    onClick: () -> Unit,
+private fun DashboardUsageSheet(
+    usageSheet: DashboardUsageSheetUiModel,
+    modifier: Modifier = Modifier,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap)) {
-        SectionHeader(
-            title = "Active Thread",
-            trailing = {
-                StatusChip(
-                    label = threadStatusLabel(thread.status),
-                    color = threadStatusColor(thread.status),
-                    pulsingDot = !thread.status.isWaitingOnApproval && !thread.status.isWaitingOnUserInput,
-                )
-            },
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(
+                start = CodexSpacing.screenHorizontal,
+                end = CodexSpacing.screenHorizontal,
+                bottom = CodexSpacing.screenBottom,
+            ),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
+    ) {
+        Text(
+            text = "Usage",
+            style = MaterialTheme.typography.headlineSmall,
+        )
+        Text(
+            text = "Live ChatGPT Codex quota usage from the connected desktop app-server.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        UsageWindowCard(
+            title = "5h usage",
+            window = usageSheet.fiveHourWindow,
+        )
+        UsageWindowCard(
+            title = "7d usage",
+            window = usageSheet.weeklyWindow,
+        )
+    }
+}
+
+@Composable
+private fun DashboardAccountSheet(
+    account: AccountState,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(
+                start = CodexSpacing.screenHorizontal,
+                end = CodexSpacing.screenHorizontal,
+                bottom = CodexSpacing.screenBottom,
+            ),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
+    ) {
+        Text(
+            text = "Account",
+            style = MaterialTheme.typography.headlineSmall,
+        )
+        Text(
+            text = account.summary,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         CodexCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick),
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(
-                text = threadMetaLabel(thread),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            AccountField(
+                label = "Status",
+                value = accountStatusLabel(account),
             )
             Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
-            Text(
-                text = threadTitle(thread),
-                style = MaterialTheme.typography.titleLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            AccountField(
+                label = "Plan",
+                value = account.planType?.replaceFirstChar(Char::titlecase) ?: "Unavailable",
             )
-            Spacer(modifier = Modifier.height(CodexSpacing.tightGap))
-            Text(
-                text = thread.preview,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
+            Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+            AccountField(
+                label = "Email",
+                value = account.email ?: "Unavailable",
             )
-            Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
-            Text(
-                text = when {
-                    thread.status.isWaitingOnApproval -> "Approval is blocking the current turn."
-                    thread.status.isWaitingOnUserInput -> "Codex is waiting for a short answer before it can continue."
-                    else -> "Open the live thread to steer or interrupt the turn."
-                },
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+            Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+            AccountField(
+                label = "OpenAI auth",
+                value = if (account.requiresOpenaiAuth) "Required on desktop" else "Not required",
             )
         }
     }
 }
 
 @Composable
-private fun RecentThreadRow(
-    thread: ThreadSummary,
-    onClick: () -> Unit,
+private fun AccountField(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.medium)
-            .clickable(onClick = onClick)
-            .height(64.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
     ) {
-        Box(
-            modifier = Modifier
-                .size(46.dp)
-                .clip(MaterialTheme.shapes.small)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = threadStatusIcon(thread.status),
-                contentDescription = null,
-                tint = threadStatusColor(thread.status),
-            )
-        }
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = threadTitle(thread),
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = thread.preview,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = relativeTimeLabel(thread.updatedAtEpochSeconds),
-            style = MaterialTheme.typography.labelSmall,
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurface,
         )
     }
 }
 
-private fun threadTitle(thread: ThreadSummary): String = thread.name?.takeIf { it.isNotBlank() } ?: "Untitled thread"
+@Composable
+private fun UsageWindowCard(
+    title: String,
+    window: DashboardUsageWindowUiModel,
+    modifier: Modifier = Modifier,
+) {
+    CodexCard(
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        val progress: Float = ((window.usedPercent ?: 0).coerceIn(0, 100)) / 100f
+        Text(
+            text = title.uppercase(),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (window.windowDurationMins == null) {
+            Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+            Text(
+                text = "Unavailable",
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            Spacer(modifier = Modifier.height(CodexSpacing.microGap))
+            Text(
+                text = "This window appears once the connected desktop syncs ChatGPT rate limits.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@CodexCard
+        }
 
-private fun threadMetaLabel(thread: ThreadSummary): String = thread.displayMetaLabel()
+        Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+        Text(
+            text = window.usedPercent?.let { "$it%" } ?: "—",
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = "Used",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(CircleShape),
+            color = MaterialTheme.colorScheme.primary,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        )
+        Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+        MetricLine(
+            label = "Reset",
+            value = resetWindowLabel(window.resetsAtEpochSeconds),
+        )
+    }
+}
+
+@Composable
+private fun MetricLine(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun DashboardFooter(
+    syncedThreadCount: Int,
+    attentionCount: Int,
+    onOpenThreads: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = buildFooterSummary(
+                syncedThreadCount = syncedThreadCount,
+                attentionCount = attentionCount,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "View all",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable(onClick = onOpenThreads),
+        )
+    }
+}
+
+private fun buildConnectionDetail(
+    address: String,
+    port: Int,
+    connectionMessage: String?,
+): String = listOfNotNull(
+    "$address:$port",
+    connectionMessage?.takeIf { it.isNotBlank() && it != "$address:$port" },
+).joinToString(separator = "  •  ")
+
+private fun buildThreadMetaLine(thread: ThreadSummary): String = listOfNotNull(
+    thread.runtimeSettingsLabel(),
+    thread.workspaceFolderName(),
+    thread.gitBranch?.takeIf { it.isNotBlank() },
+    thread.displayMetaLabel().takeIf { value ->
+        value.isNotBlank() && value != thread.workspaceFolderName()
+    },
+).distinct().joinToString(separator = "  •  ")
+
+private fun buildFooterSummary(
+    syncedThreadCount: Int,
+    attentionCount: Int,
+): String = "$syncedThreadCount threads synced  •  $attentionCount need attention"
+
+private fun resetWindowLabel(resetsAtEpochSeconds: Long?): String {
+    if (resetsAtEpochSeconds == null) return "Unavailable"
+    val remainingSeconds: Long = (resetsAtEpochSeconds - (System.currentTimeMillis() / 1_000)).coerceAtLeast(0)
+    val remainingMinutes: Long = remainingSeconds / 60
+    return when {
+        remainingMinutes < 1L -> "Under 1 min"
+        remainingMinutes < 60L -> "In ${remainingMinutes}m"
+        remainingMinutes < 24L * 60L -> {
+            val hours = remainingMinutes / 60L
+            "In ${hours}h"
+        }
+
+        else -> {
+            val days = remainingMinutes / (24L * 60L)
+            "In ${days}d"
+        }
+    }
+}
+
+private fun threadTitle(thread: ThreadSummary): String = thread.name?.takeIf { it.isNotBlank() } ?: "Untitled thread"
 
 private fun threadStatusLabel(status: ThreadStatus): String = when {
     status.isWaitingOnApproval -> "Needs Approval"
@@ -400,14 +711,6 @@ private fun threadStatusColor(status: ThreadStatus): Color = when {
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
-private fun threadStatusIcon(status: ThreadStatus) = when {
-    status.isWaitingOnApproval -> Icons.Rounded.FolderOpen
-    status.isWaitingOnUserInput -> Icons.Rounded.ChatBubbleOutline
-    status.type == ThreadStatusType.Active -> Icons.Rounded.Refresh
-    status.type == ThreadStatusType.SystemError -> Icons.Rounded.Error
-    else -> Icons.Rounded.ChatBubbleOutline
-}
-
 private fun connectionLabel(phase: ConnectionPhase): String = when (phase) {
     ConnectionPhase.Connected -> "Connected"
     ConnectionPhase.Connecting -> "Connecting"
@@ -425,3 +728,9 @@ private fun connectionColor(phase: ConnectionPhase): Color = when (phase) {
     ConnectionPhase.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
+private fun accountStatusLabel(account: AccountState): String = when (account.status) {
+    AccountStatus.Unknown -> "Unavailable"
+    AccountStatus.RequiresLogin -> "Needs login"
+    AccountStatus.ApiKey -> "API key"
+    AccountStatus.ChatGpt -> "ChatGPT"
+}

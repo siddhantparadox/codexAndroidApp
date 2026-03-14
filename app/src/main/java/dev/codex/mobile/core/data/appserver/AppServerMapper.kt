@@ -2,6 +2,9 @@ package dev.codex.mobile.core.data.appserver
 
 import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.AccountStatus
+import dev.codex.mobile.core.model.AccountRateLimit
+import dev.codex.mobile.core.model.AccountRateLimits
+import dev.codex.mobile.core.model.AccountRateLimitWindow
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
@@ -88,6 +91,25 @@ internal fun JsonObject.toAccountState(): AccountState {
     }
 }
 
+internal fun JsonObject.toAccountRateLimits(): AccountRateLimits {
+    val currentRateLimit: AccountRateLimit? = objectAt("rateLimits")?.toAccountRateLimit()
+    val rateLimitsByLimitId: Map<String, AccountRateLimit> = objectAt("rateLimitsByLimitId")
+        ?.entries
+        ?.associate { (limitId, value) ->
+            val bucket: AccountRateLimit = value.jsonObject.toAccountRateLimit()
+                .let { parsed ->
+                    if (parsed.limitId.isBlank()) parsed.copy(limitId = limitId) else parsed
+                }
+            limitId to bucket
+        }
+        .orEmpty()
+
+    return AccountRateLimits(
+        current = currentRateLimit ?: rateLimitsByLimitId["codex"] ?: rateLimitsByLimitId.values.firstOrNull(),
+        byLimitId = rateLimitsByLimitId,
+    )
+}
+
 internal fun JsonObject.toThreadSummary(): ThreadSummary = ThreadSummary(
     id = requireNotNull(string("id")),
     name = string("name"),
@@ -102,6 +124,19 @@ internal fun JsonObject.toThreadSummary(): ThreadSummary = ThreadSummary(
     gitBranch = objectAt("gitInfo")?.string("branch"),
     agentRole = string("agentRole"),
     agentNickname = string("agentNickname"),
+)
+
+internal fun JsonObject.toAccountRateLimit(): AccountRateLimit = AccountRateLimit(
+    limitId = string("limitId").orEmpty(),
+    limitName = string("limitName"),
+    primary = objectAt("primary")?.toAccountRateLimitWindow(),
+    secondary = objectAt("secondary")?.toAccountRateLimitWindow(),
+)
+
+internal fun JsonObject.toAccountRateLimitWindow(): AccountRateLimitWindow = AccountRateLimitWindow(
+    usedPercent = int("usedPercent"),
+    windowDurationMins = int("windowDurationMins"),
+    resetsAtEpochSeconds = long("resetsAt"),
 )
 
 internal fun JsonObject.toThreadDetail(): ThreadDetail = ThreadDetail(

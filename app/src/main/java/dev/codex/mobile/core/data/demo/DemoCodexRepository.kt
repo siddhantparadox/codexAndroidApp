@@ -1,6 +1,9 @@
 package dev.codex.mobile.core.data.demo
 
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.model.AccountRateLimit
+import dev.codex.mobile.core.model.AccountRateLimits
+import dev.codex.mobile.core.model.AccountRateLimitWindow
 import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.AccountStatus
 import dev.codex.mobile.core.model.AppPreferences
@@ -50,6 +53,7 @@ private data class DemoStoreState(
         planType = "pro",
         requiresOpenaiAuth = true,
     ),
+    val rateLimits: AccountRateLimits = AccountRateLimits(),
     val threads: List<ThreadSummary> = emptyList(),
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
     val activeItemIdsByThread: Map<String, Set<String>> = emptyMap(),
@@ -86,6 +90,7 @@ class DemoCodexRepository : CodexRepository {
                     kind = HostKind.Desktop,
                 ),
             ),
+            rateLimits = demoRateLimits(),
             threads = initialThreads,
             threadDetails = demoThreadDetails(initialThreads),
             activeItemIdsByThread = demoActiveItemIdsByThread(),
@@ -100,6 +105,8 @@ class DemoCodexRepository : CodexRepository {
     override fun observeConnection(): Flow<ConnectionState> = store.map { it.connection }
 
     override fun observeAccount(): Flow<AccountState> = store.map { it.account }
+
+    override fun observeRateLimits(): Flow<AccountRateLimits?> = store.map { it.rateLimits }
 
     override fun observeThreads(): Flow<List<ThreadSummary>> = store.map { it.threads }
 
@@ -404,6 +411,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         currentModelId = "gpt-5.4",
         currentModelName = "GPT-5.4",
         currentReasoningEffort = ComposerReasoningEffort.High,
+        lastTurnTotalTokens = 3_200L,
+        threadTotalTokens = 28_400L,
+        contextRemainingPercent = 61,
     ),
     ThreadSummary(
         id = "auth-handshake",
@@ -420,6 +430,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         currentModelId = "gpt-5.4",
         currentModelName = "GPT-5.4",
         currentReasoningEffort = ComposerReasoningEffort.Medium,
+        lastTurnTotalTokens = 1_180L,
+        threadTotalTokens = 12_460L,
+        contextRemainingPercent = 77,
     ),
     ThreadSummary(
         id = "theme-sync",
@@ -614,6 +627,26 @@ private fun demoApprovals(): List<ApprovalItem> = listOf(
         ),
     ),
 )
+
+private fun demoRateLimits(now: Long = nowEpochSeconds()): AccountRateLimits {
+    val currentLimit = AccountRateLimit(
+        limitId = "codex",
+        primary = AccountRateLimitWindow(
+            usedPercent = 22,
+            windowDurationMins = 300,
+            resetsAtEpochSeconds = now + 3 * 60 * 60 + 18 * 60,
+        ),
+        secondary = AccountRateLimitWindow(
+            usedPercent = 41,
+            windowDurationMins = 10_080,
+            resetsAtEpochSeconds = now + 5 * 24 * 60 * 60 + 7 * 60 * 60,
+        ),
+    )
+    return AccountRateLimits(
+        current = currentLimit,
+        byLimitId = mapOf(currentLimit.limitId to currentLimit),
+    )
+}
 
 private fun demoComposerCatalog(): ComposerCatalog = ComposerCatalog(
     models = listOf(
