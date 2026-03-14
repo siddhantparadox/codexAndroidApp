@@ -105,6 +105,7 @@ internal fun TechnicalPillStrip(
     activeItemIds: Set<String>,
     autoRevealExpandedContent: Boolean,
     onDecision: (String, ApprovalDecision) -> Unit,
+    onReviewDiff: (FileChangeEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
@@ -170,6 +171,7 @@ internal fun TechnicalPillStrip(
                             item = selectedItem,
                             presentation = selectedPresentation,
                             isLive = selectedItemIsLive,
+                            onReviewDiff = onReviewDiff,
                             modifier = Modifier.bringIntoViewRequester(detailBringIntoViewRequester),
                         )
                     }
@@ -254,6 +256,7 @@ private fun TechnicalPillDetailPanel(
     item: ThreadItem,
     presentation: TechnicalPillPresentation,
     isLive: Boolean,
+    onReviewDiff: (FileChangeEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val palette: TechnicalPillPalette = technicalPalette(presentation.family)
@@ -356,6 +359,7 @@ private fun TechnicalPillDetailPanel(
             TechnicalItemDetail(
                 item = item,
                 isLive = isLive,
+                onReviewDiff = onReviewDiff,
             )
         }
     }
@@ -365,6 +369,7 @@ private fun TechnicalPillDetailPanel(
 private fun TechnicalItemDetail(
     item: ThreadItem,
     isLive: Boolean,
+    onReviewDiff: (FileChangeEntry) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap)) {
         when (item) {
@@ -425,23 +430,10 @@ private fun TechnicalItemDetail(
 
             is ThreadItem.FileChange -> {
                 item.changes.forEach { change ->
-                    Text(
-                        text = change.path,
-                        style = MaterialTheme.typography.titleSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    PatchFileSummaryCard(
+                        change = change,
+                        onReviewDiff = onReviewDiff,
                     )
-                    Text(
-                        text = change.kind,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    if (change.diff.isNotBlank()) {
-                        CodeBlock(
-                            text = change.diff,
-                            showLiveCaret = isLive,
-                        )
-                    }
                 }
                 item.toolOutput?.takeIf { output -> output.isNotBlank() }?.let { output ->
                     TechnicalSectionTitle("apply_patch output")

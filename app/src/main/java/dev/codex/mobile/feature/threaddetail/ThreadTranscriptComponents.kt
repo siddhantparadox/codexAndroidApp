@@ -49,6 +49,7 @@ internal fun ThreadTranscriptRowView(
     activeItemIds: Set<String>,
     autoRevealExpandedContent: Boolean,
     onDecision: (String, ApprovalDecision) -> Unit,
+    onReviewDiff: (dev.codex.mobile.core.model.FileChangeEntry) -> Unit,
 ) {
     when (row) {
         is TranscriptRow.UserMessage -> UserBubble(row.item)
@@ -62,6 +63,7 @@ internal fun ThreadTranscriptRowView(
             activeItemIds = activeItemIds,
             autoRevealExpandedContent = autoRevealExpandedContent,
             onDecision = onDecision,
+            onReviewDiff = onReviewDiff,
         )
 
         is TranscriptRow.OrphanApproval -> InlineApprovalCard(

@@ -50,6 +50,7 @@ import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.util.AppLog
+import dev.codex.mobile.core.model.FileChangeEntry
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
@@ -78,6 +79,9 @@ fun ThreadDetailScreen(
     var handledScrollToLatestRequestId by remember(detail?.summary?.id) { mutableStateOf(0) }
     var composerSheetContent by remember(detail?.summary?.id) {
         mutableStateOf<ThreadComposerSheetContent?>(null)
+    }
+    var reviewedDiff by remember(detail?.summary?.id) {
+        mutableStateOf<FileChangeEntry?>(null)
     }
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -208,6 +212,9 @@ fun ThreadDetailScreen(
                             activeItemIds = uiState.activeItemIds,
                             autoRevealExpandedContent = followMode,
                             onDecision = viewModel::resolveApproval,
+                            onReviewDiff = { change ->
+                                reviewedDiff = change
+                            },
                         )
                     }
                 }
@@ -295,6 +302,15 @@ fun ThreadDetailScreen(
                     photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 },
             )
+        }
+    }
+
+    val visibleReviewedDiff: FileChangeEntry? = reviewedDiff
+    if (visibleReviewedDiff != null) {
+        ModalBottomSheet(
+            onDismissRequest = { reviewedDiff = null },
+        ) {
+            ThreadDiffViewerContent(change = visibleReviewedDiff)
         }
     }
 }
