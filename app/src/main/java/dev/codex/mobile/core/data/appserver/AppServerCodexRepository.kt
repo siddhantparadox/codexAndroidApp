@@ -8,6 +8,7 @@ import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.data.local.AppLocalStateStore
 import dev.codex.mobile.core.data.local.PersistedAppState
 import dev.codex.mobile.core.data.local.PersistedThreadSettings
+import dev.codex.mobile.core.data.usagewrapped.UsageWrappedServiceClient
 import dev.codex.mobile.core.model.AccountRateLimit
 import dev.codex.mobile.core.model.AccountRateLimits
 import dev.codex.mobile.core.model.AccountState
@@ -34,11 +35,14 @@ import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThemePreference
+import dev.codex.mobile.core.model.UsageWrappedState
 import dev.codex.mobile.core.model.isWaitingOnApproval
 import dev.codex.mobile.core.model.isWaitingOnUserInput
 import dev.codex.mobile.core.model.mergeUpdatedBucket
 import dev.codex.mobile.core.model.previewText
+import dev.codex.mobile.core.model.usageWrappedPort
 import dev.codex.mobile.core.util.AppLog
+import java.net.ConnectException
 import java.net.UnknownHostException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -66,6 +70,7 @@ private data class RepositoryState(
     val connection: ConnectionState = ConnectionState(),
     val account: AccountState = AccountState(),
     val rateLimits: AccountRateLimits? = null,
+    val usageWrapped: UsageWrappedState = UsageWrappedState(),
     val threads: List<ThreadSummary> = emptyList(),
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
     val activeItemIdsByThread: Map<String, Set<String>> = emptyMap(),
@@ -102,6 +107,9 @@ internal class AppServerCodexRepository(
         json = appServerJson,
         ioDispatcher = ioDispatcher,
     )
+    private val usageWrappedServiceClient: UsageWrappedServiceClient = UsageWrappedServiceClient(
+        okHttpClient = okHttpClient,
+    )
     private val repositoryState: MutableStateFlow<RepositoryState> = MutableStateFlow(RepositoryState())
     private val connectMutex: Mutex = Mutex()
     private val threadsRefreshMutex: Mutex = Mutex()
@@ -133,6 +141,8 @@ internal class AppServerCodexRepository(
     override fun observeAccount(): Flow<AccountState> = repositoryState.map { it.account }
 
     override fun observeRateLimits(): Flow<AccountRateLimits?> = repositoryState.map { it.rateLimits }
+
+    override fun observeUsageWrapped(): Flow<UsageWrappedState> = repositoryState.map { it.usageWrapped }
 
     override fun observeThreads(): Flow<List<ThreadSummary>> = repositoryState.map { it.threads }
 
@@ -313,6 +323,57 @@ internal class AppServerCodexRepository(
                 )
             }
             flushPersistLocalState()
+        }
+    }
+
+    override suspend fun refreshUsageWrapped() {
+        val activeHost: HostProfile = repositoryState.value.hosts.firstOrNull { it.isActive } ?: run {
+            repositoryState.update { current ->
+                current.copy(
+                    usageWrapped = UsageWrappedState(
+                        errorMessage = "Connect to a desktop to see usage history.",
+                    ),
+                )
+            }
+            return
+        }
+
+        repositoryState.update { current ->
+            current.copy(
+                usageWrapped = current.usageWrapped.forHost(activeHost.id),
+            )
+        }
+
+        runCatching {
+            withContext(ioDispatcher) {
+                usageWrappedServiceClient.fetchSummary(activeHost)
+            }
+        }.onSuccess { summary ->
+            AppLog.action(
+                name = "refresh_usage_wrapped",
+                detail = "host=${activeHost.id}",
+            )
+            repositoryState.update { current ->
+                current.copy(
+                    usageWrapped = UsageWrappedState(
+                        hostId = activeHost.id,
+                        summary = summary,
+                    ),
+                )
+            }
+        }.onFailure { error ->
+            AppLog.action(
+                name = "refresh_usage_wrapped_failed",
+                detail = error.message.orEmpty(),
+            )
+            repositoryState.update { current ->
+                current.copy(
+                    usageWrapped = current.usageWrapped.withError(
+                        hostId = activeHost.id,
+                        errorMessage = error.toUsageWrappedMessage(activeHost),
+                    ),
+                )
+            }
         }
     }
 
@@ -512,6 +573,7 @@ internal class AppServerCodexRepository(
                     connection = ConnectionState(phase = ConnectionPhase.Idle),
                     account = AccountState(),
                     rateLimits = null,
+                    usageWrapped = UsageWrappedState(),
                     threads = emptyList(),
                     threadDetails = emptyMap(),
                     activeItemIdsByThread = emptyMap(),
@@ -541,6 +603,7 @@ internal class AppServerCodexRepository(
                 ),
                 account = AccountState(),
                 rateLimits = null,
+                usageWrapped = current.usageWrapped.forHost(activeHost.id),
                 threads = emptyList(),
                 threadDetails = emptyMap(),
                 activeItemIdsByThread = emptyMap(),
@@ -597,10 +660,14 @@ internal class AppServerCodexRepository(
                     ),
                     account = account,
                     rateLimits = rateLimits,
+                    usageWrapped = current.usageWrapped.forHost(activeHost.id),
                     threads = threads,
                     threadDetails = current.threadDetails.syncWithThreads(threads),
                     composerCatalog = composerCatalog,
                 )
+            }
+            applicationScope.launch {
+                refreshUsageWrapped()
             }
 
             sessionEventsJob = applicationScope.launch {
@@ -622,6 +689,10 @@ internal class AppServerCodexRepository(
                     ),
                     account = AccountState(),
                     rateLimits = null,
+                    usageWrapped = current.usageWrapped.withError(
+                        hostId = activeHost.id,
+                        errorMessage = error.toUsageWrappedMessage(activeHost),
+                    ),
                     threads = emptyList(),
                     threadDetails = emptyMap(),
                     activeItemIdsByThread = emptyMap(),
@@ -1855,6 +1926,29 @@ private fun hostId(
     port: Int,
 ): String = "${name.lowercase().replace(" ", "-")}-$address-$port"
 
+private fun UsageWrappedState.forHost(hostId: String): UsageWrappedState = if (this.hostId == hostId) {
+    copy(
+        hostId = hostId,
+        isLoading = true,
+        errorMessage = null,
+    )
+} else {
+    UsageWrappedState(
+        hostId = hostId,
+        isLoading = true,
+    )
+}
+
+private fun UsageWrappedState.withError(
+    hostId: String,
+    errorMessage: String,
+): UsageWrappedState = UsageWrappedState(
+    hostId = hostId,
+    summary = if (this.hostId == hostId) summary else null,
+    isLoading = false,
+    errorMessage = errorMessage,
+)
+
 private const val MAX_THREAD_ACTIVITIES: Int = 40
 private const val MAX_IN_APP_THREAD_NOTIFICATIONS: Int = 6
 
@@ -1863,6 +1957,16 @@ private fun currentEpochSeconds(): Long = System.currentTimeMillis() / 1_000
 private fun Throwable.toConnectionMessage(): String = when (this) {
     is UnknownHostException -> "Host not found."
     else -> message ?: "Unable to connect to app-server."
+}
+
+private fun Throwable.toUsageWrappedMessage(activeHost: HostProfile): String {
+    val address = "${activeHost.address}:${activeHost.usageWrappedPort()}"
+    return when (this) {
+        is UnknownHostException -> "Usage history service was not found at $address."
+        is ConnectException -> "Start the desktop usage history service at $address."
+        else -> message?.takeIf(String::isNotBlank)
+            ?: "Usage history is unavailable at $address."
+    }
 }
 
 private fun statusLabel(status: ThreadStatus): String = when {

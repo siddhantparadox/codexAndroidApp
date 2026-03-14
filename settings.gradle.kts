@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CodexAndroidApp"
 include(":app")
+include(":usage-wrapped-service")

@@ -33,6 +33,7 @@ import dev.codex.mobile.feature.dashboard.DashboardScreen
 import dev.codex.mobile.feature.settings.SettingsScreen
 import dev.codex.mobile.feature.threaddetail.ThreadDetailScreen
 import dev.codex.mobile.feature.threads.ThreadsScreen
+import dev.codex.mobile.feature.usage.UsageWrappedScreen
 
 @Composable
 fun CodexNavHost(
@@ -55,6 +56,7 @@ fun CodexNavHost(
         currentDestination?.hasRoute<ApprovalsRoute>() == true -> "approvals"
         currentDestination?.hasRoute<SettingsRoute>() == true -> "settings"
         currentDestination?.hasRoute<HostConnectionRoute>() == true -> "host_connection"
+        currentDestination?.hasRoute<UsageWrappedRoute>() == true -> "usage_wrapped"
         currentDestination?.hasRoute<ThreadDetailRoute>() == true -> "thread_detail"
         else -> null
     }
@@ -71,7 +73,8 @@ fun CodexNavHost(
         currentDestination?.hasRoute<SettingsRoute>() == true -> true
         else -> false
     }
-    val showBottomBar = currentDestination?.hasRoute<ThreadDetailRoute>() != true
+    val showBottomBar = currentDestination?.hasRoute<ThreadDetailRoute>() != true &&
+        currentDestination?.hasRoute<UsageWrappedRoute>() != true
 
     LaunchedEffect(currentScreen) {
         currentScreen?.let(AppLog::screen)
@@ -131,6 +134,10 @@ fun CodexNavHost(
                             AppLog.action(name = "open_thread", detail = threadId)
                             navController.navigate(ThreadDetailRoute(threadId = threadId))
                         },
+                        onOpenUsageWrapped = {
+                            AppLog.action(name = "open_usage_wrapped", detail = "from_dashboard")
+                            navController.navigate(UsageWrappedRoute)
+                        },
                     )
                 }
                 composable<ThreadsRoute> {
@@ -169,6 +176,14 @@ fun CodexNavHost(
                     HostConnectionScreen(
                         onNavigateBack = {
                             AppLog.action(name = "navigate_back", detail = "host_connection")
+                            navController.popBackStack()
+                        },
+                    )
+                }
+                composable<UsageWrappedRoute> {
+                    UsageWrappedScreen(
+                        onNavigateBack = {
+                            AppLog.action(name = "navigate_back", detail = "usage_wrapped")
                             navController.popBackStack()
                         },
                     )

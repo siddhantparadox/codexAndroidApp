@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.LaptopMac
 import androidx.compose.material.icons.rounded.QueryStats
@@ -60,6 +61,8 @@ import dev.codex.mobile.core.model.isWaitingOnUserInput
 import dev.codex.mobile.core.model.runtimeSettingsLabel
 import dev.codex.mobile.core.model.summary
 import dev.codex.mobile.core.model.workspaceFolderName
+import java.text.NumberFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +70,7 @@ fun DashboardScreen(
     onOpenThreads: () -> Unit,
     onOpenHostConnection: () -> Unit,
     onOpenThread: (String) -> Unit,
+    onOpenUsageWrapped: () -> Unit,
     viewModel: DashboardViewModel = viewModel(
         factory = DashboardViewModel.factory(CodexAppGraph.repository),
     ),
@@ -79,7 +83,10 @@ fun DashboardScreen(
         onOpenThreads = onOpenThreads,
         onOpenHostConnection = onOpenHostConnection,
         onOpenThread = onOpenThread,
-        onOpenUsage = { isUsageSheetVisible = true },
+        onOpenUsage = {
+            isUsageSheetVisible = true
+            viewModel.refreshUsageWrapped()
+        },
         onOpenAccount = { isAccountSheetVisible = true },
         modifier = Modifier.fillMaxSize(),
     )
@@ -89,6 +96,10 @@ fun DashboardScreen(
         ) {
             DashboardUsageSheet(
                 usageSheet = uiState.usageSheet,
+                onOpenWrapped = {
+                    isUsageSheetVisible = false
+                    onOpenUsageWrapped()
+                },
             )
         }
     }
@@ -424,6 +435,7 @@ private fun ActiveThreadPanel(
 @Composable
 private fun DashboardUsageSheet(
     usageSheet: DashboardUsageSheetUiModel,
+    onOpenWrapped: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -434,25 +446,104 @@ private fun DashboardUsageSheet(
                 end = CodexSpacing.screenHorizontal,
                 bottom = CodexSpacing.screenBottom,
             ),
-        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
     ) {
         Text(
             text = "Usage",
             style = MaterialTheme.typography.headlineSmall,
         )
         Text(
-            text = "Live ChatGPT Codex quota usage from the connected desktop app-server.",
+            text = "Live ChatGPT Codex quota plus wrapped local history from the connected desktop.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        UsageWindowCard(
-            title = "5h usage",
-            window = usageSheet.fiveHourWindow,
+        WrappedUsageCallout(
+            wrapped = usageSheet.wrapped,
+            onClick = onOpenWrapped,
         )
-        UsageWindowCard(
-            title = "7d usage",
-            window = usageSheet.weeklyWindow,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+        ) {
+            UsageWindowCard(
+                title = "5H",
+                window = usageSheet.fiveHourWindow,
+                modifier = Modifier.weight(1f),
+            )
+            UsageWindowCard(
+                title = "7D",
+                window = usageSheet.weeklyWindow,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun WrappedUsageCallout(
+    wrapped: DashboardWrappedPreviewUiModel,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CodexCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        contentPadding = PaddingValues(14.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.QueryStats,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = "WRAPPED",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "Open usage wrapped",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = buildWrappedCalloutSubtitle(wrapped),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
     }
 }
 
@@ -537,10 +628,11 @@ private fun UsageWindowCard(
 ) {
     CodexCard(
         modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(14.dp),
     ) {
         val progress: Float = ((window.usedPercent ?: 0).coerceIn(0, 100)) / 100f
         Text(
-            text = title.uppercase(),
+            text = "$title USAGE",
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -548,13 +640,15 @@ private fun UsageWindowCard(
             Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
             Text(
                 text = "Unavailable",
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleMedium,
             )
             Spacer(modifier = Modifier.height(CodexSpacing.microGap))
             Text(
-                text = "This window appears once the connected desktop syncs ChatGPT rate limits.",
+                text = "Waiting for desktop quota sync.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
             return@CodexCard
         }
@@ -565,12 +659,7 @@ private fun UsageWindowCard(
             style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.primary,
         )
-        Text(
-            text = "Used",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+        Spacer(modifier = Modifier.height(10.dp))
         LinearProgressIndicator(
             progress = { progress },
             modifier = Modifier
@@ -647,6 +736,50 @@ private fun DashboardFooter(
             modifier = Modifier.clickable(onClick = onOpenThreads),
         )
     }
+}
+
+private fun buildWrappedCalloutSubtitle(wrapped: DashboardWrappedPreviewUiModel): String = when {
+    wrapped.approximateUsd != null && wrapped.sessionCount != null && wrapped.totalTokens != null -> {
+        "${formatUsd(wrapped.approximateUsd)} approx. API cost  •  ${compactCount(wrapped.sessionCount.toLong())} sessions  •  ${compactCount(wrapped.totalTokens)} tokens"
+    }
+
+    wrapped.approximateUsd != null -> "${formatUsd(wrapped.approximateUsd)} approx. API-equivalent cost from local session history."
+    wrapped.sessionCount != null && wrapped.totalTokens != null -> {
+        "${compactCount(wrapped.sessionCount.toLong())} sessions  •  ${compactCount(wrapped.totalTokens)} tokens  •  Activity, streaks, and projects."
+    }
+
+    else -> "Open local history, streaks, projects, and the API-equivalent cost estimate."
+}
+
+private fun compactCount(value: Long?): String {
+    if (value == null) return "0"
+    val absoluteValue: Long = kotlin.math.abs(value)
+    return when {
+        absoluteValue >= 1_000_000_000L -> compactWithSuffix(value, 1_000_000_000L, "B")
+        absoluteValue >= 1_000_000L -> compactWithSuffix(value, 1_000_000L, "M")
+        absoluteValue >= 1_000L -> compactWithSuffix(value, 1_000L, "K")
+        else -> value.toString()
+    }
+}
+
+private fun compactWithSuffix(
+    value: Long,
+    divisor: Long,
+    suffix: String,
+): String {
+    val truncatedValue: Double = value.toDouble() / divisor.toDouble()
+    val roundedValue: Double = kotlin.math.round(truncatedValue * 10.0) / 10.0
+    val formattedValue: String = if (roundedValue % 1.0 == 0.0) {
+        roundedValue.toInt().toString()
+    } else {
+        roundedValue.toString()
+    }
+    return "$formattedValue$suffix"
+}
+
+private fun formatUsd(value: Double?): String {
+    if (value == null) return "Unavailable"
+    return NumberFormat.getCurrencyInstance(Locale.US).format(value)
 }
 
 private fun buildConnectionDetail(
@@ -734,3 +867,8 @@ private fun accountStatusLabel(account: AccountState): String = when (account.st
     AccountStatus.ApiKey -> "API key"
     AccountStatus.ChatGpt -> "ChatGPT"
 }
+
+
+
+
+

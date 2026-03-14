@@ -32,7 +32,19 @@ import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThemePreference
+import dev.codex.mobile.core.model.UsageWrappedActivityDay
+import dev.codex.mobile.core.model.UsageWrappedCostEstimate
+import dev.codex.mobile.core.model.UsageWrappedDaySummary
+import dev.codex.mobile.core.model.UsageWrappedHighlights
+import dev.codex.mobile.core.model.UsageWrappedOverview
+import dev.codex.mobile.core.model.UsageWrappedProjectSummary
+import dev.codex.mobile.core.model.UsageWrappedRange
+import dev.codex.mobile.core.model.UsageWrappedSourceSummary
+import dev.codex.mobile.core.model.UsageWrappedState
+import dev.codex.mobile.core.model.UsageWrappedSummary
+import dev.codex.mobile.core.model.UsageWrappedTokenTotals
 import dev.codex.mobile.core.util.AppLog
+import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,6 +66,7 @@ private data class DemoStoreState(
         requiresOpenaiAuth = true,
     ),
     val rateLimits: AccountRateLimits = AccountRateLimits(),
+    val usageWrapped: UsageWrappedState = UsageWrappedState(),
     val threads: List<ThreadSummary> = emptyList(),
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
     val activeItemIdsByThread: Map<String, Set<String>> = emptyMap(),
@@ -91,6 +104,7 @@ class DemoCodexRepository : CodexRepository {
                 ),
             ),
             rateLimits = demoRateLimits(),
+            usageWrapped = demoUsageWrappedState(),
             threads = initialThreads,
             threadDetails = demoThreadDetails(initialThreads),
             activeItemIdsByThread = demoActiveItemIdsByThread(),
@@ -107,6 +121,8 @@ class DemoCodexRepository : CodexRepository {
     override fun observeAccount(): Flow<AccountState> = store.map { it.account }
 
     override fun observeRateLimits(): Flow<AccountRateLimits?> = store.map { it.rateLimits }
+
+    override fun observeUsageWrapped(): Flow<UsageWrappedState> = store.map { it.usageWrapped }
 
     override fun observeThreads(): Flow<List<ThreadSummary>> = store.map { it.threads }
 
@@ -262,6 +278,14 @@ class DemoCodexRepository : CodexRepository {
     override suspend fun refreshThreads() {
         AppLog.action(name = "refresh_threads", detail = "demo")
         delay(250)
+    }
+
+    override suspend fun refreshUsageWrapped() {
+        AppLog.action(name = "refresh_usage_wrapped", detail = "demo")
+        delay(180)
+        store.update { current ->
+            current.copy(usageWrapped = demoUsageWrappedState())
+        }
     }
 
     override suspend fun dismissInAppThreadNotification(notificationId: String) {
@@ -648,6 +672,81 @@ private fun demoRateLimits(now: Long = nowEpochSeconds()): AccountRateLimits {
     )
 }
 
+private fun demoUsageWrappedState(): UsageWrappedState {
+    val today: LocalDate = LocalDate.now()
+    val activity: List<UsageWrappedActivityDay> = (0 until 120).mapNotNull { index ->
+        val date: LocalDate = today.minusDays((119 - index).toLong())
+        val sessionCount: Int = when {
+            date.dayOfWeek.value >= 6 && index % 3 != 0 -> 0
+            date.dayOfWeek.value >= 6 -> 1
+            index % 11 == 0 -> 3
+            index % 4 == 0 -> 2
+            else -> 1
+        }
+        if (sessionCount == 0) {
+            null
+        } else {
+            UsageWrappedActivityDay(
+                date = date.toString(),
+                sessionCount = sessionCount,
+                totalTokens = sessionCount * (18_000L + (index % 7) * 6_400L),
+            )
+        }
+    }
+    val totalTokens: Long = activity.sumOf(UsageWrappedActivityDay::totalTokens)
+    val totalSessions: Int = activity.sumOf(UsageWrappedActivityDay::sessionCount)
+
+    return UsageWrappedState(
+        hostId = "work-laptop",
+        summary = UsageWrappedSummary(
+            generatedAt = "${today}T12:00:00Z",
+            range = UsageWrappedRange(
+                start = activity.firstOrNull()?.date,
+                end = activity.lastOrNull()?.date,
+            ),
+            overview = UsageWrappedOverview(
+                startedAt = "2025-10-02",
+                activeDays = activity.size,
+                sessionCount = totalSessions,
+                projectCount = 17,
+                currentStreakDays = 9,
+                longestStreakDays = 18,
+            ),
+            tokenTotals = UsageWrappedTokenTotals(
+                input = totalTokens * 62 / 100,
+                cachedInput = totalTokens * 30 / 100,
+                output = totalTokens * 5 / 100,
+                reasoning = totalTokens * 3 / 100,
+                total = totalTokens,
+            ),
+            costEstimate = UsageWrappedCostEstimate(
+                approximateUsd = 1264.12,
+                coveragePercent = 100,
+                note = "Estimated using public GPT-5 and Codex API pricing. Reasoning tokens are treated at output-token rates.",
+            ),
+            highlights = UsageWrappedHighlights(
+                mostActiveDay = activity.maxByOrNull(UsageWrappedActivityDay::totalTokens)?.let { day ->
+                    UsageWrappedDaySummary(
+                        date = day.date,
+                        sessionCount = day.sessionCount,
+                        totalTokens = day.totalTokens,
+                    )
+                },
+                mostActiveProject = UsageWrappedProjectSummary(
+                    cwd = "D:/projects/codexAndroidApp",
+                    sessionCount = 41,
+                    totalTokens = totalTokens / 3,
+                ),
+                mostUsedSource = UsageWrappedSourceSummary(
+                    source = "vscode",
+                    sessionCount = totalSessions - 14,
+                ),
+            ),
+            activity = activity,
+        ),
+    )
+}
+
 private fun demoComposerCatalog(): ComposerCatalog = ComposerCatalog(
     models = listOf(
         ComposerModelOption(
@@ -774,3 +873,4 @@ private fun previewForApprovalDecision(decision: ApprovalDecision): String = whe
     ApprovalDecision.Decline -> "Approval declined from mobile."
     ApprovalDecision.Cancel -> "Approval cancelled from mobile."
 }
+

@@ -15,6 +15,7 @@ import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThemePreference
+import dev.codex.mobile.core.model.UsageWrappedState
 import kotlinx.coroutines.flow.Flow
 
 interface CodexRepository {
@@ -27,6 +28,8 @@ interface CodexRepository {
     fun observeAccount(): Flow<AccountState>
 
     fun observeRateLimits(): Flow<AccountRateLimits?>
+
+    fun observeUsageWrapped(): Flow<UsageWrappedState>
 
     fun observeThreads(): Flow<List<ThreadSummary>>
 
@@ -68,6 +71,8 @@ interface CodexRepository {
     fun setVisibleThread(threadId: String?)
 
     suspend fun refreshThreads()
+
+    suspend fun refreshUsageWrapped()
 
     suspend fun dismissInAppThreadNotification(notificationId: String)
 

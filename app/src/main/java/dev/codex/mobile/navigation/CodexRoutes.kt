@@ -19,3 +19,6 @@ object SettingsRoute
 
 @Serializable
 object HostConnectionRoute
+
+@Serializable
+object UsageWrappedRoute
