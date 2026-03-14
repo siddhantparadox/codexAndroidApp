@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -46,6 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.codex.mobile.R
 import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
+import dev.codex.mobile.core.designsystem.component.SectionHeader
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.AccountStatus
@@ -61,6 +61,7 @@ import dev.codex.mobile.core.model.isWaitingOnUserInput
 import dev.codex.mobile.core.model.runtimeSettingsLabel
 import dev.codex.mobile.core.model.summary
 import dev.codex.mobile.core.model.workspaceFolderName
+import dev.codex.mobile.core.util.relativeTimeLabel
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -144,15 +145,25 @@ private fun DashboardContent(
             connection = uiState.connection,
             onClick = onOpenHostConnection,
         )
-        Box(
+        Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
         ) {
             ActiveThreadPanel(
                 thread = uiState.activeThread,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.42f),
                 onClick = onOpenThread,
+            )
+            RecentThreadsPanel(
+                threads = uiState.recentThreads,
+                onOpenThread = onOpenThread,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.58f),
             )
         }
         DashboardFooter(
@@ -330,31 +341,27 @@ private fun ActiveThreadPanel(
         ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.SpaceBetween,
+                verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
-                ) {
-                    Text(
-                        text = "ACTIVE THREAD",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = "No active turn",
-                        style = MaterialTheme.typography.headlineSmall,
-                    )
-                    Text(
-                        text = "Open Threads to resume a conversation or start a new one from the connected desktop.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
                 Text(
-                    text = "Usage lives in the header sheet and updates when the desktop syncs ChatGPT rate limits.",
+                    text = "ACTIVE THREAD",
                     style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "No active turn",
+                    style = MaterialTheme.typography.headlineSmall,
+                )
+                Text(
+                    text = "Open Threads to resume a conversation or start a new one from the connected desktop.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = "Usage stays in the header sheet while the dashboard focuses on active work.",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -371,61 +378,151 @@ private fun ActiveThreadPanel(
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top,
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
-                    ) {
-                        Text(
-                            text = "ACTIVE THREAD",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            text = threadTitle(thread),
-                            style = MaterialTheme.typography.headlineSmall,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    StatusChip(
-                        label = threadStatusLabel(thread.status),
-                        color = threadStatusColor(thread.status),
-                        pulsingDot = !thread.status.isWaitingOnApproval && !thread.status.isWaitingOnUserInput,
+                    Text(
+                        text = "ACTIVE THREAD",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = threadTitle(thread),
+                        style = MaterialTheme.typography.headlineSmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+                StatusChip(
+                    label = threadStatusLabel(thread.status),
+                    color = threadStatusColor(thread.status),
+                    pulsingDot = !thread.status.isWaitingOnApproval && !thread.status.isWaitingOnUserInput,
+                )
+            }
+            Text(
+                text = buildThreadMetaLine(thread),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = thread.preview.ifBlank { "Open the thread to inspect the latest streamed output." },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = when {
+                    thread.status.isWaitingOnApproval -> "Approval is blocking the current turn."
+                    thread.status.isWaitingOnUserInput -> "Codex is waiting for a short answer."
+                    else -> "Open the thread to inspect diffs or interrupt it."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun RecentThreadsPanel(
+    threads: List<ThreadSummary>,
+    onOpenThread: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CodexCard(
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        SectionHeader(title = "Recent threads")
+        Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+        if (threads.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
+            ) {
                 Text(
-                    text = buildThreadMetaLine(thread),
-                    style = MaterialTheme.typography.labelMedium,
+                    text = "No other synced threads yet.",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = "Recent work will appear here once the connected desktop syncs more threads.",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = thread.preview.ifBlank { "Open the thread to inspect the latest streamed output." },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
             }
+            return@CodexCard
+        }
+
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+        ) {
+            threads.forEachIndexed { index, thread ->
+                RecentThreadRow(
+                    thread = thread,
+                    onClick = { onOpenThread(thread.id) },
+                )
+                if (index != threads.lastIndex) {
+                    Spacer(modifier = Modifier.height(CodexSpacing.microGap))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentThreadRow(
+    thread: ThreadSummary,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(threadStatusColor(thread.status)),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
+        ) {
             Text(
-                text = when {
-                    thread.status.isWaitingOnApproval -> "Approval is blocking the current turn."
-                    thread.status.isWaitingOnUserInput -> "Codex is waiting for a short answer before it can continue."
-                    else -> "Open the thread to steer the run, inspect diffs, or interrupt it."
-                },
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 2,
+                text = threadTitle(thread),
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = buildRecentThreadSubtitle(thread),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -750,6 +847,12 @@ private fun buildWrappedCalloutSubtitle(wrapped: DashboardWrappedPreviewUiModel)
 
     else -> "Open local history, streaks, projects, and the API-equivalent cost estimate."
 }
+
+private fun buildRecentThreadSubtitle(thread: ThreadSummary): String = listOfNotNull(
+    threadStatusLabel(thread.status),
+    thread.workspaceFolderName()?.takeIf { it.isNotBlank() },
+    relativeTimeLabel(thread.updatedAtEpochSeconds),
+).joinToString(separator = "  •  ")
 
 private fun compactCount(value: Long?): String {
     if (value == null) return "0"

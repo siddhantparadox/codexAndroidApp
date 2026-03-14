@@ -51,6 +51,7 @@ data class DashboardUiState(
     val connection: ConnectionState = ConnectionState(),
     val account: AccountState = AccountState(),
     val activeThread: ThreadSummary? = null,
+    val recentThreads: List<ThreadSummary> = emptyList(),
     val usageSheet: DashboardUsageSheetUiModel = DashboardUsageSheetUiModel(),
     val syncedThreadCount: Int = 0,
     val attentionCount: Int = 0,
@@ -97,6 +98,7 @@ class DashboardViewModel(
             connection = context.connection,
             account = context.account,
             activeThread = activeThread,
+            recentThreads = threads.recentThreadsForHome(activeThreadId = activeThread?.id),
             usageSheet = context.rateLimits.toDashboardUsageSheet(wrapped = context.wrappedSummary),
             syncedThreadCount = threads.size,
             attentionCount = threads.count { thread ->
@@ -157,3 +159,9 @@ private fun UsageWrappedSummary?.toDashboardWrappedPreview(): DashboardWrappedPr
         sessionCount = this?.overview?.sessionCount,
         totalTokens = this?.tokenTotals?.total,
     )
+
+private fun List<ThreadSummary>.recentThreadsForHome(
+    activeThreadId: String?,
+): List<ThreadSummary> = sortedByDescending(ThreadSummary::updatedAtEpochSeconds)
+    .filterNot { thread -> thread.id == activeThreadId }
+    .take(3)
