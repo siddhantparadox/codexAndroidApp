@@ -28,6 +28,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -87,10 +88,17 @@ fun ThreadDetailScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (detail == null) {
-            EmptyThreadState(
-                onNavigateBack = onNavigateBack,
-                modifier = Modifier.fillMaxSize(),
-            )
+            if (uiState.isInitialLoadInFlight) {
+                LoadingThreadState(
+                    onNavigateBack = onNavigateBack,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                EmptyThreadState(
+                    onNavigateBack = onNavigateBack,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         } else {
             val visibleItems = detail.items.filter(::shouldRenderTranscriptItem)
             val transcriptRows = buildTranscriptRows(
@@ -285,6 +293,54 @@ fun ThreadDetailScreen(
                     composerSheetContent = null
                     photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 },
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadingThreadState(
+    onNavigateBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.padding(
+            horizontal = CodexSpacing.screenHorizontal,
+            vertical = CodexSpacing.screenTop,
+        ),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onNavigateBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = "Back",
+                )
+            }
+            Text(
+                text = "Thread Detail",
+                style = MaterialTheme.typography.headlineMedium,
+            )
+        }
+        CodexCard {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.width(18.dp).height(18.dp),
+                    strokeWidth = 2.dp,
+                )
+                Text(
+                    text = "Loading thread…",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+            androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+            Text(
+                text = "Fetching the latest transcript, tool calls, and approvals from the host.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

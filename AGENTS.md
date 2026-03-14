@@ -31,6 +31,24 @@ tooling, and team conventions evolve.
   task specifically depends on it.
 - When giving setup or testing instructions, provide physical-device guidance
   first and emulator guidance only as a secondary fallback.
+- When an agent is asked to run the app on a phone, prefer this workflow:
+  - Build or reuse the latest debug APK at
+    `app/build/outputs/apk/debug/app-debug.apk`.
+  - Verify the phone is connected with `adb devices`.
+  - Install with `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+  - Clear logs before a fresh test session with `adb logcat -c`.
+  - Force-stop before relaunch when needed with
+    `adb shell am force-stop dev.codex.mobile`.
+  - Launch with `adb shell am start -n dev.codex.mobile/.MainActivity`.
+  - Attach focused logs with `adb logcat -s CodexMobile` and keep them running
+    while the user tests.
+- If `adb` is not on `PATH`, prefer the local SDK platform-tools binary at
+  `C:/Users/sgupt/AppData/Local/Android/Sdk/platform-tools/adb.exe`.
+- When the user needs the desktop host for live testing, start the Codex app
+  server with `codex app-server --listen ws://0.0.0.0:4500` and keep it
+  running.
+- When the phone needs to connect to the desktop app server, provide the
+  current LAN IPv4 address of the desktop machine and use port `4500`.
 
 ## Kotlin Conventions
 

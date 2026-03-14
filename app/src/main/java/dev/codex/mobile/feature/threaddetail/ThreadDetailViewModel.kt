@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 
 data class ThreadDetailUiState(
     val detail: ThreadDetail? = null,
+    val isInitialLoadInFlight: Boolean = true,
     val activeItemIds: Set<String> = emptySet(),
     val approvals: List<ApprovalItem> = emptyList(),
     val draft: String = "",
@@ -67,11 +68,17 @@ private data class ComposerSelectionInputs(
 
 private data class ThreadBaseUiState(
     val detail: ThreadDetail? = null,
+    val isInitialLoadInFlight: Boolean = true,
     val activeItemIds: Set<String> = emptySet(),
     val approvals: List<ApprovalItem> = emptyList(),
     val draft: String = "",
     val canInterrupt: Boolean = false,
     val isInterrupting: Boolean = false,
+)
+
+private data class ThreadLoadState(
+    val detail: ThreadDetail? = null,
+    val isInitialLoadInFlight: Boolean = true,
 )
 
 class ThreadDetailViewModel(
@@ -80,6 +87,7 @@ class ThreadDetailViewModel(
 ) : ViewModel() {
     private val route = savedStateHandle.toRoute<ThreadDetailRoute>()
     private val draft = MutableStateFlow("")
+    private val initialLoadInFlight = MutableStateFlow(true)
     private val interruptRequested = MutableStateFlow(false)
     private val selectedModelId = MutableStateFlow<String?>(null)
     private val selectedEffort = MutableStateFlow<ComposerReasoningEffort?>(null)
@@ -90,7 +98,11 @@ class ThreadDetailViewModel(
 
     init {
         viewModelScope.launch {
-            repository.openThread(route.threadId)
+            try {
+                repository.openThread(route.threadId)
+            } finally {
+                initialLoadInFlight.update { false }
+            }
         }
         viewModelScope.launch {
             repository.refreshComposerCatalog()
@@ -143,16 +155,33 @@ class ThreadDetailViewModel(
         )
     }
 
-    private val baseUiState = combine(
+    private val threadLoadState = combine(
         repository.observeThreadDetail(route.threadId),
+        initialLoadInFlight,
+    ) { detail, isInitialLoadInFlight ->
+        ThreadLoadState(
+            detail = detail,
+            isInitialLoadInFlight = isInitialLoadInFlight,
+        )
+    }
+
+    private val baseUiState = combine(
+        threadLoadState,
         repository.observeActiveItemIds(route.threadId),
         repository.observeApprovals(),
         draft,
         interruptRequested,
-    ) { detail, activeItemIds, approvals, currentDraft, interruptInFlight ->
+    ) { threadLoad: ThreadLoadState,
+        activeItemIds: Set<String>,
+        approvals: List<ApprovalItem>,
+        currentDraft: String,
+        interruptInFlight: Boolean,
+        ->
+        val detail = threadLoad.detail
         val canInterrupt = detail?.summary?.status?.isActive == true
         ThreadBaseUiState(
             detail = detail,
+            isInitialLoadInFlight = threadLoad.isInitialLoadInFlight,
             activeItemIds = activeItemIds,
             approvals = approvals.filter { approval -> approval.threadId == route.threadId },
             draft = currentDraft,
@@ -167,6 +196,7 @@ class ThreadDetailViewModel(
     ) { base, composer ->
         ThreadDetailUiState(
             detail = base.detail,
+            isInitialLoadInFlight = base.isInitialLoadInFlight,
             activeItemIds = base.activeItemIds,
             approvals = base.approvals,
             draft = base.draft,
