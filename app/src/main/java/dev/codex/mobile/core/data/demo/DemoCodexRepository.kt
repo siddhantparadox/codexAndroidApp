@@ -21,6 +21,7 @@ import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadItemStatus
+import dev.codex.mobile.core.model.ThreadSourceKind
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
@@ -330,6 +331,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         modelProvider = "openai",
         ephemeral = false,
         status = waitingOnApprovalStatus(),
+        source = ThreadSourceKind.Cli,
+        cwd = "/projects/codex-mobile/auth-service",
+        gitBranch = "auth-refactor",
     ),
     ThreadSummary(
         id = "auth-handshake",
@@ -340,6 +344,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         modelProvider = "openai",
         ephemeral = false,
         status = waitingOnApprovalStatus(),
+        source = ThreadSourceKind.Cli,
+        cwd = "/projects/codex-mobile/api",
+        gitBranch = "oauth-hardening",
     ),
     ThreadSummary(
         id = "theme-sync",
@@ -350,6 +357,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         modelProvider = "openai",
         ephemeral = false,
         status = ThreadStatus(type = ThreadStatusType.SystemError),
+        source = ThreadSourceKind.VsCode,
+        cwd = "/projects/ui-kit",
+        gitBranch = "theme-provider-sync",
     ),
     ThreadSummary(
         id = "analytics-dashboard",
@@ -360,6 +370,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         modelProvider = "openai",
         ephemeral = false,
         status = ThreadStatus(type = ThreadStatusType.NotLoaded),
+        source = ThreadSourceKind.AppServer,
+        cwd = "/projects/codex-mobile/analytics",
+        gitBranch = "dashboard-review",
     ),
     ThreadSummary(
         id = "server-migration",
@@ -370,6 +383,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         modelProvider = "openai",
         ephemeral = true,
         status = activeStatus(),
+        source = ThreadSourceKind.Exec,
+        cwd = "/projects/platform",
+        gitBranch = "storage-migration",
     ),
 )
 

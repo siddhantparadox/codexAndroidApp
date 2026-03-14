@@ -22,6 +22,15 @@ val ThreadStatus.isActive: Boolean
 val ThreadStatus.isWaitingOnApproval: Boolean
     get() = isActive && "waitingOnApproval" in activeFlags
 
+enum class ThreadSourceKind {
+    Cli,
+    VsCode,
+    Exec,
+    AppServer,
+    SubAgent,
+    Unknown,
+}
+
 data class ThreadSummary(
     val id: String,
     val name: String?,
@@ -31,6 +40,11 @@ data class ThreadSummary(
     val modelProvider: String,
     val ephemeral: Boolean,
     val status: ThreadStatus,
+    val source: ThreadSourceKind = ThreadSourceKind.Unknown,
+    val cwd: String = "",
+    val gitBranch: String? = null,
+    val agentRole: String? = null,
+    val agentNickname: String? = null,
 )
 
 @Serializable

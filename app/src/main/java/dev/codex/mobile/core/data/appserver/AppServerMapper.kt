@@ -16,6 +16,7 @@ import dev.codex.mobile.core.model.FileChangeEntry
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadItemStatus
+import dev.codex.mobile.core.model.ThreadSourceKind
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
@@ -84,6 +85,11 @@ internal fun JsonObject.toThreadSummary(): ThreadSummary = ThreadSummary(
     modelProvider = string("modelProvider").orEmpty(),
     ephemeral = boolean("ephemeral") ?: false,
     status = requireNotNull(objectAt("status")).toThreadStatus(),
+    source = elementAt("source").toThreadSourceKind(),
+    cwd = string("cwd").orEmpty(),
+    gitBranch = objectAt("gitInfo")?.string("branch"),
+    agentRole = string("agentRole"),
+    agentNickname = string("agentNickname"),
 )
 
 internal fun JsonObject.toThreadDetail(): ThreadDetail = ThreadDetail(
@@ -482,4 +488,23 @@ private fun String?.toComposerReasoningEffort(): ComposerReasoningEffort = when 
     "high" -> ComposerReasoningEffort.High
     "xhigh" -> ComposerReasoningEffort.XHigh
     else -> ComposerReasoningEffort.Medium
+}
+
+private fun JsonElement?.toThreadSourceKind(): ThreadSourceKind = when (this) {
+    is JsonPrimitive -> when (content) {
+        "cli" -> ThreadSourceKind.Cli
+        "vscode" -> ThreadSourceKind.VsCode
+        "exec" -> ThreadSourceKind.Exec
+        "appServer" -> ThreadSourceKind.AppServer
+        "unknown" -> ThreadSourceKind.Unknown
+        else -> ThreadSourceKind.Unknown
+    }
+
+    is JsonObject -> if ("subAgent" in keys) {
+        ThreadSourceKind.SubAgent
+    } else {
+        ThreadSourceKind.Unknown
+    }
+
+    else -> ThreadSourceKind.Unknown
 }

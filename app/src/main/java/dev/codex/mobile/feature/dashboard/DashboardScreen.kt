@@ -48,6 +48,7 @@ import dev.codex.mobile.core.model.HostKind
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.displayMetaLabel
 import dev.codex.mobile.core.model.isWaitingOnApproval
 import dev.codex.mobile.core.model.summary
 import dev.codex.mobile.core.util.relativeTimeLabel
@@ -383,10 +384,7 @@ private fun RecentThreadRow(
 
 private fun threadTitle(thread: ThreadSummary): String = thread.name?.takeIf { it.isNotBlank() } ?: "Untitled thread"
 
-private fun threadMetaLabel(thread: ThreadSummary): String = buildList {
-    add(thread.modelProvider.uppercase())
-    if (thread.ephemeral) add("EPHEMERAL")
-}.joinToString(" • ")
+private fun threadMetaLabel(thread: ThreadSummary): String = thread.displayMetaLabel()
 
 private fun threadStatusLabel(status: ThreadStatus): String = when {
     status.isWaitingOnApproval -> "Needs Approval"

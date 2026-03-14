@@ -56,6 +56,7 @@ import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.model.displayMetaLabel
 import kotlinx.coroutines.flow.first
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
@@ -448,10 +449,7 @@ private fun ThreadDetailHeader(
 
 private fun threadTitle(summary: ThreadSummary): String = summary.name?.takeIf { it.isNotBlank() } ?: "Untitled thread"
 
-private fun threadMetaLabel(summary: ThreadSummary): String = buildList {
-    add(summary.modelProvider.uppercase())
-    if (summary.ephemeral) add("EPHEMERAL")
-}.joinToString(" • ")
+private fun threadMetaLabel(summary: ThreadSummary): String = summary.displayMetaLabel()
 
 private fun threadStatusLabel(status: ThreadStatus): String = when {
     status.isWaitingOnApproval -> "Needs Approval"

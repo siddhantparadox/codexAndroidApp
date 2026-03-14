@@ -23,9 +23,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.LaptopMac
+import androidx.compose.material.icons.rounded.AccountTree
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
@@ -46,9 +50,11 @@ import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.SectionHeader
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
+import dev.codex.mobile.core.model.ThreadSourceKind
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.displayMetaLabel
 import dev.codex.mobile.core.model.isWaitingOnApproval
 import dev.codex.mobile.core.util.relativeTimeLabel
 
@@ -235,7 +241,7 @@ private fun ThreadCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
-                    imageVector = threadStatusIcon(thread.status),
+                    imageVector = threadCardIcon(thread),
                     contentDescription = null,
                     tint = threadStatusColor(thread.status),
                     modifier = Modifier.size(18.dp),
@@ -293,10 +299,7 @@ private fun ThreadCard(
 
 private fun threadTitle(thread: ThreadSummary): String = thread.name?.takeIf { it.isNotBlank() } ?: "Untitled thread"
 
-private fun threadMetaLabel(thread: ThreadSummary): String = buildList {
-    add(thread.modelProvider.uppercase())
-    if (thread.ephemeral) add("EPHEMERAL")
-}.joinToString(" • ")
+private fun threadMetaLabel(thread: ThreadSummary): String = thread.displayMetaLabel()
 
 private fun threadStatusLabel(status: ThreadStatus): String = when {
     status.isWaitingOnApproval -> "Needs Approval"
@@ -314,10 +317,19 @@ private fun threadStatusColor(status: ThreadStatus): Color = when {
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 
-private fun threadStatusIcon(status: ThreadStatus) = when {
-    status.isWaitingOnApproval -> Icons.Rounded.FolderOpen
-    status.type == ThreadStatusType.Active -> Icons.Rounded.Refresh
-    status.type == ThreadStatusType.SystemError -> Icons.Rounded.Error
-    else -> Icons.Rounded.ChatBubbleOutline
+private fun threadCardIcon(thread: ThreadSummary) = when {
+    thread.status.isWaitingOnApproval -> Icons.Rounded.FolderOpen
+    thread.status.type == ThreadStatusType.Active -> Icons.Rounded.Refresh
+    thread.status.type == ThreadStatusType.SystemError -> Icons.Rounded.Error
+    else -> threadSourceIcon(thread.source)
+}
+
+private fun threadSourceIcon(source: ThreadSourceKind) = when (source) {
+    ThreadSourceKind.Cli -> Icons.Rounded.Code
+    ThreadSourceKind.VsCode -> Icons.Rounded.Code
+    ThreadSourceKind.Exec -> Icons.Rounded.PlayArrow
+    ThreadSourceKind.AppServer -> Icons.Rounded.LaptopMac
+    ThreadSourceKind.SubAgent -> Icons.Rounded.AccountTree
+    ThreadSourceKind.Unknown -> Icons.Rounded.ChatBubbleOutline
 }
 
