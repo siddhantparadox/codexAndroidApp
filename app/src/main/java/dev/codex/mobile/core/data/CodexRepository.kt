@@ -53,6 +53,8 @@ interface CodexRepository {
 
     suspend fun openThread(threadId: String)
 
+    suspend fun refreshThreads()
+
     suspend fun refreshComposerCatalog()
 
     suspend fun sendReply(

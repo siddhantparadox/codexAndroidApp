@@ -11,13 +11,14 @@ import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.core.model.isConnected
 import dev.codex.mobile.core.model.isWaitingOnApproval
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 enum class ThreadFilter {
     All,
@@ -30,7 +31,17 @@ data class ThreadsUiState(
     val query: String = "",
     val selectedFilter: ThreadFilter = ThreadFilter.All,
     val canCreateThread: Boolean = false,
+    val canRefresh: Boolean = false,
+    val isRefreshing: Boolean = false,
+    val lastRefreshAtEpochSeconds: Long? = null,
+    val refreshErrorMessage: String? = null,
     val threads: List<ThreadSummary> = emptyList(),
+)
+
+private data class ThreadsRefreshState(
+    val isRefreshing: Boolean = false,
+    val lastRefreshAtEpochSeconds: Long? = null,
+    val refreshErrorMessage: String? = null,
 )
 
 class ThreadsViewModel(
@@ -38,17 +49,24 @@ class ThreadsViewModel(
 ) : ViewModel() {
     private val query = MutableStateFlow("")
     private val selectedFilter = MutableStateFlow(ThreadFilter.All)
+    private val refreshState = MutableStateFlow(ThreadsRefreshState())
+    private var refreshJob: Job? = null
 
     val uiState: StateFlow<ThreadsUiState> = combine(
         repository.observeThreads(),
         repository.observeConnection(),
         query,
         selectedFilter,
-    ) { threads, connection, searchQuery, filter ->
+        refreshState,
+    ) { threads, connection, searchQuery, filter, refresh ->
         ThreadsUiState(
             query = searchQuery,
             selectedFilter = filter,
             canCreateThread = connection.isConnected,
+            canRefresh = connection.isConnected,
+            isRefreshing = refresh.isRefreshing,
+            lastRefreshAtEpochSeconds = refresh.lastRefreshAtEpochSeconds,
+            refreshErrorMessage = refresh.refreshErrorMessage,
             threads = threads.filter { thread ->
                 val matchesQuery = searchQuery.isBlank() ||
                     thread.name.orEmpty().contains(searchQuery, ignoreCase = true) ||
@@ -82,9 +100,74 @@ class ThreadsViewModel(
         }
     }
 
+    fun refreshThreads() {
+        requestThreadRefresh(
+            showRefreshingIndicator = true,
+            surfaceErrors = true,
+        )
+    }
+
+    fun refreshThreadsInBackground() {
+        requestThreadRefresh(
+            showRefreshingIndicator = false,
+            surfaceErrors = false,
+        )
+    }
+
+    private fun requestThreadRefresh(
+        showRefreshingIndicator: Boolean,
+        surfaceErrors: Boolean,
+    ) {
+        if (refreshJob?.isActive == true) return
+        if (!uiState.value.canRefresh) {
+            if (surfaceErrors) {
+                refreshState.update { current ->
+                    current.copy(
+                        isRefreshing = false,
+                        refreshErrorMessage = "Connect to refresh threads.",
+                    )
+                }
+            }
+            return
+        }
+
+        refreshState.update { current ->
+            current.copy(
+                isRefreshing = showRefreshingIndicator,
+                refreshErrorMessage = null,
+            )
+        }
+        refreshJob = viewModelScope.launch {
+            runCatching {
+                repository.refreshThreads()
+            }.onSuccess {
+                refreshState.update { current ->
+                    current.copy(
+                        isRefreshing = false,
+                        lastRefreshAtEpochSeconds = currentEpochSeconds(),
+                        refreshErrorMessage = null,
+                    )
+                }
+            }.onFailure {
+                refreshState.update { current ->
+                    current.copy(
+                        isRefreshing = false,
+                        refreshErrorMessage = if (surfaceErrors) {
+                            "Refresh failed. Showing cached threads."
+                        } else {
+                            current.refreshErrorMessage
+                        },
+                    )
+                }
+            }
+        }
+    }
+
     companion object {
         fun factory(repository: CodexRepository): ViewModelProvider.Factory = viewModelFactory {
             initializer { ThreadsViewModel(repository) }
         }
     }
 }
+
+private fun currentEpochSeconds(): Long = System.currentTimeMillis() / 1_000

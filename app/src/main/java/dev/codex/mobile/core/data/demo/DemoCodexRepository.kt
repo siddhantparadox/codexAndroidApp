@@ -217,6 +217,11 @@ class DemoCodexRepository : CodexRepository {
         AppLog.action(name = "open_thread", detail = threadId)
     }
 
+    override suspend fun refreshThreads() {
+        AppLog.action(name = "refresh_threads", detail = "demo")
+        delay(250)
+    }
+
     override suspend fun refreshComposerCatalog() {
         AppLog.action(name = "refresh_composer_catalog", detail = "demo")
     }

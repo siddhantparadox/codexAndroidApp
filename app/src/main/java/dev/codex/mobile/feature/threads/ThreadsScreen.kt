@@ -1,5 +1,10 @@
 package dev.codex.mobile.feature.threads
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -21,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Code
@@ -37,14 +43,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.SectionHeader
@@ -58,7 +68,9 @@ import dev.codex.mobile.core.model.displayMetaLabel
 import dev.codex.mobile.core.model.isWaitingOnApproval
 import dev.codex.mobile.core.model.runtimeSettingsLabel
 import dev.codex.mobile.core.util.relativeTimeLabel
+import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThreadsScreen(
     onOpenThread: (String) -> Unit,
@@ -67,156 +79,219 @@ fun ThreadsScreen(
     ),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val pullToRefreshState = rememberPullToRefreshState()
 
-    LazyColumn(
+    LaunchedEffect(uiState.canRefresh) {
+        if (!uiState.canRefresh) return@LaunchedEffect
+        viewModel.refreshThreadsInBackground()
+        while (true) {
+            delay(5_000)
+            viewModel.refreshThreadsInBackground()
+        }
+    }
+
+    PullToRefreshBox(
+        isRefreshing = uiState.isRefreshing,
+        onRefresh = viewModel::refreshThreads,
+        state = pullToRefreshState,
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding(),
-        contentPadding = PaddingValues(bottom = CodexSpacing.screenBottom),
-        state = rememberLazyListState(),
     ) {
-        item {
-            Column(
-                modifier = Modifier.padding(
-                    start = CodexSpacing.screenHorizontal,
-                    top = CodexSpacing.topLevelHeaderGap,
-                    end = CodexSpacing.screenHorizontal,
-                    bottom = CodexSpacing.screenTop,
-                ),
-                verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = CodexSpacing.screenBottom),
+            state = rememberLazyListState(),
+        ) {
+            item {
+                Column(
+                    modifier = Modifier.padding(
+                        start = CodexSpacing.screenHorizontal,
+                        top = CodexSpacing.topLevelHeaderGap,
+                        end = CodexSpacing.screenHorizontal,
+                        bottom = CodexSpacing.screenTop,
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RefreshThreadsButton(
+                                enabled = uiState.canRefresh,
+                                isRefreshing = uiState.isRefreshing,
+                                onClick = viewModel::refreshThreads,
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
+                            ) {
+                                Text(
+                                    text = "Threads",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    text = threadsSyncStatus(uiState),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = threadsSyncStatusColor(uiState),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
                                 .background(
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                    color = if (uiState.canCreateThread) {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    },
                                     shape = CircleShape,
-                                ),
+                                )
+                                .clickable(enabled = uiState.canCreateThread) {
+                                    viewModel.createThread(onOpenThread)
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Refresh,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = "Threads",
-                            style = MaterialTheme.typography.headlineMedium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(
-                                color = if (uiState.canCreateThread) {
-                                    MaterialTheme.colorScheme.surfaceVariant
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = "Create thread",
+                                tint = if (uiState.canCreateThread) {
+                                    MaterialTheme.colorScheme.onSurface
                                 } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    MaterialTheme.colorScheme.onSurfaceVariant
                                 },
-                                shape = CircleShape,
-                            )
-                            .clickable(enabled = uiState.canCreateThread) {
-                                viewModel.createThread(onOpenThread)
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = "Create thread",
-                            tint = if (uiState.canCreateThread) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                        )
-                    }
-                }
-                OutlinedTextField(
-                    value = uiState.query,
-                    onValueChange = viewModel::onQueryChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.medium,
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Rounded.Search,
-                            contentDescription = null,
-                        )
-                    },
-                    placeholder = {
-                        Text("Search thread name or preview")
-                    },
-                    singleLine = true,
-                )
-                Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(CodexSpacing.listGap),
-                ) {
-                    ThreadFilter.entries.forEach { filter ->
-                        val selected = filter == uiState.selectedFilter
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = CircleShape,
-                                )
-                                .clickable { viewModel.onFilterSelected(filter) }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                        ) {
-                            Text(
-                                text = when (filter) {
-                                    ThreadFilter.All -> "All Threads"
-                                    ThreadFilter.Active -> "Active"
-                                    ThreadFilter.WaitingOnApproval -> "Needs Approval"
-                                    ThreadFilter.SystemError -> "System Error"
-                                },
-                                style = MaterialTheme.typography.labelLarge,
-                                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
-                }
-                if (!uiState.canCreateThread) {
-                    Text(
-                        text = "Connect to a desktop app-server before creating a new thread.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    OutlinedTextField(
+                        value = uiState.query,
+                        onValueChange = viewModel::onQueryChanged,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = MaterialTheme.shapes.medium,
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.Search,
+                                contentDescription = null,
+                            )
+                        },
+                        placeholder = {
+                            Text("Search thread name or preview")
+                        },
+                        singleLine = true,
                     )
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(CodexSpacing.listGap),
+                    ) {
+                        ThreadFilter.entries.forEach { filter ->
+                            val selected = filter == uiState.selectedFilter
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                        shape = CircleShape,
+                                    )
+                                    .clickable { viewModel.onFilterSelected(filter) }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                            ) {
+                                Text(
+                                    text = when (filter) {
+                                        ThreadFilter.All -> "All Threads"
+                                        ThreadFilter.Active -> "Active"
+                                        ThreadFilter.WaitingOnApproval -> "Needs Approval"
+                                        ThreadFilter.SystemError -> "System Error"
+                                    },
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                    if (!uiState.canCreateThread) {
+                        Text(
+                            text = "Connect to a desktop app-server before creating a new thread.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
+            item {
+                SectionHeader(
+                    title = "Recent Activity",
+                    modifier = Modifier.padding(horizontal = CodexSpacing.screenHorizontal),
+                )
+            }
+            items(
+                items = uiState.threads,
+                key = { thread -> thread.id },
+            ) { thread ->
+                ThreadCard(
+                    thread = thread,
+                    modifier = Modifier.padding(
+                        horizontal = CodexSpacing.screenHorizontal,
+                        vertical = CodexSpacing.microGap,
+                    ),
+                    onClick = { onOpenThread(thread.id) },
+                )
+            }
         }
-        item {
-            SectionHeader(
-                title = "Recent Activity",
-                modifier = Modifier.padding(horizontal = CodexSpacing.screenHorizontal),
+    }
+}
+
+@Composable
+private fun RefreshThreadsButton(
+    enabled: Boolean,
+    isRefreshing: Boolean,
+    onClick: () -> Unit,
+) {
+    val rotation: Float = if (isRefreshing) {
+        val transition = rememberInfiniteTransition(label = "threadRefresh")
+        val animatedRotation by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = LinearEasing),
+            ),
+            label = "threadRefreshRotation",
+        )
+        animatedRotation
+    } else {
+        0f
+    }
+
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .background(
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                },
+                shape = CircleShape,
             )
-        }
-        items(
-            items = uiState.threads,
-            key = { thread -> thread.id },
-        ) { thread ->
-            ThreadCard(
-                thread = thread,
-                modifier = Modifier.padding(
-                    horizontal = CodexSpacing.screenHorizontal,
-                    vertical = CodexSpacing.microGap,
-                ),
-                onClick = { onOpenThread(thread.id) },
-            )
-        }
+            .clickable(enabled = enabled && !isRefreshing, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Refresh,
+            contentDescription = "Refresh threads",
+            tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.graphicsLayer { rotationZ = rotation },
+        )
     }
 }
 
@@ -339,5 +414,21 @@ private fun threadSourceIcon(source: ThreadSourceKind) = when (source) {
     ThreadSourceKind.AppServer -> Icons.Rounded.LaptopMac
     ThreadSourceKind.SubAgent -> Icons.Rounded.AccountTree
     ThreadSourceKind.Unknown -> Icons.Rounded.ChatBubbleOutline
+}
+
+private fun threadsSyncStatus(uiState: ThreadsUiState): String = when {
+    uiState.isRefreshing -> "Syncing threads…"
+    uiState.refreshErrorMessage != null -> uiState.refreshErrorMessage
+    uiState.lastRefreshAtEpochSeconds != null -> "Updated ${relativeTimeLabel(uiState.lastRefreshAtEpochSeconds)}"
+    uiState.canRefresh -> "Live sync on"
+    else -> "Connect to refresh threads"
+}
+
+@Composable
+private fun threadsSyncStatusColor(uiState: ThreadsUiState): Color = when {
+    uiState.isRefreshing -> MaterialTheme.colorScheme.primary
+    uiState.refreshErrorMessage != null -> MaterialTheme.colorScheme.error
+    uiState.canRefresh -> MaterialTheme.colorScheme.onSurfaceVariant
+    else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
 

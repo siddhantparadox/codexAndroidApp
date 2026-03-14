@@ -86,6 +86,7 @@ internal class AppServerCodexRepository(
     )
     private val repositoryState: MutableStateFlow<RepositoryState> = MutableStateFlow(RepositoryState())
     private val connectMutex: Mutex = Mutex()
+    private val threadsRefreshMutex: Mutex = Mutex()
     private val openedThreadIds: MutableSet<String> = linkedSetOf()
     private val pendingApprovalRequests: MutableMap<String, PendingApprovalRequest> = linkedMapOf()
 
@@ -239,6 +240,26 @@ internal class AppServerCodexRepository(
 
         AppLog.action(name = "open_thread_live", detail = threadId)
         applyThreadSnapshot(thread, resumedSettings)
+    }
+
+    override suspend fun refreshThreads() {
+        val currentSession = session ?: return
+        threadsRefreshMutex.withLock {
+            val current = repositoryState.value
+            val threads = fetchThreadSummaries(
+                currentSession = currentSession,
+                composerCatalog = current.composerCatalog,
+                threadSettingsCache = current.threadSettingsCache,
+            )
+            AppLog.action(name = "refresh_threads", detail = "count=${threads.size}")
+            repositoryState.update { latest ->
+                latest.copy(
+                    threads = threads,
+                    threadDetails = latest.threadDetails.syncWithThreads(threads),
+                )
+            }
+            flushPersistLocalState()
+        }
     }
 
     override suspend fun refreshComposerCatalog() {
@@ -456,17 +477,11 @@ internal class AppServerCodexRepository(
                 AppLog.action(name = "load_composer_catalog_failed", detail = it.message.orEmpty())
                 ComposerCatalog()
             }
-            val threads = newSession.threadList()
-                .arrayAt("data")
-                ?.map { it.jsonObject.toThreadSummary() }
-                ?.map { thread ->
-                    thread.withThreadSettings(
-                        settings = cachedThreadSettings[thread.id],
-                        catalog = composerCatalog,
-                    )
-                }
-                .orEmpty()
-                .syncThreadOrdering()
+            val threads = fetchThreadSummaries(
+                currentSession = newSession,
+                composerCatalog = composerCatalog,
+                threadSettingsCache = cachedThreadSettings,
+            )
 
             session = newSession
             repositoryState.update { current ->
@@ -1395,8 +1410,23 @@ internal class AppServerCodexRepository(
                 },
             )
         }
-        flushPersistLocalState()
     }
+
+    private suspend fun fetchThreadSummaries(
+        currentSession: CodexAppServerSession,
+        composerCatalog: ComposerCatalog,
+        threadSettingsCache: Map<String, PersistedThreadSettings>,
+    ): List<ThreadSummary> = currentSession.threadList()
+        .arrayAt("data")
+        ?.map { it.jsonObject.toThreadSummary() }
+        ?.map { thread ->
+            thread.withThreadSettings(
+                settings = threadSettingsCache[thread.id],
+                catalog = composerCatalog,
+            )
+        }
+        .orEmpty()
+        .syncThreadOrdering()
 }
 
 internal fun mergeThreadItems(
