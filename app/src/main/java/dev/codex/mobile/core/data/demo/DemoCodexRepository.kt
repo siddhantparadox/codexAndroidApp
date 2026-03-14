@@ -334,6 +334,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         source = ThreadSourceKind.Cli,
         cwd = "/projects/codex-mobile/auth-service",
         gitBranch = "auth-refactor",
+        currentModelId = "gpt-5.4",
+        currentModelName = "GPT-5.4",
+        currentReasoningEffort = ComposerReasoningEffort.High,
     ),
     ThreadSummary(
         id = "auth-handshake",
@@ -347,6 +350,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         source = ThreadSourceKind.Cli,
         cwd = "/projects/codex-mobile/api",
         gitBranch = "oauth-hardening",
+        currentModelId = "gpt-5.4",
+        currentModelName = "GPT-5.4",
+        currentReasoningEffort = ComposerReasoningEffort.Medium,
     ),
     ThreadSummary(
         id = "theme-sync",
@@ -360,6 +366,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         source = ThreadSourceKind.VsCode,
         cwd = "/projects/ui-kit",
         gitBranch = "theme-provider-sync",
+        currentModelId = "gpt-5.4-mini",
+        currentModelName = "GPT-5.4 Mini",
+        currentReasoningEffort = ComposerReasoningEffort.Low,
     ),
     ThreadSummary(
         id = "analytics-dashboard",
@@ -373,6 +382,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         source = ThreadSourceKind.AppServer,
         cwd = "/projects/codex-mobile/analytics",
         gitBranch = "dashboard-review",
+        currentModelId = "gpt-5.4",
+        currentModelName = "GPT-5.4",
+        currentReasoningEffort = ComposerReasoningEffort.Medium,
     ),
     ThreadSummary(
         id = "server-migration",
@@ -386,6 +398,9 @@ private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = li
         source = ThreadSourceKind.Exec,
         cwd = "/projects/platform",
         gitBranch = "storage-migration",
+        currentModelId = "gpt-5.4",
+        currentModelName = "GPT-5.4",
+        currentReasoningEffort = ComposerReasoningEffort.XHigh,
     ),
 )
 

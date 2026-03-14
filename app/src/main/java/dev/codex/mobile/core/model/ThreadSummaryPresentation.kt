@@ -32,3 +32,9 @@ fun ThreadSourceKind.displayLabel(): String = when (this) {
     ThreadSourceKind.SubAgent -> "Sub-agent"
     ThreadSourceKind.Unknown -> "Thread"
 }
+
+fun ThreadSummary.runtimeSettingsLabel(): String? = listOfNotNull(
+    currentModelName?.takeIf { it.isNotBlank() },
+    currentReasoningEffort?.displayLabel(),
+).joinToString(separator = " • ")
+    .ifBlank { null }

@@ -29,6 +29,11 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+internal data class ThreadSessionSettings(
+    val modelId: String? = null,
+    val reasoningEffort: ComposerReasoningEffort? = null,
+)
+
 internal fun catalogFromResponses(
     modelResponse: JsonObject,
     skillsResponse: JsonObject,
@@ -98,6 +103,16 @@ internal fun JsonObject.toThreadDetail(): ThreadDetail = ThreadDetail(
         ?.flatMap { turn -> turn.jsonObject.arrayAt("items").orEmpty().map { it.jsonObject.toThreadItem() } }
         .orEmpty(),
 )
+
+internal fun JsonObject.toThreadSessionSettings(): ThreadSessionSettings? {
+    val modelId = string("model")
+    val reasoningEffort = string("reasoningEffort").toNullableComposerReasoningEffort()
+    if (modelId == null && reasoningEffort == null) return null
+    return ThreadSessionSettings(
+        modelId = modelId,
+        reasoningEffort = reasoningEffort,
+    )
+}
 
 internal fun JsonObject.extractActiveTurnId(): String? = arrayAt("turns")
     ?.map { it.jsonObject }
@@ -488,6 +503,17 @@ private fun String?.toComposerReasoningEffort(): ComposerReasoningEffort = when 
     "high" -> ComposerReasoningEffort.High
     "xhigh" -> ComposerReasoningEffort.XHigh
     else -> ComposerReasoningEffort.Medium
+}
+
+private fun String?.toNullableComposerReasoningEffort(): ComposerReasoningEffort? = when (this) {
+    "none" -> ComposerReasoningEffort.None
+    "minimal" -> ComposerReasoningEffort.Minimal
+    "low" -> ComposerReasoningEffort.Low
+    "medium" -> ComposerReasoningEffort.Medium
+    "high" -> ComposerReasoningEffort.High
+    "xhigh" -> ComposerReasoningEffort.XHigh
+    null -> null
+    else -> null
 }
 
 private fun JsonElement?.toThreadSourceKind(): ThreadSourceKind = when (this) {

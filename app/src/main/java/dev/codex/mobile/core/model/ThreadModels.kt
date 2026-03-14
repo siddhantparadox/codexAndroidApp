@@ -45,6 +45,10 @@ data class ThreadSummary(
     val gitBranch: String? = null,
     val agentRole: String? = null,
     val agentNickname: String? = null,
+    val currentModelId: String? = null,
+    val currentModelName: String? = null,
+    val currentReasoningEffort: ComposerReasoningEffort? = null,
+    val contextRemainingPercent: Int? = null,
 )
 
 @Serializable

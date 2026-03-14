@@ -24,6 +24,15 @@ enum class ComposerReasoningEffort {
     XHigh,
 }
 
+fun ComposerReasoningEffort.displayLabel(): String = when (this) {
+    ComposerReasoningEffort.None -> "None"
+    ComposerReasoningEffort.Minimal -> "Minimal"
+    ComposerReasoningEffort.Low -> "Low"
+    ComposerReasoningEffort.Medium -> "Medium"
+    ComposerReasoningEffort.High -> "High"
+    ComposerReasoningEffort.XHigh -> "XHigh"
+}
+
 data class ComposerReasoningEffortOption(
     val effort: ComposerReasoningEffort,
     val description: String,

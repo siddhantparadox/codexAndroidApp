@@ -7,6 +7,7 @@ import dev.codex.mobile.BuildConfig
 import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.data.local.AppLocalStateStore
 import dev.codex.mobile.core.data.local.PersistedAppState
+import dev.codex.mobile.core.data.local.PersistedThreadSettings
 import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.ApprovalDecision
@@ -60,6 +61,7 @@ private data class RepositoryState(
     val threadDetails: Map<String, ThreadDetail> = emptyMap(),
     val activeItemIdsByThread: Map<String, Set<String>> = emptyMap(),
     val threadItemCache: Map<String, List<ThreadItem>> = emptyMap(),
+    val threadSettingsCache: Map<String, PersistedThreadSettings> = emptyMap(),
     val approvals: List<ApprovalItem> = emptyList(),
     val activeTurnIds: Map<String, String> = emptyMap(),
     val composerCatalog: ComposerCatalog = ComposerCatalog(),
@@ -209,19 +211,22 @@ internal class AppServerCodexRepository(
         val currentSession = session ?: return null
         val response = currentSession.threadStart()
         val thread = response.objectAt("thread") ?: return null
+        val sessionSettings = response.toThreadSessionSettings()
 
         AppLog.action(name = "create_thread", detail = thread.string("id"))
         openedThreadIds += requireNotNull(thread.string("id"))
-        applyThreadSnapshot(thread)
+        applyThreadSnapshot(thread, sessionSettings)
         return thread.string("id")
     }
 
     override suspend fun openThread(threadId: String) {
         openedThreadIds += threadId
         val currentSession = session ?: return
-        val resumedThread = runCatching {
-            currentSession.threadResume(threadId).objectAt("thread")
+        val resumedResponse = runCatching {
+            currentSession.threadResume(threadId)
         }.getOrNull()
+        val resumedThread = resumedResponse?.objectAt("thread")
+        val resumedSettings = resumedResponse?.toThreadSessionSettings()
         val thread = runCatching {
             currentSession.threadRead(threadId = threadId, includeTurns = true).objectAt("thread")
         }.getOrNull()
@@ -233,7 +238,7 @@ internal class AppServerCodexRepository(
             ?: return
 
         AppLog.action(name = "open_thread_live", detail = threadId)
-        applyThreadSnapshot(thread)
+        applyThreadSnapshot(thread, resumedSettings)
     }
 
     override suspend fun refreshComposerCatalog() {
@@ -283,6 +288,15 @@ internal class AppServerCodexRepository(
                 personality = request.personality.toWireValue(),
                 sandboxPolicy = request.sandboxMode.toSandboxPolicyPayload(),
             )
+            if (request.modelId != null || request.reasoningEffort != null) {
+                updateThreadSettings(
+                    threadId = threadId,
+                    settings = ThreadSessionSettings(
+                        modelId = request.modelId ?: currentThreadModelId(threadId),
+                        reasoningEffort = request.reasoningEffort ?: currentThreadReasoningEffort(threadId),
+                    ),
+                )
+            }
             val turnId = response.objectAt("turn")?.string("id")
             if (turnId != null) {
                 repositoryState.update { current ->
@@ -333,6 +347,7 @@ internal class AppServerCodexRepository(
                 hosts = localState.hosts,
                 threadDetails = hydratedThreadDetails,
                 threadItemCache = localState.threadItemCache,
+                threadSettingsCache = localState.threadSettingsCache,
             )
         }
 
@@ -348,6 +363,7 @@ internal class AppServerCodexRepository(
                 preferences = current.preferences,
                 hosts = current.hosts,
                 threadItemCache = current.threadItemCache,
+                threadSettingsCache = current.threadSettingsCache,
             ),
         )
         AppLog.action(name = "persist_local_state", detail = "cachedThreads=${current.threadItemCache.size}")
@@ -391,6 +407,7 @@ internal class AppServerCodexRepository(
                 threadDetails = emptyMap(),
                 activeItemIdsByThread = emptyMap(),
                 threadItemCache = emptyMap(),
+                threadSettingsCache = emptyMap(),
                 approvals = emptyList(),
                 activeTurnIds = emptyMap(),
                 composerCatalog = ComposerCatalog(),
@@ -413,6 +430,7 @@ internal class AppServerCodexRepository(
                 threadDetails = emptyMap(),
                 activeItemIdsByThread = emptyMap(),
                 threadItemCache = if (preserveThreadCache) current.threadItemCache else emptyMap(),
+                threadSettingsCache = if (preserveThreadCache) current.threadSettingsCache else emptyMap(),
                 approvals = emptyList(),
                 activeTurnIds = emptyMap(),
                 composerCatalog = ComposerCatalog(),
@@ -431,17 +449,24 @@ internal class AppServerCodexRepository(
         runCatching {
             newSession.connect()
             val account = newSession.accountRead().toAccountState()
-            val threads = newSession.threadList()
-                .arrayAt("data")
-                ?.map { it.jsonObject.toThreadSummary() }
-                .orEmpty()
-                .syncThreadOrdering()
+            val cachedThreadSettings = repositoryState.value.threadSettingsCache
             val composerCatalog = runCatching {
                 loadComposerCatalog(currentSession = newSession)
             }.getOrElse {
                 AppLog.action(name = "load_composer_catalog_failed", detail = it.message.orEmpty())
                 ComposerCatalog()
             }
+            val threads = newSession.threadList()
+                .arrayAt("data")
+                ?.map { it.jsonObject.toThreadSummary() }
+                ?.map { thread ->
+                    thread.withThreadSettings(
+                        settings = cachedThreadSettings[thread.id],
+                        catalog = composerCatalog,
+                    )
+                }
+                .orEmpty()
+                .syncThreadOrdering()
 
             session = newSession
             repositoryState.update { current ->
@@ -751,6 +776,7 @@ internal class AppServerCodexRepository(
         val tokenUsage = params.objectAt("tokenUsage") ?: return
         val total = tokenUsage.objectAt("total")
         val last = tokenUsage.objectAt("last")
+        val contextRemainingPercent = tokenUsage.contextRemainingPercent()
         val detail = buildString {
             last?.let { lastUsage ->
                 append("Last turn: ")
@@ -763,7 +789,35 @@ internal class AppServerCodexRepository(
                 append(totalUsage.long("totalTokens") ?: 0L)
                 append(" total tokens")
             }
+            contextRemainingPercent?.let { remainingPercent ->
+                if (isNotBlank()) append('\n')
+                append("Context remaining: ")
+                append(remainingPercent)
+                append('%')
+            }
         }.ifBlank { null }
+        repositoryState.update { current ->
+            current.copy(
+                threads = current.threads.map { thread ->
+                    if (thread.id == threadId) {
+                        thread.copy(contextRemainingPercent = contextRemainingPercent)
+                    } else {
+                        thread
+                    }
+                },
+                threadDetails = current.threadDetails.mapValues { (id, threadDetail) ->
+                    if (id == threadId) {
+                        threadDetail.copy(
+                            summary = threadDetail.summary.copy(
+                                contextRemainingPercent = contextRemainingPercent,
+                            ),
+                        )
+                    } else {
+                        threadDetail
+                    }
+                },
+            )
+        }
         appendActivity(
             threadId = threadId,
             activity = ThreadActivity(
@@ -1188,21 +1242,43 @@ internal class AppServerCodexRepository(
         }
     }
 
-    private fun applyThreadSnapshot(thread: kotlinx.serialization.json.JsonObject): Unit {
+    private fun applyThreadSnapshot(
+        thread: kotlinx.serialization.json.JsonObject,
+        sessionSettings: ThreadSessionSettings? = null,
+    ): Unit {
         val detail = thread.toThreadDetail()
         val activeTurnId = thread.extractActiveTurnId()
         repositoryState.update { current ->
             val existingDetail = current.threadDetails[detail.summary.id]
             val cachedItems = current.threadItemCache[detail.summary.id].orEmpty()
+            val mergedSummary = detail.summary
+                .withThreadSettings(
+                    settings = sessionSettings?.toPersistedThreadSettings(
+                        catalog = current.composerCatalog,
+                    ) ?: current.threadSettingsCache[detail.summary.id],
+                    catalog = current.composerCatalog,
+                )
+                .copy(
+                    contextRemainingPercent = existingDetail?.summary?.contextRemainingPercent,
+                )
             val mergedDetail = detail.copy(
                 items = mergeThreadItems(
                     existingItems = if (cachedItems.isNotEmpty()) cachedItems else existingDetail?.items.orEmpty(),
                     snapshotItems = detail.items,
                 ),
                 activities = existingDetail?.activities.orEmpty(),
+                summary = mergedSummary,
             )
+            val updatedThreadSettingsCache = sessionSettings?.let { settings ->
+                current.threadSettingsCache + (
+                    mergedDetail.summary.id to settings.toPersistedThreadSettings(
+                        catalog = current.composerCatalog,
+                    )
+                )
+            } ?: current.threadSettingsCache
             current.copy(
                 threadItemCache = current.threadItemCache + (mergedDetail.summary.id to mergedDetail.items),
+                threadSettingsCache = updatedThreadSettingsCache,
                 threads = current.threads
                     .filterNot { it.id == mergedDetail.summary.id }
                     .plus(mergedDetail.summary)
@@ -1273,6 +1349,53 @@ internal class AppServerCodexRepository(
             input.readBytes()
         } ?: return@withContext null
         "data:$mimeType;base64,${Base64.encodeToString(bytes, Base64.NO_WRAP)}"
+    }
+
+    private fun currentThreadModelId(threadId: String): String? = repositoryState.value.threadDetails[threadId]
+        ?.summary
+        ?.currentModelId
+        ?: repositoryState.value.threads.firstOrNull { thread -> thread.id == threadId }?.currentModelId
+        ?: repositoryState.value.threadSettingsCache[threadId]?.modelId
+
+    private fun currentThreadReasoningEffort(threadId: String): ComposerReasoningEffort? = repositoryState.value.threadDetails[threadId]
+        ?.summary
+        ?.currentReasoningEffort
+        ?: repositoryState.value.threads.firstOrNull { thread -> thread.id == threadId }?.currentReasoningEffort
+        ?: repositoryState.value.threadSettingsCache[threadId]?.reasoningEffort?.toComposerReasoningEffort()
+
+    private fun updateThreadSettings(
+        threadId: String,
+        settings: ThreadSessionSettings,
+    ): Unit {
+        repositoryState.update { current ->
+            val persistedSettings = settings.toPersistedThreadSettings(catalog = current.composerCatalog)
+            current.copy(
+                threadSettingsCache = current.threadSettingsCache + (threadId to persistedSettings),
+                threads = current.threads.map { thread ->
+                    if (thread.id == threadId) {
+                        thread.withThreadSettings(
+                            settings = persistedSettings,
+                            catalog = current.composerCatalog,
+                        )
+                    } else {
+                        thread
+                    }
+                }.syncThreadOrdering(),
+                threadDetails = current.threadDetails.mapValues { (id, detail) ->
+                    if (id == threadId) {
+                        detail.copy(
+                            summary = detail.summary.withThreadSettings(
+                                settings = persistedSettings,
+                                catalog = current.composerCatalog,
+                            ),
+                        )
+                    } else {
+                        detail
+                    }
+                },
+            )
+        }
+        flushPersistLocalState()
     }
 }
 
@@ -1374,6 +1497,34 @@ private fun previewForItem(
     is ThreadItem.Unknown -> item.typeName.ifBlank { fallback }
 }
 
+private fun ThreadSummary.withThreadSettings(
+    settings: PersistedThreadSettings?,
+    catalog: ComposerCatalog,
+): ThreadSummary = if (settings == null) {
+    this
+} else {
+    copy(
+        currentModelId = settings.modelId ?: currentModelId,
+        currentModelName = settings.modelName
+            ?: settings.modelId?.let { modelId ->
+                catalog.models.firstOrNull { model -> model.id == modelId }?.displayName
+            }
+            ?: currentModelName,
+        currentReasoningEffort = settings.reasoningEffort?.toComposerReasoningEffort()
+            ?: currentReasoningEffort,
+    )
+}
+
+private fun ThreadSessionSettings.toPersistedThreadSettings(
+    catalog: ComposerCatalog,
+): PersistedThreadSettings = PersistedThreadSettings(
+    modelId = modelId,
+    modelName = modelId?.let { resolvedModelId ->
+        catalog.models.firstOrNull { model -> model.id == resolvedModelId }?.displayName
+    } ?: modelId,
+    reasoningEffort = reasoningEffort?.toWireValue(),
+)
+
 private fun ThreadReplyRequest.toWireMessageText(): String {
     val trimmedMessage = message.trim()
     val skillPrefix = skill?.let { "$${it.name}" }
@@ -1390,6 +1541,16 @@ private fun ComposerReasoningEffort?.toWireValue(): String? = when (this) {
     ComposerReasoningEffort.High -> "high"
     ComposerReasoningEffort.XHigh -> "xhigh"
     null -> null
+}
+
+private fun String?.toComposerReasoningEffort(): ComposerReasoningEffort? = when (this) {
+    "none" -> ComposerReasoningEffort.None
+    "minimal" -> ComposerReasoningEffort.Minimal
+    "low" -> ComposerReasoningEffort.Low
+    "medium" -> ComposerReasoningEffort.Medium
+    "high" -> ComposerReasoningEffort.High
+    "xhigh" -> ComposerReasoningEffort.XHigh
+    else -> null
 }
 
 private fun ComposerPersonality.toWireValue(): String? = when (this) {
@@ -1411,4 +1572,13 @@ private fun ComposerSandboxMode.toSandboxPolicyPayload(): kotlinx.serialization.
     ComposerSandboxMode.FullAccess -> buildJsonObject {
         put("type", "dangerFullAccess")
     }
+}
+
+private fun kotlinx.serialization.json.JsonObject.contextRemainingPercent(): Int? {
+    val modelContextWindow = long("modelContextWindow") ?: return null
+    if (modelContextWindow <= 0L) return null
+    val totalTokens = objectAt("total")?.long("totalTokens") ?: return null
+    val usedRatio = totalTokens.toDouble() / modelContextWindow.toDouble()
+    val remainingPercent = ((1.0 - usedRatio) * 100.0).toInt()
+    return remainingPercent.coerceIn(0, 100)
 }

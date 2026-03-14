@@ -56,6 +56,7 @@ import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.displayMetaLabel
 import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.model.runtimeSettingsLabel
 import dev.codex.mobile.core.util.relativeTimeLabel
 
 @Composable
@@ -283,11 +284,16 @@ private fun ThreadCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = if (thread.ephemeral) "Ephemeral thread" else "Stored thread metadata",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            val runtimeLabel = threadRuntimeLabel(thread)
+            if (runtimeLabel != null) {
+                Text(
+                    text = runtimeLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Spacer(modifier = Modifier.width(1.dp))
+            }
             StatusChip(
                 label = threadStatusLabel(thread.status),
                 color = threadStatusColor(thread.status),
@@ -300,6 +306,8 @@ private fun ThreadCard(
 private fun threadTitle(thread: ThreadSummary): String = thread.name?.takeIf { it.isNotBlank() } ?: "Untitled thread"
 
 private fun threadMetaLabel(thread: ThreadSummary): String = thread.displayMetaLabel()
+
+private fun threadRuntimeLabel(thread: ThreadSummary): String? = thread.runtimeSettingsLabel()
 
 private fun threadStatusLabel(status: ThreadStatus): String = when {
     status.isWaitingOnApproval -> "Needs Approval"

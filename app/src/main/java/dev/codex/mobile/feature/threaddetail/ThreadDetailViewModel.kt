@@ -134,14 +134,18 @@ class ThreadDetailViewModel(
 
     private val composerSelection = combine(
         repository.observeComposerCatalog(),
+        repository.observeThreadDetail(route.threadId),
         selectedModelId,
         composerSelectionInputs,
-    ) { catalog, currentModelId, inputs ->
-        val selectedModel = catalog.models.firstOrNull { it.id == currentModelId }
+    ) { catalog, detail, currentModelId, inputs ->
+        val resolvedModelId = currentModelId ?: detail?.summary?.currentModelId
+        val selectedModel = catalog.models.firstOrNull { it.id == resolvedModelId }
             ?: catalog.models.firstOrNull { it.isDefault }
             ?: catalog.models.firstOrNull()
         val resolvedEffort = inputs.currentEffort
             ?.takeIf { effort -> selectedModel?.supportedReasoningEfforts?.any { it.effort == effort } != false }
+            ?: detail?.summary?.currentReasoningEffort
+                ?.takeIf { effort -> selectedModel?.supportedReasoningEfforts?.any { it.effort == effort } != false }
             ?: selectedModel?.defaultReasoningEffort
             ?: ComposerReasoningEffort.Medium
         ComposerSelectionState(
@@ -241,6 +245,8 @@ class ThreadDetailViewModel(
         selectedImage.update { null }
         viewModelScope.launch {
             repository.sendReply(route.threadId, request)
+            selectedModelId.update { null }
+            selectedEffort.update { null }
         }
     }
 

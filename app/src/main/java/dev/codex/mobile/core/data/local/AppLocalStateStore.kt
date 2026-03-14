@@ -17,6 +17,14 @@ internal data class PersistedAppState(
     val preferences: AppPreferences = AppPreferences(),
     val hosts: List<HostProfile> = emptyList(),
     val threadItemCache: Map<String, List<ThreadItem>> = emptyMap(),
+    val threadSettingsCache: Map<String, PersistedThreadSettings> = emptyMap(),
+)
+
+@Serializable
+internal data class PersistedThreadSettings(
+    val modelId: String? = null,
+    val modelName: String? = null,
+    val reasoningEffort: String? = null,
 )
 
 internal class AppLocalStateStore(
