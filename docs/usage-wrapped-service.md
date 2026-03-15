@@ -1,15 +1,25 @@
 # Usage Wrapped Service
 
-The Android app reads historical Codex usage from a small desktop sidecar service.
+`npx codexremote` now starts the desktop Usage Wrapped sidecar automatically on
+port `4501` together with `codex app-server` on `4500`.
+
+Most users should use:
+
+```powershell
+npx codexremote
+```
+
+This document is only for local development and direct debugging of the
+standalone sidecar module.
 
 ## Default port
 
 - Codex app-server: `4500`
 - Usage wrapped service: `4501`
 
-The mobile client derives the usage service port as `activeHost.port + 1`.
+The Android client derives the usage service port as `activeHost.port + 1`.
 
-## Start the service
+## Start the standalone service manually
 
 From the repo root:
 

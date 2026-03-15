@@ -1,10 +1,19 @@
 {
   "name": "codexremote",
-  "version": "0.1.1",
-  "description": "Start Codex app-server and print a mobile connection QR in the terminal.",
+  "version": "0.2.1",
+  "description": "Start Codex app-server, Usage Wrapped, and print a mobile connection QR in the terminal.",
   "type": "module",
   "bin": {
     "codexremote": "bin/codexremote.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md",
+    "wsl-setup.md"
+  ],
+  "scripts": {
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
@@ -12,6 +21,7 @@
   "keywords": [
     "codex",
     "app-server",
+    "usage-wrapped",
     "qr",
     "mobile"
   ],
