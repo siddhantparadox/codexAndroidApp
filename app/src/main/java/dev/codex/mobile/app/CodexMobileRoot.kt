@@ -25,8 +25,8 @@ fun CodexMobileRoot(
     ) {
         CodexNavHost(
             pendingApprovals = uiState.pendingApprovals,
-            notifications = uiState.notifications,
-            onDismissNotification = viewModel::dismissThreadNotification,
+            alerts = uiState.alerts,
+            onDismissAlert = viewModel::dismissAlert,
             onVisibleThreadChanged = viewModel::setVisibleThread,
         )
     }

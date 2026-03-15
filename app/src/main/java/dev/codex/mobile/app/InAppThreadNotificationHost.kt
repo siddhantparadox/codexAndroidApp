@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,20 +28,19 @@ import androidx.compose.ui.unit.dp
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.designsystem.theme.cardBorder
-import dev.codex.mobile.core.model.InAppThreadNotification
 import kotlinx.coroutines.delay
 
 @Composable
-internal fun InAppThreadNotificationHost(
-    notifications: List<InAppThreadNotification>,
+internal fun InAppAlertHost(
+    alerts: List<InAppAlert>,
     onOpenThread: (String) -> Unit,
-    onDismissNotification: (String) -> Unit,
+    onDismissAlert: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (notifications.isEmpty()) return
+    if (alerts.isEmpty()) return
 
-    val visibleNotifications: List<InAppThreadNotification> = notifications.take(MAX_VISIBLE_NOTIFICATIONS)
-    val overflowCount: Int = (notifications.size - visibleNotifications.size).coerceAtLeast(0)
+    val visibleAlerts: List<InAppAlert> = alerts.take(MAX_VISIBLE_ALERTS)
+    val overflowCount: Int = (alerts.size - visibleAlerts.size).coerceAtLeast(0)
 
     Column(
         modifier = modifier
@@ -52,16 +52,16 @@ internal fun InAppThreadNotificationHost(
             ),
         verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
     ) {
-        visibleNotifications.forEach { notification ->
+        visibleAlerts.forEach { alert ->
             AnimatedVisibility(
                 visible = true,
                 enter = slideInVertically(initialOffsetY = { offset -> -offset / 2 }) + fadeIn(),
                 exit = slideOutVertically(targetOffsetY = { offset -> -offset / 2 }) + fadeOut(),
             ) {
-                ThreadNotificationBanner(
-                    notification = notification,
+                AlertBanner(
+                    alert = alert,
                     onOpenThread = onOpenThread,
-                    onDismiss = onDismissNotification,
+                    onDismiss = onDismissAlert,
                 )
             }
         }
@@ -69,7 +69,7 @@ internal fun InAppThreadNotificationHost(
             Surface(
                 shape = MaterialTheme.shapes.small,
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.cardBorder),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.cardBorder),
                 tonalElevation = 0.dp,
                 shadowElevation = 0.dp,
             ) {
@@ -89,20 +89,20 @@ internal fun InAppThreadNotificationHost(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ThreadNotificationBanner(
-    notification: InAppThreadNotification,
+private fun AlertBanner(
+    alert: InAppAlert,
     onOpenThread: (String) -> Unit,
     onDismiss: (String) -> Unit,
 ) {
-    LaunchedEffect(notification.id) {
-        delay(NOTIFICATION_AUTO_DISMISS_MS)
-        onDismiss(notification.id)
+    LaunchedEffect(alert.id) {
+        delay(ALERT_AUTO_DISMISS_MS)
+        onDismiss(alert.id)
     }
 
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value != SwipeToDismissBoxValue.Settled) {
-                onDismiss(notification.id)
+                onDismiss(alert.id)
             }
             true
         },
@@ -115,19 +115,20 @@ private fun ThreadNotificationBanner(
         CodexCard(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable {
-                    onOpenThread(notification.threadId)
-                    onDismiss(notification.id)
+                .clickable(enabled = alert.threadId != null) {
+                    val threadId: String = alert.threadId ?: return@clickable
+                    onOpenThread(threadId)
+                    onDismiss(alert.id)
                 },
         ) {
             Text(
-                text = notification.title,
+                text = alert.title,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = notification.message,
+                text = alert.message,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
@@ -138,5 +139,5 @@ private fun ThreadNotificationBanner(
     }
 }
 
-private const val MAX_VISIBLE_NOTIFICATIONS: Int = 3
-private const val NOTIFICATION_AUTO_DISMISS_MS: Long = 4_000L
+private const val MAX_VISIBLE_ALERTS: Int = 3
+private const val ALERT_AUTO_DISMISS_MS: Long = 4_000L

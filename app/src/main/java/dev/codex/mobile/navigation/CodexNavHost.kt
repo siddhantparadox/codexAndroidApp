@@ -8,11 +8,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.Alignment
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -22,10 +22,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
-import dev.codex.mobile.app.InAppThreadNotificationHost
+import dev.codex.mobile.app.InAppAlert
+import dev.codex.mobile.app.InAppAlertHost
 import dev.codex.mobile.core.designsystem.component.CodexBottomBar
 import dev.codex.mobile.core.designsystem.component.TopLevelDestination
-import dev.codex.mobile.core.model.InAppThreadNotification
 import dev.codex.mobile.core.util.AppLog
 import dev.codex.mobile.feature.approvals.ApprovalsScreen
 import dev.codex.mobile.feature.connection.HostConnectionScreen
@@ -36,10 +36,10 @@ import dev.codex.mobile.feature.threads.ThreadsScreen
 import dev.codex.mobile.feature.usage.UsageWrappedScreen
 
 @Composable
-fun CodexNavHost(
+internal fun CodexNavHost(
     pendingApprovals: Int,
-    notifications: List<InAppThreadNotification>,
-    onDismissNotification: (String) -> Unit,
+    alerts: List<InAppAlert>,
+    onDismissAlert: (String) -> Unit,
     onVisibleThreadChanged: (String?) -> Unit,
 ) {
     val navController = rememberNavController()
@@ -66,13 +66,6 @@ fun CodexNavHost(
         currentDestination?.hasRoute<ApprovalsRoute>() == true -> TopLevelDestination.Approvals
         else -> TopLevelDestination.Settings
     }
-    val isOnTopLevelDestination = when {
-        currentDestination?.hasRoute<DashboardRoute>() == true -> true
-        currentDestination?.hasRoute<ThreadsRoute>() == true -> true
-        currentDestination?.hasRoute<ApprovalsRoute>() == true -> true
-        currentDestination?.hasRoute<SettingsRoute>() == true -> true
-        else -> false
-    }
     val showBottomBar = currentDestination?.hasRoute<ThreadDetailRoute>() != true &&
         currentDestination?.hasRoute<UsageWrappedRoute>() != true
 
@@ -82,13 +75,6 @@ fun CodexNavHost(
 
     LaunchedEffect(currentThreadId) {
         onVisibleThreadChanged(currentThreadId)
-    }
-
-    LaunchedEffect(currentThreadId, notifications) {
-        val visibleThreadId: String = currentThreadId ?: return@LaunchedEffect
-        notifications
-            .filter { notification -> notification.threadId == visibleThreadId }
-            .forEach { notification -> onDismissNotification(notification.id) }
     }
 
     fun navigateToTopLevelDestination(destination: TopLevelDestination) {
@@ -191,9 +177,9 @@ fun CodexNavHost(
             }
         }
 
-        InAppThreadNotificationHost(
-            notifications = notifications,
-            onDismissNotification = onDismissNotification,
+        InAppAlertHost(
+            alerts = alerts,
+            onDismissAlert = onDismissAlert,
             onOpenThread = { threadId ->
                 AppLog.action(name = "open_thread_from_notification", detail = threadId)
                 navController.navigate(ThreadDetailRoute(threadId = threadId))
