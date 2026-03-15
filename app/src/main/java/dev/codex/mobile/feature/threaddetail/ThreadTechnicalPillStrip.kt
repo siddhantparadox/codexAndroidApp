@@ -69,6 +69,7 @@ import dev.codex.mobile.core.model.FileChangeEntry
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadItemStatus
 import dev.codex.mobile.core.model.ThreadUserInputRequest
+import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.ToolContentItem
 
 private enum class TechnicalPillFamily {
@@ -110,7 +111,7 @@ internal fun TechnicalPillStrip(
     activeItemIds: Set<String>,
     autoRevealExpandedContent: Boolean,
     onDecision: (String, ApprovalDecision) -> Unit,
-    onSubmitUserInput: (String, Map<String, List<String>>) -> Unit,
+    onSubmitUserInput: (String, ThreadUserInputResponse) -> Unit,
     onReviewDiff: (FileChangeEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {

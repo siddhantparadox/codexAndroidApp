@@ -3,6 +3,7 @@ package dev.codex.mobile.core.data.appserver
 import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
+import dev.codex.mobile.core.util.AppLog
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -60,6 +61,10 @@ internal class CodexJsonRpcTransport(
         val listener = object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response): Unit {
                 this@CodexJsonRpcTransport.webSocket = webSocket
+                AppLog.action(
+                    name = "transport_open",
+                    detail = url,
+                )
                 if (continuation.isActive) {
                     continuation.resume(Unit)
                 }
@@ -70,10 +75,18 @@ internal class CodexJsonRpcTransport(
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String): Unit {
+                AppLog.action(
+                    name = "transport_closing",
+                    detail = "url=$url code=$code reason=${reason.ifBlank { "n/a" }}",
+                )
                 webSocket.close(code, reason)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String): Unit {
+                AppLog.action(
+                    name = "transport_closed_socket",
+                    detail = "url=$url code=$code reason=${reason.ifBlank { "n/a" }} clientClosed=$closedByClient",
+                )
                 closePendingResponses(IOException(reason.ifBlank { "WebSocket closed" }))
                 eventChannel.trySend(
                     TransportEvent.Closed(
@@ -84,6 +97,10 @@ internal class CodexJsonRpcTransport(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?): Unit {
+                AppLog.action(
+                    name = "transport_failure",
+                    detail = "url=$url message=${t.message.orEmpty()} code=${response?.code ?: -1}",
+                )
                 closePendingResponses(t)
                 if (continuation.isActive) {
                     continuation.resumeWithException(t)

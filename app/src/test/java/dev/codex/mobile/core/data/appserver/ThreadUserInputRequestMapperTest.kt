@@ -1,5 +1,7 @@
 package dev.codex.mobile.core.data.appserver
 
+import dev.codex.mobile.core.model.ThreadUserInputAnswer
+import dev.codex.mobile.core.model.ThreadUserInputPayload
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
@@ -51,8 +53,9 @@ class ThreadUserInputRequestMapperTest {
         assertEquals("request-1", request.requestId)
         assertEquals("thread-1", request.threadId)
         assertEquals("item-1", request.itemId)
-        assertEquals(1, request.questions.size)
-        assertTrue(request.questions.single().isOtherAllowed)
+        val payload = request.payload as ThreadUserInputPayload.ToolQuestions
+        assertEquals(1, payload.questions.size)
+        assertTrue(payload.questions.single().isOtherAllowed)
     }
 
     @Test
@@ -80,5 +83,176 @@ class ThreadUserInputRequestMapperTest {
                 .isEmpty(),
         )
         assertFalse(answers.isEmpty())
+    }
+
+    @Test
+    fun mapsMcpFormElicitationRequest() {
+        val json = Json.parseToJsonElement(
+            """
+            {
+              "method": "mcpServer/elicitation/request",
+              "params": {
+                "serverName": "github",
+                "threadId": "thread-1",
+                "turnId": null,
+                "mode": "form",
+                "message": "Complete the GitHub form",
+                "requestedSchema": {
+                  "type": "object",
+                  "required": ["repo", "notify"],
+                  "properties": {
+                    "repo": {
+                      "type": "string",
+                      "title": "Repository",
+                      "enum": ["openai/codex", "openai/api"],
+                      "enumNames": ["Codex", "API"]
+                    },
+                    "notify": {
+                      "type": "boolean",
+                      "title": "Notify team",
+                      "default": true
+                    },
+                    "labels": {
+                      "type": "array",
+                      "title": "Labels",
+                      "items": {
+                        "type": "string",
+                        "anyOf": [
+                          { "const": "bug", "title": "Bug" },
+                          { "const": "docs", "title": "Docs" }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """.trimIndent(),
+        ).jsonObject
+
+        val request = json.toThreadUserInputRequest(requestId = JsonPrimitive("request-2"))
+
+        requireNotNull(request)
+        val payload = request.payload as ThreadUserInputPayload.McpForm
+        assertEquals("github", payload.serverName)
+        assertEquals("Complete the GitHub form", payload.message)
+        assertEquals(3, payload.fields.size)
+        assertEquals("Repository", payload.fields[0].label)
+        assertTrue(payload.fields[0].required)
+        assertTrue(payload.fields[1].required)
+    }
+
+    @Test
+    fun mapsMcpUrlElicitationRequest() {
+        val json = Json.parseToJsonElement(
+            """
+            {
+              "method": "mcpServer/elicitation/request",
+              "params": {
+                "serverName": "github",
+                "threadId": "thread-1",
+                "turnId": "turn-1",
+                "mode": "url",
+                "elicitationId": "elicitation-1",
+                "message": "Complete sign-in before continuing",
+                "url": "https://github.com/login/device"
+              }
+            }
+            """.trimIndent(),
+        ).jsonObject
+
+        val request = json.toThreadUserInputRequest(requestId = JsonPrimitive("request-3"))
+
+        requireNotNull(request)
+        val payload = request.payload as ThreadUserInputPayload.McpUrl
+        assertEquals("elicitation-1", payload.elicitationId)
+        assertEquals("https://github.com/login/device", payload.url)
+    }
+
+    @Test
+    fun buildsMcpFormAcceptResponsePayload() {
+        val request = Json.parseToJsonElement(
+            """
+            {
+              "method": "mcpServer/elicitation/request",
+              "params": {
+                "serverName": "github",
+                "threadId": "thread-1",
+                "mode": "form",
+                "message": "Complete the GitHub form",
+                "requestedSchema": {
+                  "type": "object",
+                  "required": ["repo"],
+                  "properties": {
+                    "repo": {
+                      "type": "string",
+                      "enum": ["openai/codex"]
+                    },
+                    "notify": {
+                      "type": "boolean",
+                      "default": false
+                    },
+                    "labels": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": ["bug", "docs"]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """.trimIndent(),
+        ).jsonObject.toThreadUserInputRequest(requestId = JsonPrimitive("request-4"))
+
+        requireNotNull(request)
+        val payload = requireNotNull(
+            userInputResponsePayload(
+                request = request,
+                response = dev.codex.mobile.core.model.ThreadUserInputResponse.Accept(
+                    answers = mapOf(
+                        "repo" to ThreadUserInputAnswer.TextList(listOf("openai/codex")),
+                        "notify" to ThreadUserInputAnswer.BooleanValue(true),
+                        "labels" to ThreadUserInputAnswer.TextList(listOf("bug", "docs")),
+                    ),
+                ),
+            ),
+        )
+
+        assertEquals("accept", payload.string("action"))
+        val content = requireNotNull(payload["content"]?.jsonObject)
+        assertEquals("openai/codex", content.getValue("repo").jsonPrimitive.content)
+        assertEquals("true", content.getValue("notify").jsonPrimitive.content)
+        assertEquals(2, content.getValue("labels").jsonArray.size)
+    }
+
+    @Test
+    fun buildsMcpUrlDeclineResponsePayload() {
+        val request = Json.parseToJsonElement(
+            """
+            {
+              "method": "mcpServer/elicitation/request",
+              "params": {
+                "serverName": "github",
+                "threadId": "thread-1",
+                "mode": "url",
+                "elicitationId": "elicitation-1",
+                "message": "Complete sign-in before continuing",
+                "url": "https://github.com/login/device"
+              }
+            }
+            """.trimIndent(),
+        ).jsonObject.toThreadUserInputRequest(requestId = JsonPrimitive("request-5"))
+
+        requireNotNull(request)
+        val payload = requireNotNull(
+            userInputResponsePayload(
+                request = request,
+                response = dev.codex.mobile.core.model.ThreadUserInputResponse.Decline,
+            ),
+        )
+
+        assertEquals("decline", payload.string("action"))
     }
 }

@@ -31,6 +31,7 @@ import dev.codex.mobile.core.model.ThreadSourceKind
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThemePreference
 import dev.codex.mobile.core.model.UsageWrappedActivityDay
@@ -317,11 +318,11 @@ class DemoCodexRepository : CodexRepository {
 
     override suspend fun respondToUserInput(
         requestId: String,
-        answers: Map<String, List<String>>,
+        response: ThreadUserInputResponse,
     ) {
         AppLog.action(
             name = "respond_user_input",
-            detail = "demo request=$requestId answers=${answers.size}",
+            detail = "demo request=$requestId response=${response.demoLogLabel()}",
         )
         store.update { current ->
             current.copy(
@@ -434,6 +435,12 @@ class DemoCodexRepository : CodexRepository {
             )
         }
     }
+}
+
+private fun ThreadUserInputResponse.demoLogLabel(): String = when (this) {
+    is ThreadUserInputResponse.Accept -> "accept"
+    ThreadUserInputResponse.Decline -> "decline"
+    ThreadUserInputResponse.Cancel -> "cancel"
 }
 
 private fun demoThreads(now: Long = nowEpochSeconds()): List<ThreadSummary> = listOf(
@@ -848,6 +855,8 @@ private fun statusForApprovalResolution(
     return when (decision) {
         ApprovalDecision.Accept,
         ApprovalDecision.AcceptForSession,
+        is ApprovalDecision.AcceptWithExecpolicyAmendment,
+        is ApprovalDecision.ApplyNetworkPolicyAmendment,
         -> activeStatus()
 
         ApprovalDecision.Decline,
@@ -877,6 +886,8 @@ private fun statusAfterInterrupt(
 private fun ApprovalDecision.toThreadItemStatus(): ThreadItemStatus = when (this) {
     ApprovalDecision.Accept,
     ApprovalDecision.AcceptForSession,
+    is ApprovalDecision.AcceptWithExecpolicyAmendment,
+    is ApprovalDecision.ApplyNetworkPolicyAmendment,
     -> ThreadItemStatus.Completed
 
     ApprovalDecision.Decline,
@@ -887,6 +898,10 @@ private fun ApprovalDecision.toThreadItemStatus(): ThreadItemStatus = when (this
 private fun previewForApprovalDecision(decision: ApprovalDecision): String = when (decision) {
     ApprovalDecision.Accept -> "Approval accepted from mobile. Codex can continue the turn."
     ApprovalDecision.AcceptForSession -> "Approval accepted for the current session from mobile."
+    is ApprovalDecision.AcceptWithExecpolicyAmendment ->
+        "Approval accepted and the suggested command rule was applied from mobile."
+    is ApprovalDecision.ApplyNetworkPolicyAmendment ->
+        "Approval accepted and the suggested network rule was applied from mobile."
     ApprovalDecision.Decline -> "Approval declined from mobile."
     ApprovalDecision.Cancel -> "Approval cancelled from mobile."
 }

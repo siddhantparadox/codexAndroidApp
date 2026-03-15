@@ -120,9 +120,16 @@ fun ThreadDetailScreen(
                 approvals = uiState.approvals,
                 userInputRequests = uiState.userInputRequests,
             )
+            val waitingOnUnavailableApproval =
+                detail.summary.status.isWaitingOnApproval && uiState.approvals.isEmpty()
+            val waitingOnUnavailableUserInput =
+                detail.summary.status.isWaitingOnUserInput && uiState.userInputRequests.isEmpty()
             val activityRowCount = if (detail.activities.isEmpty()) 0 else 1
             val transcriptRowCount = if (transcriptRows.isEmpty()) 1 else transcriptRows.size
-            val totalTranscriptRows = 1 + activityRowCount + transcriptRowCount + 1
+            val pendingRequestUnavailableRowCount =
+                if (waitingOnUnavailableApproval || waitingOnUnavailableUserInput) 1 else 0
+            val totalTranscriptRows =
+                1 + activityRowCount + transcriptRowCount + pendingRequestUnavailableRowCount + 1
             val transcriptBottomPadding = if (composerBarContentHeightPx > 0) {
                 with(density) { composerBarContentHeightPx.toDp() } +
                     navigationBarBottomPadding +
@@ -233,6 +240,14 @@ fun ThreadDetailScreen(
                             onReviewDiff = { change ->
                                 reviewedDiff = change
                             },
+                        )
+                    }
+                }
+                if (waitingOnUnavailableApproval || waitingOnUnavailableUserInput) {
+                    item(key = "pending-request-unavailable") {
+                        PendingRequestUnavailableCard(
+                            waitingOnApproval = waitingOnUnavailableApproval,
+                            waitingOnUserInput = waitingOnUnavailableUserInput,
                         )
                     }
                 }

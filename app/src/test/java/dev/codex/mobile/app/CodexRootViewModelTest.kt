@@ -204,7 +204,7 @@ private class FakeCodexRepository(
 
     override suspend fun respondToUserInput(
         requestId: String,
-        answers: Map<String, List<String>>,
+        response: dev.codex.mobile.core.model.ThreadUserInputResponse,
     ) = Unit
 
     override suspend fun refreshComposerCatalog() = Unit

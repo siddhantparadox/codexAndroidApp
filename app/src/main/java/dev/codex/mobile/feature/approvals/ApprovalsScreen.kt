@@ -39,7 +39,9 @@ import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
-import dev.codex.mobile.core.model.label
+import dev.codex.mobile.core.model.decisionLabel
+import dev.codex.mobile.core.model.detailLines
+import dev.codex.mobile.core.model.headline
 
 @Composable
 fun ApprovalsScreen(
@@ -154,7 +156,9 @@ private fun ApprovalCard(
                     Icon(
                         imageVector = when (approval.kind) {
                             ApprovalKind.CommandExecution -> Icons.Rounded.Terminal
-                            ApprovalKind.FileChange -> Icons.Rounded.Description
+                            ApprovalKind.FileChange,
+                            ApprovalKind.Permissions,
+                            -> Icons.Rounded.Description
                         },
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
@@ -164,6 +168,7 @@ private fun ApprovalCard(
                         text = when (approval.kind) {
                             ApprovalKind.CommandExecution -> "Command Execution"
                             ApprovalKind.FileChange -> "File Change"
+                            ApprovalKind.Permissions -> "Permissions"
                         }.uppercase(),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary,
@@ -174,7 +179,7 @@ private fun ApprovalCard(
             }
             Column(modifier = Modifier.padding(CodexSpacing.cardPadding)) {
                 Text(
-                    text = approvalHeadline(approval),
+                    text = approval.headline(),
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -187,18 +192,20 @@ private fun ApprovalCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Spacer(modifier = Modifier.height(CodexSpacing.listGap))
-                Text(
-                    text = approvalDetail(approval),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                approval.detailLines().forEach { detail ->
+                    Spacer(modifier = Modifier.height(CodexSpacing.listGap))
+                    Text(
+                        text = detail,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
                 approval.availableDecisions.forEachIndexed { index, decision ->
                     ApprovalButton(
-                        label = decision.label,
+                        label = approval.decisionLabel(decision),
                         containerColor = approvalDecisionBackground(decision),
                         contentColor = approvalDecisionContent(decision),
                         onClick = { onDecision(decision) },
@@ -212,34 +219,13 @@ private fun ApprovalCard(
     }
 }
 
-private fun approvalHeadline(approval: ApprovalItem): String = when (approval.kind) {
-    ApprovalKind.CommandExecution -> approval.command ?: "Command approval requested"
-    ApprovalKind.FileChange -> {
-        val firstPath = approval.filePaths.firstOrNull() ?: "File changes pending"
-        if (approval.filePaths.size == 1) {
-            firstPath
-        } else {
-            "$firstPath +${approval.filePaths.size - 1} more"
-        }
-    }
-}
-
-private fun approvalDetail(approval: ApprovalItem): String = when (approval.kind) {
-    ApprovalKind.CommandExecution -> buildList {
-        approval.cwd?.let { add("CWD: $it") }
-        add("Tap to open the thread and inspect the related item.")
-    }.joinToString(" • ")
-
-    ApprovalKind.FileChange -> buildList {
-        add("Paths: ${approval.filePaths.joinToString()}")
-        if (approval.grantRoot) add("Root access requested")
-    }.joinToString(" • ")
-}
-
 @Composable
 private fun approvalDecisionBackground(decision: ApprovalDecision): Color = when (decision) {
     ApprovalDecision.Accept -> MaterialTheme.colorScheme.primary
-    ApprovalDecision.AcceptForSession -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    ApprovalDecision.AcceptForSession,
+    is ApprovalDecision.AcceptWithExecpolicyAmendment,
+    is ApprovalDecision.ApplyNetworkPolicyAmendment,
+    -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
     ApprovalDecision.Decline -> MaterialTheme.colorScheme.surfaceVariant
     ApprovalDecision.Cancel -> Color.Transparent
 }
@@ -247,7 +233,10 @@ private fun approvalDecisionBackground(decision: ApprovalDecision): Color = when
 @Composable
 private fun approvalDecisionContent(decision: ApprovalDecision): Color = when (decision) {
     ApprovalDecision.Accept -> MaterialTheme.colorScheme.onPrimary
-    ApprovalDecision.AcceptForSession -> MaterialTheme.colorScheme.primary
+    ApprovalDecision.AcceptForSession,
+    is ApprovalDecision.AcceptWithExecpolicyAmendment,
+    is ApprovalDecision.ApplyNetworkPolicyAmendment,
+    -> MaterialTheme.colorScheme.primary
     ApprovalDecision.Decline -> MaterialTheme.colorScheme.onSurface
     ApprovalDecision.Cancel -> MaterialTheme.colorScheme.onSurfaceVariant
 }

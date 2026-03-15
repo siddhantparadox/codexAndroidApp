@@ -2,12 +2,13 @@ package dev.codex.mobile.app
 
 import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.ApprovalItem
-import dev.codex.mobile.core.model.ApprovalKind
 import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.HostProfile
 import dev.codex.mobile.core.model.InAppThreadNotification
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.alertMessage
+import dev.codex.mobile.core.model.singleLinePreview
 
 internal const val APPROVAL_ALERT_PREFIX: String = "approval:"
 internal const val CONNECTION_ALERT_PREFIX: String = "connection:"
@@ -110,45 +111,6 @@ private fun buildConnectionAlert(
 private fun ApprovalItem.toInAppAlert(threadTitle: String?): InAppAlert = InAppAlert(
     id = approvalAlertId(id),
     title = "${threadTitle?.takeIf(String::isNotBlank) ?: "Thread"} needs approval",
-    message = approvalAlertMessage(),
+    message = alertMessage(),
     threadId = threadId,
 )
-
-private fun ApprovalItem.approvalAlertMessage(): String = when (kind) {
-    ApprovalKind.CommandExecution -> command
-        ?.trim()
-        ?.takeIf(String::isNotEmpty)
-        ?.singleLinePreview()
-        ?: reason
-            ?.trim()
-            ?.takeIf(String::isNotEmpty)
-            ?.singleLinePreview()
-            ?: "Review the requested command before Codex continues."
-
-    ApprovalKind.FileChange -> filePaths.firstOrNull()
-        ?.let { firstPath ->
-            if (filePaths.size == 1) {
-                firstPath
-            } else {
-                "$firstPath +${filePaths.size - 1} more"
-            }
-        }
-        ?.singleLinePreview()
-        ?: reason
-            ?.trim()
-            ?.takeIf(String::isNotEmpty)
-            ?.singleLinePreview()
-            ?: "Review the proposed file changes before Codex continues."
-}
-
-private fun String.singleLinePreview(maxLength: Int = 120): String = lineSequence()
-    .map(String::trim)
-    .filter(String::isNotBlank)
-    .joinToString(separator = " ")
-    .let { collapsed ->
-        if (collapsed.length <= maxLength) {
-            collapsed
-        } else {
-            collapsed.take(maxLength - 1).trimEnd() + "…"
-        }
-    }

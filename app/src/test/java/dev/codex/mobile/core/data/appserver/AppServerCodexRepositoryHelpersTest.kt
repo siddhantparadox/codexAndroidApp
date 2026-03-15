@@ -1,9 +1,11 @@
 package dev.codex.mobile.core.data.appserver
 
+import dev.codex.mobile.core.model.ComposerSandboxMode
 import dev.codex.mobile.core.model.ThreadItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class AppServerCodexRepositoryHelpersTest {
@@ -55,5 +57,19 @@ class AppServerCodexRepositoryHelpersTest {
         )
 
         assertEquals(existingItems, mergedItems)
+    }
+
+    @Test
+    fun readOnlySandboxUsesOnRequestApprovalPolicy() {
+        val payload = ComposerSandboxMode.ReadOnly.toApprovalPolicyPayload()
+
+        assertEquals("on-request", payload?.content)
+    }
+
+    @Test
+    fun defaultSandboxDoesNotOverrideApprovalPolicy() {
+        val payload = ComposerSandboxMode.Default.toApprovalPolicyPayload()
+
+        assertNull(payload)
     }
 }

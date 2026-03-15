@@ -8,6 +8,7 @@ import dev.codex.mobile.core.model.AccountRateLimitWindow
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
+import dev.codex.mobile.core.model.ApprovalNetworkContext
 import dev.codex.mobile.core.model.ComposerCatalog
 import dev.codex.mobile.core.model.ComposerModelOption
 import dev.codex.mobile.core.model.ComposerReasoningEffort
@@ -23,10 +24,16 @@ import dev.codex.mobile.core.model.ThreadSourceKind
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.ThreadUserInputAnswer
+import dev.codex.mobile.core.model.ThreadUserInputField
+import dev.codex.mobile.core.model.ThreadUserInputFieldKind
 import dev.codex.mobile.core.model.ToolContentItem
 import dev.codex.mobile.core.model.ThreadUserInputOption
+import dev.codex.mobile.core.model.ThreadUserInputPayload
 import dev.codex.mobile.core.model.ThreadUserInputQuestion
 import dev.codex.mobile.core.model.ThreadUserInputRequest
+import dev.codex.mobile.core.model.ThreadUserInputResponse
+import dev.codex.mobile.core.model.ThreadUserInputTextFormat
 import dev.codex.mobile.core.model.UserInputContent
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -172,6 +179,8 @@ internal fun JsonObject.toApprovalItem(requestId: JsonPrimitive): ApprovalItem? 
             kind = ApprovalKind.CommandExecution,
             command = params.string("command"),
             cwd = params.string("cwd"),
+            networkContext = params.objectAt("networkApprovalContext")?.toApprovalNetworkContext(),
+            requestedPermissions = params.objectAt("additionalPermissions")?.toApprovalPermissionsOrNull(),
             reason = params.string("reason"),
             availableDecisions = params.availableCommandDecisions(),
         )
@@ -196,6 +205,24 @@ internal fun JsonObject.toApprovalItem(requestId: JsonPrimitive): ApprovalItem? 
         )
     }
 
+    "item/permissions/requestApproval" -> {
+        val params = requireNotNull(objectAt("params"))
+        ApprovalItem(
+            id = requestId.content,
+            threadId = requireNotNull(params.string("threadId")),
+            turnId = requireNotNull(params.string("turnId")),
+            itemId = requireNotNull(params.string("itemId")),
+            kind = ApprovalKind.Permissions,
+            requestedPermissions = params.objectAt("permissions")?.toApprovalPermissionsOrNull(),
+            reason = params.string("reason"),
+            availableDecisions = listOf(
+                ApprovalDecision.Accept,
+                ApprovalDecision.AcceptForSession,
+                ApprovalDecision.Decline,
+            ),
+        )
+    }
+
     else -> null
 }
 
@@ -205,11 +232,24 @@ internal fun JsonObject.toThreadUserInputRequest(requestId: JsonPrimitive): Thre
         ThreadUserInputRequest(
             requestId = requestId.content,
             threadId = requireNotNull(params.string("threadId")),
-            turnId = requireNotNull(params.string("turnId")),
-            itemId = requireNotNull(params.string("itemId")),
-            questions = params.arrayAt("questions")
-                ?.mapNotNull { question -> question.jsonObject.toThreadUserInputQuestion() }
-                .orEmpty(),
+            turnId = params.string("turnId"),
+            itemId = params.string("itemId"),
+            payload = ThreadUserInputPayload.ToolQuestions(
+                questions = params.arrayAt("questions")
+                    ?.mapNotNull { question -> question.jsonObject.toThreadUserInputQuestion() }
+                    .orEmpty(),
+            ),
+        )
+    }
+
+    "mcpServer/elicitation/request" -> {
+        val params = requireNotNull(objectAt("params"))
+        ThreadUserInputRequest(
+            requestId = requestId.content,
+            threadId = requireNotNull(params.string("threadId")),
+            turnId = params.string("turnId"),
+            itemId = null,
+            payload = params.toMcpUserInputPayload() ?: return null,
         )
     }
 
@@ -412,18 +452,37 @@ internal fun JsonObject.toThreadItem(): ThreadItem = when (string("type")) {
     )
 }
 
-internal fun commandApprovalDecisionPayload(decision: ApprovalDecision): JsonPrimitive = when (decision) {
-    ApprovalDecision.Accept -> JsonPrimitive("accept")
-    ApprovalDecision.AcceptForSession -> JsonPrimitive("acceptForSession")
-    ApprovalDecision.Decline -> JsonPrimitive("decline")
-    ApprovalDecision.Cancel -> JsonPrimitive("cancel")
+internal fun commandApprovalDecisionPayload(decision: ApprovalDecision): JsonObject = buildJsonObject {
+    put("decision", commandApprovalDecisionElement(decision))
 }
 
-internal fun fileChangeApprovalDecisionPayload(decision: ApprovalDecision): JsonPrimitive = when (decision) {
-    ApprovalDecision.Accept -> JsonPrimitive("accept")
-    ApprovalDecision.AcceptForSession -> JsonPrimitive("acceptForSession")
-    ApprovalDecision.Decline -> JsonPrimitive("decline")
-    ApprovalDecision.Cancel -> JsonPrimitive("cancel")
+internal fun fileChangeApprovalDecisionPayload(decision: ApprovalDecision): JsonObject = buildJsonObject {
+    put("decision", fileChangeApprovalDecisionElement(decision))
+}
+
+internal fun permissionsApprovalPayload(
+    decision: ApprovalDecision,
+    requestedPermissions: JsonObject?,
+): JsonObject = buildJsonObject {
+    when (decision) {
+        ApprovalDecision.Accept -> {
+            put("permissions", requestedPermissions ?: emptyJsonObject)
+            put("scope", "turn")
+        }
+
+        ApprovalDecision.AcceptForSession -> {
+            put("permissions", requestedPermissions ?: emptyJsonObject)
+            put("scope", "session")
+        }
+
+        ApprovalDecision.Decline,
+        ApprovalDecision.Cancel,
+        is ApprovalDecision.AcceptWithExecpolicyAmendment,
+        is ApprovalDecision.ApplyNetworkPolicyAmendment,
+        -> {
+            put("permissions", emptyJsonObject)
+        }
+    }
 }
 
 internal fun toolRequestUserInputResponsePayload(
@@ -441,6 +500,52 @@ internal fun toolRequestUserInputResponsePayload(
                 )
             }
         }
+    }
+}
+
+internal fun userInputResponsePayload(
+    request: ThreadUserInputRequest,
+    response: ThreadUserInputResponse,
+): JsonObject? = when (val payload = request.payload) {
+    is ThreadUserInputPayload.ToolQuestions -> {
+        val acceptResponse = response as? ThreadUserInputResponse.Accept ?: return null
+        val answers = acceptResponse.answers.mapValues { (_, answer) ->
+            when (answer) {
+                is ThreadUserInputAnswer.TextList -> answer.values
+                is ThreadUserInputAnswer.BooleanValue -> listOf(answer.value.toString())
+            }
+        }
+        if (answers.isEmpty()) {
+            null
+        } else {
+            toolRequestUserInputResponsePayload(answers = answers)
+        }
+    }
+
+    is ThreadUserInputPayload.McpForm -> buildJsonObject {
+        when (response) {
+            is ThreadUserInputResponse.Accept -> {
+                put("action", "accept")
+                put(
+                    "content",
+                    payload.toMcpElicitationContent(response.answers),
+                )
+            }
+
+            ThreadUserInputResponse.Decline -> put("action", "decline")
+            ThreadUserInputResponse.Cancel -> put("action", "cancel")
+        }
+    }
+
+    is ThreadUserInputPayload.McpUrl -> buildJsonObject {
+        put(
+            "action",
+            when (response) {
+                is ThreadUserInputResponse.Accept -> "accept"
+                ThreadUserInputResponse.Decline -> "decline"
+                ThreadUserInputResponse.Cancel -> "cancel"
+            },
+        )
     }
 }
 
@@ -462,10 +567,248 @@ private fun JsonObject.toThreadUserInputQuestion(): ThreadUserInputQuestion? {
 
 private fun JsonObject.toThreadUserInputOption(): ThreadUserInputOption? {
     val label = string("label") ?: return null
-    val description = string("description") ?: return null
+    val description = string("description").orEmpty()
     return ThreadUserInputOption(
+        value = label,
         label = label,
         description = description,
+    )
+}
+
+private fun JsonObject.toMcpUserInputPayload(): ThreadUserInputPayload? {
+    val serverName = string("serverName") ?: return null
+    val message = string("message").orEmpty()
+    return when (string("mode")) {
+        "form" -> {
+            val requestedSchema = objectAt("requestedSchema") ?: return null
+            val requiredKeys: Set<String> = requestedSchema.arrayAt("required")
+                ?.map { item -> item.jsonPrimitive.content }
+                ?.toSet()
+                .orEmpty()
+            val fields: List<ThreadUserInputField> = requestedSchema.objectAt("properties")
+                ?.entries
+                ?.mapNotNull { (key, value) ->
+                    value.jsonObject.toThreadUserInputField(
+                        key = key,
+                        required = key in requiredKeys,
+                    )
+                }
+                .orEmpty()
+            ThreadUserInputPayload.McpForm(
+                serverName = serverName,
+                message = message,
+                fields = fields,
+            )
+        }
+
+        "url" -> ThreadUserInputPayload.McpUrl(
+            serverName = serverName,
+            message = message,
+            url = requireNotNull(string("url")),
+            elicitationId = requireNotNull(string("elicitationId")),
+        )
+
+        else -> null
+    }
+}
+
+private fun JsonObject.toThreadUserInputField(
+    key: String,
+    required: Boolean,
+): ThreadUserInputField? {
+    val label = string("title")?.takeIf(String::isNotBlank) ?: key
+    val description = string("description")?.takeIf(String::isNotBlank)
+    val fieldKind = when (string("type")) {
+        "string" -> toStringFieldKind()
+        "number",
+        "integer",
+        -> toNumberFieldKind()
+
+        "boolean" -> ThreadUserInputFieldKind.Toggle(
+            defaultValue = boolean("default"),
+        )
+
+        "array" -> toMultiSelectFieldKind()
+        else -> null
+    } ?: return null
+
+    return ThreadUserInputField(
+        key = key,
+        label = label,
+        description = description,
+        required = required,
+        kind = fieldKind,
+    )
+}
+
+private fun JsonObject.toStringFieldKind(): ThreadUserInputFieldKind? {
+    val oneOfOptions = arrayAt("oneOf")
+        ?.mapNotNull { option -> option.jsonObject.toConstThreadUserInputOption() }
+        .orEmpty()
+    if (oneOfOptions.isNotEmpty()) {
+        return ThreadUserInputFieldKind.SingleSelect(
+            options = oneOfOptions,
+            defaultValue = string("default"),
+        )
+    }
+
+    val enumOptions = arrayAt("enum")
+        ?.map { option -> option.jsonPrimitive.content }
+        .orEmpty()
+    if (enumOptions.isNotEmpty()) {
+        val enumNames = arrayAt("enumNames")
+            ?.map { option -> option.jsonPrimitive.content }
+            .orEmpty()
+        return ThreadUserInputFieldKind.SingleSelect(
+            options = enumOptions.mapIndexed { index, value ->
+                ThreadUserInputOption(
+                    value = value,
+                    label = enumNames.getOrNull(index) ?: value,
+                )
+            },
+            defaultValue = string("default"),
+        )
+    }
+
+    return ThreadUserInputFieldKind.Text(
+        defaultValue = string("default"),
+        format = string("format").toThreadUserInputTextFormat(),
+        minLength = int("minLength"),
+        maxLength = int("maxLength"),
+    )
+}
+
+private fun JsonObject.toNumberFieldKind(): ThreadUserInputFieldKind.Number = ThreadUserInputFieldKind.Number(
+    defaultValue = primitiveDouble("default"),
+    isInteger = string("type") == "integer",
+    minimum = primitiveDouble("minimum"),
+    maximum = primitiveDouble("maximum"),
+)
+
+private fun JsonObject.toMultiSelectFieldKind(): ThreadUserInputFieldKind.MultiSelect? {
+    val items = objectAt("items") ?: return null
+    val titledOptions = items.arrayAt("anyOf")
+        ?.mapNotNull { option -> option.jsonObject.toConstThreadUserInputOption() }
+        .orEmpty()
+    val options = if (titledOptions.isNotEmpty()) {
+        titledOptions
+    } else {
+        items.arrayAt("enum")
+            ?.map { option ->
+                ThreadUserInputOption(
+                    value = option.jsonPrimitive.content,
+                    label = option.jsonPrimitive.content,
+                )
+            }
+            .orEmpty()
+    }
+    if (options.isEmpty()) return null
+
+    return ThreadUserInputFieldKind.MultiSelect(
+        options = options,
+        defaultValues = arrayAt("default")
+            ?.map { value -> value.jsonPrimitive.content }
+            .orEmpty(),
+        minItems = int("minItems"),
+        maxItems = int("maxItems"),
+    )
+}
+
+private fun JsonObject.toConstThreadUserInputOption(): ThreadUserInputOption? {
+    val value = string("const") ?: return null
+    val label = string("title") ?: return null
+    return ThreadUserInputOption(
+        value = value,
+        label = label,
+    )
+}
+
+private fun ThreadUserInputPayload.McpForm.toMcpElicitationContent(
+    answers: Map<String, ThreadUserInputAnswer>,
+): JsonObject = buildJsonObject {
+    fields.forEach { field ->
+        val serializedAnswer = field.toJsonElementOrNull(answers[field.key])
+        if (serializedAnswer != null) {
+            put(field.key, serializedAnswer)
+        }
+    }
+}
+
+private fun ThreadUserInputField.toJsonElementOrNull(
+    answer: ThreadUserInputAnswer?,
+): JsonElement? = when (val currentKind = kind) {
+    is ThreadUserInputFieldKind.Text -> {
+        val value = (answer as? ThreadUserInputAnswer.TextList)
+            ?.values
+            ?.firstOrNull()
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+            ?: currentKind.defaultValue
+                ?.trim()
+                ?.takeIf(String::isNotBlank)
+        value?.let(::JsonPrimitive)
+    }
+
+    is ThreadUserInputFieldKind.Number -> {
+        val rawValue = (answer as? ThreadUserInputAnswer.TextList)
+            ?.values
+            ?.firstOrNull()
+            ?.trim()
+            ?.takeIf(String::isNotBlank)
+        val numericValue = rawValue?.toDoubleOrNull() ?: currentKind.defaultValue
+        when {
+            numericValue == null -> null
+            currentKind.isInteger -> JsonPrimitive(numericValue.toLong())
+            else -> JsonPrimitive(numericValue)
+        }
+    }
+
+    is ThreadUserInputFieldKind.Toggle -> {
+        val value = (answer as? ThreadUserInputAnswer.BooleanValue)?.value ?: currentKind.defaultValue ?: return null
+        JsonPrimitive(value)
+    }
+
+    is ThreadUserInputFieldKind.SingleSelect -> {
+        val value = (answer as? ThreadUserInputAnswer.TextList)
+            ?.values
+            ?.firstOrNull()
+            ?.takeIf(String::isNotBlank)
+            ?: currentKind.defaultValue
+                ?.takeIf(String::isNotBlank)
+        value?.let(::JsonPrimitive)
+    }
+
+    is ThreadUserInputFieldKind.MultiSelect -> {
+        val values = (answer as? ThreadUserInputAnswer.TextList)?.values
+            ?: if (required) currentKind.defaultValues else currentKind.defaultValues.takeIf(List<String>::isNotEmpty)
+            ?: return null
+        buildJsonArray {
+            values.forEach { value ->
+                add(JsonPrimitive(value))
+            }
+        }
+    }
+}
+
+private fun JsonObject.primitiveDouble(name: String): Double? = this[name]
+    ?.jsonPrimitive
+    ?.content
+    ?.toDoubleOrNull()
+
+private fun String?.toThreadUserInputTextFormat(): ThreadUserInputTextFormat = when (this) {
+    "email" -> ThreadUserInputTextFormat.Email
+    "uri" -> ThreadUserInputTextFormat.Uri
+    "date" -> ThreadUserInputTextFormat.Date
+    "date-time" -> ThreadUserInputTextFormat.DateTime
+    else -> ThreadUserInputTextFormat.PlainText
+}
+
+private fun JsonObject.toApprovalNetworkContext(): ApprovalNetworkContext? {
+    val host = string("host") ?: return null
+    val protocol = string("protocol") ?: return null
+    return ApprovalNetworkContext(
+        host = host,
+        protocol = protocol,
     )
 }
 
@@ -567,25 +910,143 @@ private fun JsonObject.toWebSearchActionLabel(): String = when (string("type")) 
 
 private fun JsonObject.availableCommandDecisions(): List<ApprovalDecision> {
     val values = arrayAt("availableDecisions")
-        ?.mapNotNull { decision ->
-            when (decision.jsonPrimitive.content) {
-                "accept" -> ApprovalDecision.Accept
-                "acceptForSession" -> ApprovalDecision.AcceptForSession
-                "decline" -> ApprovalDecision.Decline
-                "cancel" -> ApprovalDecision.Cancel
-                else -> null
-            }
-        }
+        ?.mapNotNull(JsonElement::toApprovalDecisionOrNull)
         .orEmpty()
 
-    return values.ifEmpty {
-        listOf(
-            ApprovalDecision.Accept,
-            ApprovalDecision.AcceptForSession,
-            ApprovalDecision.Decline,
-            ApprovalDecision.Cancel,
-        )
+    if (values.isNotEmpty()) {
+        return values
     }
+
+    val proposedExecpolicyAmendment: List<String> = arrayAt("proposedExecpolicyAmendment")
+        ?.map { item -> item.jsonPrimitive.content }
+        .orEmpty()
+    val proposedNetworkPolicyAmendments: List<ApprovalDecision.ApplyNetworkPolicyAmendment> =
+        arrayAt("proposedNetworkPolicyAmendments")
+            ?.mapNotNull { item ->
+                item.jsonObject.toNetworkPolicyDecisionOrNull()
+            }
+            .orEmpty()
+
+    return buildList {
+        add(ApprovalDecision.Accept)
+        if (proposedExecpolicyAmendment.isNotEmpty()) {
+            add(
+                ApprovalDecision.AcceptWithExecpolicyAmendment(
+                    execpolicyAmendment = proposedExecpolicyAmendment,
+                ),
+            )
+        } else if (proposedNetworkPolicyAmendments.isEmpty()) {
+            add(ApprovalDecision.AcceptForSession)
+        }
+        addAll(proposedNetworkPolicyAmendments)
+        add(ApprovalDecision.Decline)
+        add(ApprovalDecision.Cancel)
+    }
+}
+
+private fun JsonElement.toApprovalDecisionOrNull(): ApprovalDecision? = when (this) {
+    is JsonPrimitive -> when (content) {
+        "accept" -> ApprovalDecision.Accept
+        "acceptForSession" -> ApprovalDecision.AcceptForSession
+        "decline" -> ApprovalDecision.Decline
+        "cancel" -> ApprovalDecision.Cancel
+        else -> null
+    }
+
+    is JsonObject -> when {
+        objectAt("acceptWithExecpolicyAmendment") != null -> {
+            val amendment = objectAt("acceptWithExecpolicyAmendment")
+                ?.arrayAt("execpolicy_amendment")
+                ?.map { item -> item.jsonPrimitive.content }
+                .orEmpty()
+            ApprovalDecision.AcceptWithExecpolicyAmendment(execpolicyAmendment = amendment)
+        }
+
+        objectAt("applyNetworkPolicyAmendment") != null -> {
+            val amendment = objectAt("applyNetworkPolicyAmendment")
+                ?.objectAt("network_policy_amendment")
+                ?.toNetworkPolicyDecisionOrNull()
+                ?: return null
+            amendment
+        }
+
+        else -> null
+    }
+
+    else -> null
+}
+
+private fun JsonObject.toApprovalPermissionsOrNull(): dev.codex.mobile.core.model.ApprovalPermissions? {
+    val fileSystem = objectAt("fileSystem")
+    val macOs = objectAt("macos")
+    val network = objectAt("network")
+
+    val summary = dev.codex.mobile.core.model.ApprovalPermissions(
+        readPaths = fileSystem?.arrayAt("read")
+            ?.map { item -> item.jsonPrimitive.content }
+            .orEmpty(),
+        writePaths = fileSystem?.arrayAt("write")
+            ?.map { item -> item.jsonPrimitive.content }
+            .orEmpty(),
+        networkEnabled = network?.boolean("enabled") == true,
+        macOsAccessibility = macOs?.boolean("accessibility") == true,
+        macOsAutomationAll = macOs?.string("automations") == "all",
+        macOsAutomationBundleIds = macOs?.objectAt("automations")
+            ?.arrayAt("bundle_ids")
+            ?.map { item -> item.jsonPrimitive.content }
+            .orEmpty(),
+        macOsCalendar = macOs?.boolean("calendar") == true,
+        macOsPreferences = macOs?.string("preferences"),
+    )
+
+    return summary.takeUnless(dev.codex.mobile.core.model.ApprovalPermissions::isEmpty)
+}
+
+private fun JsonObject.toNetworkPolicyDecisionOrNull(): ApprovalDecision.ApplyNetworkPolicyAmendment? {
+    val action = string("action") ?: return null
+    val host = string("host") ?: return null
+    return ApprovalDecision.ApplyNetworkPolicyAmendment(
+        action = action,
+        host = host,
+    )
+}
+
+private fun commandApprovalDecisionElement(decision: ApprovalDecision): JsonElement = when (decision) {
+    ApprovalDecision.Accept -> JsonPrimitive("accept")
+    ApprovalDecision.AcceptForSession -> JsonPrimitive("acceptForSession")
+    is ApprovalDecision.AcceptWithExecpolicyAmendment -> buildJsonObject {
+        putJsonObject("acceptWithExecpolicyAmendment") {
+            put(
+                "execpolicy_amendment",
+                buildJsonArray {
+                    decision.execpolicyAmendment.forEach { amendment ->
+                        add(JsonPrimitive(amendment))
+                    }
+                },
+            )
+        }
+    }
+
+    is ApprovalDecision.ApplyNetworkPolicyAmendment -> buildJsonObject {
+        putJsonObject("applyNetworkPolicyAmendment") {
+            putJsonObject("network_policy_amendment") {
+                put("action", decision.action)
+                put("host", decision.host)
+            }
+        }
+    }
+
+    ApprovalDecision.Decline -> JsonPrimitive("decline")
+    ApprovalDecision.Cancel -> JsonPrimitive("cancel")
+}
+
+private fun fileChangeApprovalDecisionElement(decision: ApprovalDecision): JsonPrimitive = when (decision) {
+    ApprovalDecision.Accept -> JsonPrimitive("accept")
+    ApprovalDecision.AcceptForSession -> JsonPrimitive("acceptForSession")
+    is ApprovalDecision.AcceptWithExecpolicyAmendment -> JsonPrimitive("accept")
+    is ApprovalDecision.ApplyNetworkPolicyAmendment -> JsonPrimitive("accept")
+    ApprovalDecision.Decline -> JsonPrimitive("decline")
+    ApprovalDecision.Cancel -> JsonPrimitive("cancel")
 }
 
 private fun JsonObject.requireThreadItemId(): String = string("id")

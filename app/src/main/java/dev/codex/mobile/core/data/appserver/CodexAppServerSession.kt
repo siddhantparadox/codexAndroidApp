@@ -73,6 +73,7 @@ internal class CodexAppServerSession(
     suspend fun turnStart(
         threadId: String,
         input: List<JsonObject>,
+        approvalPolicy: JsonElement? = null,
         model: String? = null,
         effort: String? = null,
         personality: String? = null,
@@ -82,6 +83,7 @@ internal class CodexAppServerSession(
         params = turnStartParamsPayload(
             threadId = threadId,
             input = input,
+            approvalPolicy = approvalPolicy,
             model = model,
             effort = effort,
             personality = personality,

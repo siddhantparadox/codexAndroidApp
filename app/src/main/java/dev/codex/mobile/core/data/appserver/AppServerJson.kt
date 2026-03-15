@@ -145,12 +145,14 @@ internal fun accountRateLimitsReadParamsPayload(): JsonObject = emptyJsonObject
 internal fun turnStartParamsPayload(
     threadId: String,
     input: List<JsonObject>,
+    approvalPolicy: JsonElement? = null,
     model: String? = null,
     effort: String? = null,
     personality: String? = null,
     sandboxPolicy: JsonObject? = null,
 ): JsonObject = buildJsonObject {
     put("threadId", threadId)
+    approvalPolicy?.let { put("approvalPolicy", it) }
     model?.let { put("model", it) }
     effort?.let { put("effort", it) }
     personality?.let { put("personality", it) }

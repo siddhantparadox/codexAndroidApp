@@ -16,6 +16,7 @@ import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.AppPreferences
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
+import dev.codex.mobile.core.model.ApprovalKind
 import dev.codex.mobile.core.model.ComposerCatalog
 import dev.codex.mobile.core.model.ComposerPersonality
 import dev.codex.mobile.core.model.ComposerReasoningEffort
@@ -34,6 +35,7 @@ import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThemePreference
 import dev.codex.mobile.core.model.UsageWrappedState
@@ -45,6 +47,7 @@ import dev.codex.mobile.core.model.usageWrappedPort
 import dev.codex.mobile.core.util.AppLog
 import java.net.ConnectException
 import java.net.UnknownHostException
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -90,17 +93,21 @@ private data class RepositoryState(
 private data class PendingApprovalRequest(
     val requestId: JsonPrimitive,
     val method: String,
+    val requestedPermissions: kotlinx.serialization.json.JsonObject? = null,
 )
 
 private data class PendingUserInputRequest(
     val requestId: JsonPrimitive,
+    val request: ThreadUserInputRequest,
 )
 
 internal class AppServerCodexRepository(
     context: Context,
     private val applicationScope: CoroutineScope,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val okHttpClient: OkHttpClient = OkHttpClient.Builder().build(),
+    private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
+        .pingInterval(20, TimeUnit.SECONDS)
+        .build(),
 ) : CodexRepository {
     private val appContext: Context = context.applicationContext
     private val localStateStore: AppLocalStateStore = AppLocalStateStore(
@@ -252,6 +259,10 @@ internal class AppServerCodexRepository(
         val payload = when (pending.method) {
             "item/commandExecution/requestApproval" -> commandApprovalDecisionPayload(decision)
             "item/fileChange/requestApproval" -> fileChangeApprovalDecisionPayload(decision)
+            "item/permissions/requestApproval" -> permissionsApprovalPayload(
+                decision = decision,
+                requestedPermissions = pending.requestedPermissions,
+            )
             else -> return
         }
 
@@ -402,23 +413,23 @@ internal class AppServerCodexRepository(
 
     override suspend fun respondToUserInput(
         requestId: String,
-        answers: Map<String, List<String>>,
+        response: ThreadUserInputResponse,
     ) {
         val pending = pendingUserInputRequests[requestId] ?: return
         val currentSession = session ?: return
-        val sanitizedAnswers: Map<String, List<String>> = answers.mapValues { (_, values) ->
-            values.map(String::trim).filter(String::isNotBlank)
-        }.filterValues { values -> values.isNotEmpty() }
-        if (sanitizedAnswers.isEmpty()) return
+        val payload = userInputResponsePayload(
+            request = pending.request,
+            response = response,
+        ) ?: return
 
         AppLog.action(
             name = "respond_user_input",
-            detail = "request=$requestId answers=${sanitizedAnswers.size}",
+            detail = "request=$requestId response=${response.logLabel()}",
         )
 
         currentSession.respondToRequest(
             requestId = pending.requestId,
-            result = toolRequestUserInputResponsePayload(sanitizedAnswers),
+            result = payload,
         )
     }
 
@@ -464,6 +475,7 @@ internal class AppServerCodexRepository(
             val response = currentSession.turnStart(
                 threadId = threadId,
                 input = input,
+                approvalPolicy = request.sandboxMode.toApprovalPolicyPayload(),
                 model = request.modelId,
                 effort = request.reasoningEffort.toWireValue(),
                 personality = request.personality.toWireValue(),
@@ -850,12 +862,21 @@ internal class AppServerCodexRepository(
         when (request.method) {
             "item/commandExecution/requestApproval",
             "item/fileChange/requestApproval",
+            "item/permissions/requestApproval",
             -> {
                 val approval = wrapper.toApprovalItem(request.requestId)?.let { base ->
                     when (derivedItem) {
                         is ThreadItem.CommandExecution -> base.copy(
-                            command = base.command ?: derivedItem.command,
-                            cwd = base.cwd ?: derivedItem.cwd,
+                            command = if (base.kind == ApprovalKind.FileChange) {
+                                base.command
+                            } else {
+                                base.command ?: derivedItem.command
+                            },
+                            cwd = if (base.kind == ApprovalKind.FileChange) {
+                                base.cwd
+                            } else {
+                                base.cwd ?: derivedItem.cwd
+                            },
                         )
 
                         is ThreadItem.FileChange -> base.copy(
@@ -869,6 +890,7 @@ internal class AppServerCodexRepository(
                 pendingApprovalRequests[approval.id] = PendingApprovalRequest(
                     requestId = request.requestId,
                     method = request.method,
+                    requestedPermissions = request.params.objectAt("permissions"),
                 )
 
                 repositoryState.update { current ->
@@ -912,10 +934,13 @@ internal class AppServerCodexRepository(
                 }
             }
 
-            "item/tool/requestUserInput" -> {
+            "item/tool/requestUserInput",
+            "mcpServer/elicitation/request",
+            -> {
                 val userInputRequest = wrapper.toThreadUserInputRequest(request.requestId) ?: return
                 pendingUserInputRequests[userInputRequest.requestId] = PendingUserInputRequest(
                     requestId = request.requestId,
+                    request = userInputRequest,
                 )
                 AppLog.action(
                     name = "user_input_requested",
@@ -985,6 +1010,10 @@ internal class AppServerCodexRepository(
     ): Unit {
         if (repositoryState.value.connection.activeHostId != activeHostId) return
 
+        AppLog.action(
+            name = "transport_closed",
+            detail = "host=$activeHostId error=${event.isError} message=${event.message.orEmpty()}",
+        )
         session = null
         pendingApprovalRequests.clear()
         pendingUserInputRequests.clear()
@@ -1982,6 +2011,12 @@ private fun Throwable.toUsageWrappedMessage(activeHost: HostProfile): String {
     }
 }
 
+private fun ThreadUserInputResponse.logLabel(): String = when (this) {
+    is ThreadUserInputResponse.Accept -> "accept"
+    ThreadUserInputResponse.Decline -> "decline"
+    ThreadUserInputResponse.Cancel -> "cancel"
+}
+
 private fun statusLabel(status: ThreadStatus): String = when {
     status.isWaitingOnApproval -> "Waiting on approval"
     status.isWaitingOnUserInput -> "Waiting on input"
@@ -2072,6 +2107,13 @@ private fun ComposerPersonality.toWireValue(): String? = when (this) {
     ComposerPersonality.Default -> null
     ComposerPersonality.Friendly -> "friendly"
     ComposerPersonality.Pragmatic -> "pragmatic"
+}
+
+internal fun ComposerSandboxMode.toApprovalPolicyPayload(): JsonPrimitive? = when (this) {
+    ComposerSandboxMode.ReadOnly -> JsonPrimitive("on-request")
+    ComposerSandboxMode.Default -> null
+    ComposerSandboxMode.WorkspaceWrite -> null
+    ComposerSandboxMode.FullAccess -> null
 }
 
 private fun ComposerSandboxMode.toSandboxPolicyPayload(): kotlinx.serialization.json.JsonObject? = when (this) {

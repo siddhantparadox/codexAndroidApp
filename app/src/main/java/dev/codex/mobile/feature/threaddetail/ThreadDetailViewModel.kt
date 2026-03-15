@@ -20,6 +20,7 @@ import dev.codex.mobile.core.model.ComposerSandboxMode
 import dev.codex.mobile.core.model.ComposerSkillOption
 import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.navigation.ThreadDetailRoute
@@ -333,12 +334,12 @@ class ThreadDetailViewModel(
 
     fun respondToUserInput(
         requestId: String,
-        answers: Map<String, List<String>>,
+        response: ThreadUserInputResponse,
     ) {
         viewModelScope.launch {
             repository.respondToUserInput(
                 requestId = requestId,
-                answers = answers,
+                response = response,
             )
         }
     }

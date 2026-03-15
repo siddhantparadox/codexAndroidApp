@@ -13,6 +13,7 @@ import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThemePreference
 import dev.codex.mobile.core.model.UsageWrappedState
@@ -80,7 +81,7 @@ interface CodexRepository {
 
     suspend fun respondToUserInput(
         requestId: String,
-        answers: Map<String, List<String>>,
+        response: ThreadUserInputResponse,
     )
 
     suspend fun refreshComposerCatalog()

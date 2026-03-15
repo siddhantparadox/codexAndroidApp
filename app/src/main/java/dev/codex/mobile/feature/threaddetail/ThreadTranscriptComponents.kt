@@ -40,8 +40,11 @@ import dev.codex.mobile.core.model.ApprovalKind
 import dev.codex.mobile.core.model.ThreadActivity
 import dev.codex.mobile.core.model.ThreadActivityEmphasis
 import dev.codex.mobile.core.model.ThreadItem
+import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.UserInputContent
-import dev.codex.mobile.core.model.label
+import dev.codex.mobile.core.model.decisionLabel
+import dev.codex.mobile.core.model.detailLines
+import dev.codex.mobile.core.model.headline
 
 @Composable
 internal fun ThreadTranscriptRowView(
@@ -49,7 +52,7 @@ internal fun ThreadTranscriptRowView(
     activeItemIds: Set<String>,
     autoRevealExpandedContent: Boolean,
     onDecision: (String, ApprovalDecision) -> Unit,
-    onSubmitUserInput: (String, Map<String, List<String>>) -> Unit,
+    onSubmitUserInput: (String, ThreadUserInputResponse) -> Unit,
     onReviewDiff: (dev.codex.mobile.core.model.FileChangeEntry) -> Unit,
 ) {
     when (row) {
@@ -69,12 +72,12 @@ internal fun ThreadTranscriptRowView(
             onReviewDiff = onReviewDiff,
         )
 
-        is TranscriptRow.OrphanApproval -> InlineApprovalCard(
+        is TranscriptRow.ApprovalCard -> InlineApprovalCard(
             approval = row.approval,
             onDecision = onDecision,
         )
 
-        is TranscriptRow.OrphanUserInputRequest -> InlineUserInputRequestCard(
+        is TranscriptRow.UserInputRequestCard -> InlineUserInputRequestCard(
             request = row.request,
             onSubmit = onSubmitUserInput,
         )
@@ -161,10 +164,11 @@ internal fun InlineApprovalCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 androidx.compose.material3.Icon(
-                    imageVector = if (approval.kind == ApprovalKind.CommandExecution) {
-                        Icons.Rounded.Terminal
-                    } else {
-                        Icons.Rounded.Description
+                    imageVector = when (approval.kind) {
+                        ApprovalKind.CommandExecution -> Icons.Rounded.Terminal
+                        ApprovalKind.FileChange,
+                        ApprovalKind.Permissions,
+                        -> Icons.Rounded.Description
                     },
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
@@ -172,7 +176,7 @@ internal fun InlineApprovalCard(
                 Spacer(modifier = Modifier.width(CodexSpacing.listGap))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = approvalHeadline(approval),
+                        text = approval.headline(),
                         style = MaterialTheme.typography.titleSmall,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
@@ -189,8 +193,16 @@ internal fun InlineApprovalCard(
                 }
             }
             StatusChip(
-                label = "Approval",
+                label = if (approval.kind == ApprovalKind.Permissions) "Permissions" else "Approval",
                 color = Color(0xFFD59734),
+            )
+        }
+        approval.detailLines().forEach { detail ->
+            Spacer(modifier = Modifier.height(CodexSpacing.listGap))
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Spacer(modifier = Modifier.height(CodexSpacing.listGap))
@@ -208,7 +220,7 @@ internal fun InlineApprovalCard(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = decision.label,
+                        text = approval.decisionLabel(decision),
                         style = MaterialTheme.typography.labelLarge,
                         color = approvalDecisionContent(decision),
                     )
@@ -381,18 +393,13 @@ private fun NonTextUserInputs(
     }
 }
 
-private fun approvalHeadline(approval: ApprovalItem): String = when (approval.kind) {
-    ApprovalKind.CommandExecution -> approval.command ?: "Command approval requested"
-    ApprovalKind.FileChange -> {
-        val firstPath: String = approval.filePaths.firstOrNull() ?: "File changes pending"
-        if (approval.filePaths.size <= 1) firstPath else "$firstPath +${approval.filePaths.size - 1} more"
-    }
-}
-
 @Composable
 private fun approvalDecisionBackground(decision: ApprovalDecision): Color = when (decision) {
     ApprovalDecision.Accept -> MaterialTheme.colorScheme.primary
-    ApprovalDecision.AcceptForSession -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    ApprovalDecision.AcceptForSession,
+    is ApprovalDecision.AcceptWithExecpolicyAmendment,
+    is ApprovalDecision.ApplyNetworkPolicyAmendment,
+    -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
     ApprovalDecision.Decline -> MaterialTheme.colorScheme.surfaceVariant
     ApprovalDecision.Cancel -> Color.Transparent
 }
@@ -400,7 +407,10 @@ private fun approvalDecisionBackground(decision: ApprovalDecision): Color = when
 @Composable
 private fun approvalDecisionContent(decision: ApprovalDecision): Color = when (decision) {
     ApprovalDecision.Accept -> MaterialTheme.colorScheme.onPrimary
-    ApprovalDecision.AcceptForSession -> MaterialTheme.colorScheme.primary
+    ApprovalDecision.AcceptForSession,
+    is ApprovalDecision.AcceptWithExecpolicyAmendment,
+    is ApprovalDecision.ApplyNetworkPolicyAmendment,
+    -> MaterialTheme.colorScheme.primary
     ApprovalDecision.Decline -> MaterialTheme.colorScheme.onSurface
     ApprovalDecision.Cancel -> MaterialTheme.colorScheme.onSurfaceVariant
 }
