@@ -37,6 +37,7 @@ data class ThreadsUiState(
     val lastRefreshAtEpochSeconds: Long? = null,
     val refreshErrorMessage: String? = null,
     val unreadResultDigests: Map<String, ThreadResultDigest> = emptyMap(),
+    val existingCwdOptions: List<ThreadCwdOption> = emptyList(),
     val threads: List<ThreadSummary> = emptyList(),
 )
 
@@ -50,6 +51,7 @@ private data class ThreadListingState(
     val canCreateThread: Boolean = false,
     val canRefresh: Boolean = false,
     val unreadResultDigests: Map<String, ThreadResultDigest> = emptyMap(),
+    val existingCwdOptions: List<ThreadCwdOption> = emptyList(),
     val threads: List<ThreadSummary> = emptyList(),
 )
 
@@ -72,6 +74,7 @@ class ThreadsViewModel(
             canCreateThread = connection.isConnected,
             canRefresh = connection.isConnected,
             unreadResultDigests = unreadResultDigests,
+            existingCwdOptions = buildThreadCwdOptions(threads),
             threads = threads.filter { thread ->
                 val matchesQuery = searchQuery.isBlank() ||
                     thread.name.orEmpty().contains(searchQuery, ignoreCase = true) ||
@@ -102,6 +105,7 @@ class ThreadsViewModel(
             lastRefreshAtEpochSeconds = refresh.lastRefreshAtEpochSeconds,
             refreshErrorMessage = refresh.refreshErrorMessage,
             unreadResultDigests = listing.unreadResultDigests,
+            existingCwdOptions = listing.existingCwdOptions,
             threads = listing.threads,
         )
     }.stateIn(
@@ -118,9 +122,32 @@ class ThreadsViewModel(
         selectedFilter.update { filter }
     }
 
-    fun createThread(onThreadCreated: (String) -> Unit) {
+    fun createThread(
+        cwd: String? = null,
+        onThreadCreated: (String) -> Unit,
+        onThreadCreationFailed: (String) -> Unit = {},
+    ) {
+        if (!uiState.value.canCreateThread) {
+            onThreadCreationFailed("Connect to a desktop app-server before creating a new thread.")
+            return
+        }
         viewModelScope.launch {
-            repository.createThread()?.let(onThreadCreated)
+            val normalizedCwd = cwd?.trim()?.takeIf(String::isNotEmpty)
+            val createdThreadId = runCatching {
+                repository.createThread(cwd = normalizedCwd)
+            }.getOrNull()
+
+            if (createdThreadId != null) {
+                onThreadCreated(createdThreadId)
+            } else {
+                onThreadCreationFailed(
+                    if (normalizedCwd == null) {
+                        "Unable to start a new thread."
+                    } else {
+                        "Unable to start a thread in that folder."
+                    },
+                )
+            }
         }
     }
 

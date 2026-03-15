@@ -60,9 +60,9 @@ internal class CodexAppServerSession(
         ),
     ).jsonObject
 
-    suspend fun threadStart(): JsonObject = transport.request(
+    suspend fun threadStart(cwd: String? = null): JsonObject = transport.request(
         method = "thread/start",
-        params = threadStartParamsPayload(),
+        params = threadStartParamsPayload(cwd = cwd),
     ).jsonObject
 
     suspend fun threadResume(threadId: String): JsonObject = transport.request(

@@ -261,9 +261,9 @@ internal class AppServerCodexRepository(
         )
     }
 
-    override suspend fun createThread(): String? {
+    override suspend fun createThread(cwd: String?): String? {
         val currentSession = session ?: return null
-        val response = currentSession.threadStart()
+        val response = currentSession.threadStart(cwd = cwd?.trim()?.takeIf(String::isNotEmpty))
         val thread = response.objectAt("thread") ?: return null
         val sessionSettings = response.toThreadSessionSettings()
 

@@ -264,7 +264,9 @@ class DemoCodexRepository : CodexRepository {
         }
     }
 
-    override suspend fun createThread(): String? = store.value.threads.firstOrNull()?.id
+    override suspend fun createThread(cwd: String?): String? = store.value.threads
+        .firstOrNull { thread -> cwd.isNullOrBlank() || thread.cwd == cwd }
+        ?.id
 
     override suspend fun openThread(threadId: String) {
         AppLog.action(name = "open_thread", detail = threadId)

@@ -45,6 +45,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -90,6 +93,14 @@ fun ThreadsScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pullToRefreshState = rememberPullToRefreshState()
+    var isThreadCwdPickerVisible by rememberSaveable { mutableStateOf(false) }
+    var threadCwdQuery by rememberSaveable { mutableStateOf("") }
+    var createThreadErrorMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    var isCreatingThread by rememberSaveable { mutableStateOf(false) }
+    val filteredCwdOptions = filterThreadCwdOptions(
+        options = uiState.existingCwdOptions,
+        query = threadCwdQuery,
+    )
 
     LaunchedEffect(uiState.canRefresh) {
         if (!uiState.canRefresh) return@LaunchedEffect
@@ -170,7 +181,10 @@ fun ThreadsScreen(
                                     shape = CircleShape,
                                 )
                                 .clickable(enabled = uiState.canCreateThread) {
-                                    viewModel.createThread(onOpenThread)
+                                    threadCwdQuery = ""
+                                    createThreadErrorMessage = null
+                                    isCreatingThread = false
+                                    isThreadCwdPickerVisible = true
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
@@ -259,6 +273,45 @@ fun ThreadsScreen(
                 )
             }
         }
+    }
+
+    if (isThreadCwdPickerVisible) {
+        ThreadCwdPickerSheet(
+            query = threadCwdQuery,
+            options = filteredCwdOptions,
+            hasAnyOptions = uiState.existingCwdOptions.isNotEmpty(),
+            isCreatingThread = isCreatingThread,
+            errorMessage = createThreadErrorMessage,
+            onDismissRequest = {
+                if (isCreatingThread) return@ThreadCwdPickerSheet
+                isThreadCwdPickerVisible = false
+                threadCwdQuery = ""
+                createThreadErrorMessage = null
+            },
+            onQueryChanged = { value ->
+                threadCwdQuery = value
+                createThreadErrorMessage = null
+            },
+            onSelectCwd = { cwd ->
+                if (isCreatingThread) return@ThreadCwdPickerSheet
+                isCreatingThread = true
+                createThreadErrorMessage = null
+                viewModel.createThread(
+                    cwd = cwd,
+                    onThreadCreated = { threadId ->
+                        isCreatingThread = false
+                        isThreadCwdPickerVisible = false
+                        threadCwdQuery = ""
+                        createThreadErrorMessage = null
+                        onOpenThread(threadId)
+                    },
+                    onThreadCreationFailed = { message ->
+                        isCreatingThread = false
+                        createThreadErrorMessage = message
+                    },
+                )
+            },
+        )
     }
 }
 

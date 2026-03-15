@@ -66,7 +66,7 @@ interface CodexRepository {
         decision: ApprovalDecision,
     )
 
-    suspend fun createThread(): String?
+    suspend fun createThread(cwd: String? = null): String?
 
     suspend fun openThread(threadId: String)
 

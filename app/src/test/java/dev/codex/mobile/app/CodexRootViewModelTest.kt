@@ -185,7 +185,7 @@ private class FakeCodexRepository(
         decision: ApprovalDecision,
     ) = Unit
 
-    override suspend fun createThread(): String? = null
+    override suspend fun createThread(cwd: String?): String? = null
 
     override suspend fun openThread(threadId: String) = Unit
 

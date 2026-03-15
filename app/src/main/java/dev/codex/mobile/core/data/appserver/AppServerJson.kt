@@ -122,7 +122,9 @@ internal fun skillsListParamsPayload(forceReload: Boolean): JsonObject = buildJs
     putJsonArray("cwds") {}
 }
 
-internal fun threadStartParamsPayload(): JsonObject = emptyJsonObject
+internal fun threadStartParamsPayload(cwd: String? = null): JsonObject = buildJsonObject {
+    cwd?.takeIf { it.isNotBlank() }?.let { put("cwd", it) }
+}
 
 internal fun threadResumeParamsPayload(threadId: String): JsonObject = buildJsonObject {
     put("threadId", threadId)
