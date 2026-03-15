@@ -44,11 +44,11 @@ tooling, and team conventions evolve.
     while the user tests.
 - If `adb` is not on `PATH`, prefer the local SDK platform-tools binary at
   `C:/Users/sgupt/AppData/Local/Android/Sdk/platform-tools/adb.exe`.
-- When the user needs the desktop host for live testing, start the Codex app
-  server with `codex app-server --listen ws://0.0.0.0:4500` and keep it
-  running.
-- When the phone needs to connect to the desktop app server, provide the
-  current LAN IPv4 address of the desktop machine and use port `4500`.
+- When the user needs the desktop host for live testing, start it with
+  `npx codexremote` and keep that terminal running.
+- When the phone needs to connect to the desktop host, prefer the QR code or
+  short code shown by `npx codexremote`. Use the current LAN IPv4 address of
+  the desktop machine and port `4500` only as a manual fallback.
 
 ## Kotlin Conventions
 
