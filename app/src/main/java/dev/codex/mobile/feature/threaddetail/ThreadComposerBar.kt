@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -58,6 +59,7 @@ internal fun ThreadComposerBar(
     canInterrupt: Boolean,
     isInterrupting: Boolean,
     sendEnabled: Boolean,
+    onContentHeightChanged: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -65,153 +67,159 @@ internal fun ThreadComposerBar(
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background.copy(alpha = 0.96f))
             .navigationBarsPadding()
-            .imePadding()
-            .padding(horizontal = CodexSpacing.composerHorizontal, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .imePadding(),
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onSizeChanged { size -> onContentHeightChanged(size.height) }
+                .padding(horizontal = CodexSpacing.composerHorizontal, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            ComposerSettingPill(
-                label = modelLabel,
-                enabled = canChangeTurnSettings,
-                onClick = onModelClick,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            ComposerSettingPill(
-                label = effortLabel,
-                enabled = canChangeTurnSettings,
-                onClick = onEffortClick,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-        }
-
-        if (selectedSkillLabel != null || imageLabel != null || permissionLabel != null) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                selectedSkillLabel?.let { label ->
-                    ComposerAttachmentToken(
-                        label = label,
-                        onClear = onClearSkill,
-                    )
-                }
-                imageLabel?.let { label ->
-                    ComposerAttachmentToken(
-                        label = label,
-                        onClear = onClearImage,
-                    )
-                }
-                permissionLabel?.let { label ->
-                    ComposerAttachmentToken(
-                        label = label,
-                        onClear = onClearPermission,
-                    )
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
-        ) {
-            ComposerActionButton(
-                onClick = onMoreClick,
-                enabled = true,
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                borderColor = MaterialTheme.colorScheme.cardBorder,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = "More actions",
-                    )
-                },
-            )
-
-            Surface(
-                modifier = Modifier
-                    .weight(1f)
-                    .widthIn(min = 0.dp),
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.cardBorder),
-            ) {
-                BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    textStyle = MaterialTheme.typography.bodyLarge.composerTextStyle(
-                        color = MaterialTheme.colorScheme.onSurface,
-                    ),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    maxLines = 3,
-                    decorationBox = { innerTextField ->
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.CenterStart,
-                        ) {
-                            if (value.isBlank()) {
-                                Text(
-                                    text = "Reply Codex",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            innerTextField()
-                        }
-                    },
+                ComposerSettingPill(
+                    label = modelLabel,
+                    enabled = canChangeTurnSettings,
+                    onClick = onModelClick,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                ComposerSettingPill(
+                    label = effortLabel,
+                    enabled = canChangeTurnSettings,
+                    onClick = onEffortClick,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
             }
 
-            if (canInterrupt || isInterrupting) {
+            if (selectedSkillLabel != null || imageLabel != null || permissionLabel != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    selectedSkillLabel?.let { label ->
+                        ComposerAttachmentToken(
+                            label = label,
+                            onClear = onClearSkill,
+                        )
+                    }
+                    imageLabel?.let { label ->
+                        ComposerAttachmentToken(
+                            label = label,
+                            onClear = onClearImage,
+                        )
+                    }
+                    permissionLabel?.let { label ->
+                        ComposerAttachmentToken(
+                            label = label,
+                            onClear = onClearPermission,
+                        )
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+            ) {
                 ComposerActionButton(
-                    onClick = onInterrupt,
-                    enabled = !isInterrupting,
-                    containerColor = MaterialTheme.colorScheme.error.copy(alpha = if (isInterrupting) 0.16f else 0.12f),
-                    contentColor = MaterialTheme.colorScheme.error,
-                    borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.28f),
+                    onClick = onMoreClick,
+                    enabled = true,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    borderColor = MaterialTheme.colorScheme.cardBorder,
                     icon = {
                         Icon(
-                            imageVector = Icons.Rounded.Stop,
-                            contentDescription = "Interrupt thread",
-                            tint = MaterialTheme.colorScheme.error,
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = "More actions",
+                        )
+                    },
+                )
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .widthIn(min = 0.dp),
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.cardBorder),
+                ) {
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge.composerTextStyle(
+                            color = MaterialTheme.colorScheme.onSurface,
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        maxLines = 3,
+                        decorationBox = { innerTextField ->
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                if (value.isBlank()) {
+                                    Text(
+                                        text = "Reply Codex",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        },
+                    )
+                }
+
+                if (canInterrupt || isInterrupting) {
+                    ComposerActionButton(
+                        onClick = onInterrupt,
+                        enabled = !isInterrupting,
+                        containerColor = MaterialTheme.colorScheme.error.copy(alpha = if (isInterrupting) 0.16f else 0.12f),
+                        contentColor = MaterialTheme.colorScheme.error,
+                        borderColor = MaterialTheme.colorScheme.error.copy(alpha = 0.28f),
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Rounded.Stop,
+                                contentDescription = "Interrupt thread",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        },
+                    )
+                }
+
+                ComposerActionButton(
+                    onClick = onSend,
+                    enabled = sendEnabled,
+                    containerColor = if (sendEnabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    contentColor = if (sendEnabled) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                    borderColor = if (sendEnabled) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
+                    } else {
+                        MaterialTheme.colorScheme.cardBorder
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Send,
+                            contentDescription = "Send",
                         )
                     },
                 )
             }
-
-            ComposerActionButton(
-                onClick = onSend,
-                enabled = sendEnabled,
-                containerColor = if (sendEnabled) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.surfaceVariant
-                },
-                contentColor = if (sendEnabled) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-                borderColor = if (sendEnabled) {
-                    MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
-                } else {
-                    MaterialTheme.colorScheme.cardBorder
-                },
-                icon = {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Send,
-                        contentDescription = "Send",
-                    )
-                },
-            )
         }
     }
 }
