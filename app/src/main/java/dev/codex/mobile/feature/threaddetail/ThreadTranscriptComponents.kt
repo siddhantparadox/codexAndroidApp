@@ -61,6 +61,7 @@ internal fun ThreadTranscriptRowView(
             entry = row.item,
             isLive = row.item.id in activeItemIds,
         )
+        TranscriptRow.PendingAgentPlaceholder -> PendingAgentBubble()
         is TranscriptRow.TechnicalStrip -> TechnicalPillStrip(
             items = row.items,
             approvals = row.approvals,
@@ -309,6 +310,33 @@ private fun AgentBubble(
 }
 
 @Composable
+private fun PendingAgentBubble() {
+    BubbleRow(
+        isUser = false,
+        label = "Codex",
+        supportingLabel = null,
+        liveLabel = "Thinking",
+        liveColor = MaterialTheme.colorScheme.primary,
+        bubbleColor = MaterialTheme.colorScheme.surfaceVariant,
+        textColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        LiveAccentLine(color = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LivePulseDot(color = MaterialTheme.colorScheme.primary)
+            Text(
+                text = "Thinking…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
 private fun BubbleRow(
     isUser: Boolean,
     label: String,
@@ -367,13 +395,13 @@ private fun BubbleRow(
 }
 
 private fun staticAgentLabel(phase: String?): String? = when (phase) {
-    "commentary" -> "Working"
+    "commentary" -> "Done"
     "final_answer" -> "Final"
     else -> null
 }
 
 private fun liveAgentLabel(phase: String?): String = when (phase) {
-    "commentary" -> "Working"
+    "commentary" -> "Thinking"
     "final_answer" -> "Answering"
     else -> "Live"
 }

@@ -115,10 +115,18 @@ fun ThreadDetailScreen(
             }
         } else {
             val visibleItems = detail.items.filter(::shouldRenderTranscriptItem)
+            val showPendingAgentPlaceholder = shouldShowPendingAgentPlaceholder(
+                status = detail.summary.status,
+                items = visibleItems,
+                activeItemIds = uiState.activeItemIds,
+                approvals = uiState.approvals,
+                userInputRequests = uiState.userInputRequests,
+            )
             val transcriptRows = buildTranscriptRows(
                 items = visibleItems,
                 approvals = uiState.approvals,
                 userInputRequests = uiState.userInputRequests,
+                showPendingAgentPlaceholder = showPendingAgentPlaceholder,
             )
             val waitingOnUnavailableApproval =
                 detail.summary.status.isWaitingOnApproval && uiState.approvals.isEmpty()
@@ -222,7 +230,7 @@ fun ThreadDetailScreen(
                         ThreadActivityPanel(activities = detail.activities)
                     }
                 }
-                if (visibleItems.isEmpty()) {
+                if (transcriptRows.isEmpty()) {
                     item {
                         EmptyTranscriptState()
                     }

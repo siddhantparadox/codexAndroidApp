@@ -5,10 +5,13 @@ import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadItemStatus
+import dev.codex.mobile.core.model.ThreadStatus
+import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadUserInputPayload
 import dev.codex.mobile.core.model.ThreadUserInputQuestion
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -145,5 +148,59 @@ class ThreadTranscriptRowsTest {
         assertEquals(2, rows.size)
         assertTrue(rows[0] is TranscriptRow.AgentMessage)
         assertTrue(rows[1] is TranscriptRow.ApprovalCard)
+    }
+
+    @Test
+    fun appendsPendingAgentPlaceholderWhenRequested() {
+        val rows = buildTranscriptRows(
+            items = listOf(
+                ThreadItem.UserMessage(id = "user-1", text = "Check this"),
+            ),
+            approvals = emptyList(),
+            userInputRequests = emptyList(),
+            showPendingAgentPlaceholder = true,
+        )
+
+        assertEquals(2, rows.size)
+        assertTrue(rows.last() === TranscriptRow.PendingAgentPlaceholder)
+    }
+
+    @Test
+    fun showsPendingAgentPlaceholderOnlyWhileActiveTurnHasNoVisibleActiveItems() {
+        val userMessage = ThreadItem.UserMessage(
+            id = "user-1",
+            text = "Check this",
+        )
+
+        assertTrue(
+            shouldShowPendingAgentPlaceholder(
+                status = ThreadStatus(type = ThreadStatusType.Active),
+                items = listOf(userMessage),
+                activeItemIds = emptySet(),
+                approvals = emptyList(),
+                userInputRequests = emptyList(),
+            ),
+        )
+        assertFalse(
+            shouldShowPendingAgentPlaceholder(
+                status = ThreadStatus(type = ThreadStatusType.Active),
+                items = listOf(userMessage),
+                activeItemIds = setOf(userMessage.id),
+                approvals = emptyList(),
+                userInputRequests = emptyList(),
+            ),
+        )
+        assertFalse(
+            shouldShowPendingAgentPlaceholder(
+                status = ThreadStatus(
+                    type = ThreadStatusType.Active,
+                    activeFlags = setOf("waitingOnApproval"),
+                ),
+                items = listOf(userMessage),
+                activeItemIds = emptySet(),
+                approvals = emptyList(),
+                userInputRequests = emptyList(),
+            ),
+        )
     }
 }

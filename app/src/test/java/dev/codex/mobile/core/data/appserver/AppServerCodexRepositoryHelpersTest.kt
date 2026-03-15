@@ -72,4 +72,18 @@ class AppServerCodexRepositoryHelpersTest {
 
         assertNull(payload)
     }
+
+    @Test
+    fun reconnectDelayStartsAtOneSecondAndBacksOffExponentially() {
+        assertEquals(1_000L, reconnectDelayMillis(attempt = 1))
+        assertEquals(2_000L, reconnectDelayMillis(attempt = 2))
+        assertEquals(4_000L, reconnectDelayMillis(attempt = 3))
+        assertEquals(8_000L, reconnectDelayMillis(attempt = 4))
+    }
+
+    @Test
+    fun reconnectDelayCapsAtThirtySeconds() {
+        assertEquals(30_000L, reconnectDelayMillis(attempt = 6))
+        assertEquals(30_000L, reconnectDelayMillis(attempt = 9))
+    }
 }

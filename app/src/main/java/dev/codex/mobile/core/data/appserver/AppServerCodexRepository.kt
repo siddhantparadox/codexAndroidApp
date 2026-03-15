@@ -48,6 +48,7 @@ import dev.codex.mobile.core.util.AppLog
 import java.net.ConnectException
 import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
+import kotlin.math.min
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -133,6 +134,12 @@ internal class AppServerCodexRepository(
 
     @Volatile
     private var persistStateJob: Job? = null
+
+    @Volatile
+    private var reconnectJob: Job? = null
+
+    @Volatile
+    private var reconnectAttemptCount: Int = 0
 
     init {
         applicationScope.launch {
@@ -578,6 +585,8 @@ internal class AppServerCodexRepository(
     }
 
     private suspend fun reconnectToActiveHost(): Unit = connectMutex.withLock {
+        reconnectJob?.cancel()
+        reconnectJob = null
         val previousActiveHostId = repositoryState.value.connection.activeHostId
         sessionEventsJob?.cancel()
         sessionEventsJob = null
@@ -593,6 +602,7 @@ internal class AppServerCodexRepository(
             currentThreadItemCache = repositoryState.value.threadItemCache,
         )
         if (activeHost == null) {
+            reconnectAttemptCount = 0
             repositoryState.update { current ->
                 current.copy(
                     connection = ConnectionState(phase = ConnectionPhase.Idle),
@@ -676,6 +686,7 @@ internal class AppServerCodexRepository(
             )
 
             session = newSession
+            reconnectAttemptCount = 0
             repositoryState.update { current ->
                 current.copy(
                     connection = ConnectionState(
@@ -730,6 +741,10 @@ internal class AppServerCodexRepository(
                 )
             }
             schedulePersistLocalState()
+            scheduleReconnectToActiveHost(
+                expectedHostId = activeHost.id,
+                trigger = "connect_failed:${error.message.orEmpty()}",
+            )
         }
     }
 
@@ -1015,6 +1030,8 @@ internal class AppServerCodexRepository(
             detail = "host=$activeHostId error=${event.isError} message=${event.message.orEmpty()}",
         )
         session = null
+        sessionEventsJob?.cancel()
+        sessionEventsJob = null
         pendingApprovalRequests.clear()
         pendingUserInputRequests.clear()
         repositoryState.update { current ->
@@ -1033,6 +1050,48 @@ internal class AppServerCodexRepository(
                 inAppThreadNotifications = emptyList(),
                 lastResultTurnIdByThread = emptyMap(),
             )
+        }
+        if (event.isError) {
+            scheduleReconnectToActiveHost(
+                expectedHostId = activeHostId,
+                trigger = "transport_closed:${event.message.orEmpty()}",
+            )
+        } else {
+            reconnectAttemptCount = 0
+        }
+    }
+
+    private fun scheduleReconnectToActiveHost(
+        expectedHostId: String,
+        trigger: String,
+    ): Unit {
+        if (repositoryState.value.hosts.none { host -> host.isActive && host.id == expectedHostId }) {
+            return
+        }
+        if (reconnectJob?.isActive == true) {
+            return
+        }
+
+        val attempt = reconnectAttemptCount + 1
+        reconnectAttemptCount = attempt
+        val delayMs = reconnectDelayMillis(attempt)
+        AppLog.action(
+            name = "transport_reconnect_scheduled",
+            detail = "host=$expectedHostId attempt=$attempt delayMs=$delayMs trigger=$trigger",
+        )
+        reconnectJob = applicationScope.launch {
+            delay(delayMs)
+            reconnectJob = null
+            if (session != null) return@launch
+            if (repositoryState.value.hosts.none { host -> host.isActive && host.id == expectedHostId }) {
+                reconnectAttemptCount = 0
+                return@launch
+            }
+            AppLog.action(
+                name = "transport_reconnect_attempt",
+                detail = "host=$expectedHostId attempt=$attempt",
+            )
+            reconnectToActiveHost()
         }
     }
 
@@ -1991,8 +2050,16 @@ private fun UsageWrappedState.withError(
     errorMessage = errorMessage,
 )
 
+internal fun reconnectDelayMillis(attempt: Int): Long {
+    val normalizedAttempt = attempt.coerceAtLeast(1)
+    val exponentialDelay = INITIAL_RECONNECT_DELAY_MS * (1L shl (normalizedAttempt - 1).coerceAtMost(5))
+    return min(MAX_RECONNECT_DELAY_MS, exponentialDelay)
+}
+
 private const val MAX_THREAD_ACTIVITIES: Int = 40
 private const val MAX_IN_APP_THREAD_NOTIFICATIONS: Int = 6
+private const val INITIAL_RECONNECT_DELAY_MS: Long = 1_000L
+private const val MAX_RECONNECT_DELAY_MS: Long = 30_000L
 
 private fun currentEpochSeconds(): Long = System.currentTimeMillis() / 1_000
 

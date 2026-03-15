@@ -2,7 +2,11 @@ package dev.codex.mobile.feature.threaddetail
 
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ThreadItem
+import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadUserInputRequest
+import dev.codex.mobile.core.model.isActive
+import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.model.isWaitingOnUserInput
 
 internal sealed interface TranscriptRow {
     val id: String
@@ -37,14 +41,25 @@ internal sealed interface TranscriptRow {
     ) : TranscriptRow {
         override val id: String = "user-input-${request.requestId}"
     }
+
+    object PendingAgentPlaceholder : TranscriptRow {
+        override val id: String = "pending-agent-placeholder"
+    }
 }
 
 internal fun buildTranscriptRows(
     items: List<ThreadItem>,
     approvals: List<ApprovalItem>,
     userInputRequests: List<ThreadUserInputRequest>,
+    showPendingAgentPlaceholder: Boolean = false,
 ): List<TranscriptRow> {
-    if (items.isEmpty() && approvals.isEmpty() && userInputRequests.isEmpty()) return emptyList()
+    if (items.isEmpty() &&
+        approvals.isEmpty() &&
+        userInputRequests.isEmpty() &&
+        !showPendingAgentPlaceholder
+    ) {
+        return emptyList()
+    }
 
     val itemIds: Set<String> = items.map { item -> item.id }.toSet()
     val approvalsByItemId: Map<String, List<ApprovalItem>> = approvals
@@ -113,5 +128,24 @@ internal fun buildTranscriptRows(
 
     rows += orphanApprovals.map { approval -> TranscriptRow.ApprovalCard(approval) }
     rows += orphanUserInputRequests.map { request -> TranscriptRow.UserInputRequestCard(request) }
+    if (showPendingAgentPlaceholder) {
+        rows += TranscriptRow.PendingAgentPlaceholder
+    }
     return rows
+}
+
+internal fun shouldShowPendingAgentPlaceholder(
+    status: ThreadStatus,
+    items: List<ThreadItem>,
+    activeItemIds: Set<String>,
+    approvals: List<ApprovalItem>,
+    userInputRequests: List<ThreadUserInputRequest>,
+): Boolean {
+    if (!status.isActive || status.isWaitingOnApproval || status.isWaitingOnUserInput) {
+        return false
+    }
+    if (approvals.isNotEmpty() || userInputRequests.isNotEmpty()) {
+        return false
+    }
+    return items.none { item -> item.id in activeItemIds }
 }
