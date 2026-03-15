@@ -40,7 +40,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
+import dev.codex.mobile.core.designsystem.theme.cardTitle
 import dev.codex.mobile.core.model.ThemePreference
+import dev.codex.mobile.core.designsystem.theme.screenTitle
+import dev.codex.mobile.core.designsystem.theme.sectionLabel
+import dev.codex.mobile.core.designsystem.theme.supportingText
 
 @Composable
 fun SettingsScreen(
@@ -66,7 +70,7 @@ fun SettingsScreen(
         item {
             Text(
                 text = "Settings",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.screenTitle,
             )
         }
         item { SectionLabel(title = "Saved Connections") }
@@ -101,13 +105,13 @@ fun SettingsScreen(
                         Column {
                             Text(
                                 text = host.name,
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.cardTitle,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
                                 text = "${host.address}:${host.port}",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.supportingText,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -139,13 +143,13 @@ fun SettingsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Host Connection Manager",
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.cardTitle,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
                             text = "Pair, reconnect, and inspect remembered desktop endpoints",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.supportingText,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -180,7 +184,7 @@ fun SettingsScreen(
                     ) {
                         Text(
                             text = option.name,
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.sectionLabel,
                             color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -200,13 +204,13 @@ fun SettingsScreen(
             CodexCard {
                 Text(
                     text = "Security note",
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.sectionLabel,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(modifier = Modifier.height(CodexSpacing.listGap))
                 Text(
                     text = "This client is designed for trusted local-network app-server connections. Keep the host bound to a private endpoint and avoid exposing it directly to the public internet.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.supportingText,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -218,7 +222,7 @@ fun SettingsScreen(
 private fun SectionLabel(title: String) {
     Text(
         text = title.uppercase(),
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.sectionLabel,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
@@ -241,11 +245,11 @@ private fun PreferenceCard(
             Column {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.cardTitle,
                 )
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.supportingText,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

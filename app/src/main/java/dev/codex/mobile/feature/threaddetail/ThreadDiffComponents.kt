@@ -30,12 +30,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
+import dev.codex.mobile.core.designsystem.theme.codeBlock
+import dev.codex.mobile.core.designsystem.theme.codeInline
+import dev.codex.mobile.core.designsystem.theme.denseSupportingText
+import dev.codex.mobile.core.designsystem.theme.panelHeadline
 import dev.codex.mobile.core.model.FileChangeEntry
 
 @Composable
@@ -70,7 +73,7 @@ internal fun PatchFileSummaryCard(
             if (fileName != change.path) {
                 Text(
                     text = change.path,
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    style = MaterialTheme.typography.codeBlock,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -100,7 +103,7 @@ internal fun PatchFileSummaryCard(
             }
             Text(
                 text = diffOverviewText(parsedDiff),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.denseSupportingText,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (change.diff.isNotBlank()) {
@@ -135,7 +138,7 @@ internal fun ThreadDiffViewerContent(
             Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap)) {
                 Text(
                     text = fileName,
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.panelHeadline,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
@@ -143,7 +146,7 @@ internal fun ThreadDiffViewerContent(
                 if (fileName != change.path) {
                     Text(
                         text = change.path,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        style = MaterialTheme.typography.codeBlock,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -190,7 +193,7 @@ internal fun ThreadDiffViewerContent(
                     ) {
                         Text(
                             text = hunk.header,
-                            style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+                            style = MaterialTheme.typography.codeInline,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         )
@@ -283,14 +286,14 @@ private fun DiffRowView(
         )
         Text(
             text = row.type.prefix,
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            style = MaterialTheme.typography.codeBlock,
             color = palette.accent,
             modifier = Modifier.width(12.dp),
         )
         Spacer(modifier = Modifier.width(CodexSpacing.microGap))
         Text(
             text = buildHighlightedLine(row, palette.highlight),
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            style = MaterialTheme.typography.codeBlock,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f),
         )
@@ -304,7 +307,7 @@ private fun DiffLineNumber(
 ) {
     Text(
         text = value.orEmpty(),
-        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+        style = MaterialTheme.typography.codeInline,
         color = color,
         textAlign = TextAlign.End,
         modifier = Modifier.width(34.dp),
@@ -321,7 +324,7 @@ private fun RawDiffFallback(
     ) {
         Text(
             text = diff,
-            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            style = MaterialTheme.typography.codeBlock,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(12.dp),
         )

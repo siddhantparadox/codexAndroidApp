@@ -29,10 +29,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
+import dev.codex.mobile.core.designsystem.theme.codeInline
 
 @Composable
 internal fun LiveStatusBadge(
@@ -52,7 +52,7 @@ internal fun LiveStatusBadge(
         ) {
             Text(
                 text = label.uppercase(),
-                style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                style = MaterialTheme.typography.codeInline,
                 color = color,
             )
             LiveDots(color = color)

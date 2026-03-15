@@ -60,6 +60,12 @@ import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.SectionHeader
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
+import dev.codex.mobile.core.designsystem.theme.denseSupportingText
+import dev.codex.mobile.core.designsystem.theme.listItemTitle
+import dev.codex.mobile.core.designsystem.theme.metaText
+import dev.codex.mobile.core.designsystem.theme.screenTitle
+import dev.codex.mobile.core.designsystem.theme.sectionLabel
+import dev.codex.mobile.core.designsystem.theme.supportingText
 import dev.codex.mobile.core.model.ThreadSourceKind
 import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadResultDigestKind
@@ -138,13 +144,13 @@ fun ThreadsScreen(
                             ) {
                                 Text(
                                     text = "Threads",
-                                    style = MaterialTheme.typography.headlineMedium,
+                                    style = MaterialTheme.typography.screenTitle,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 Text(
                                     text = threadsSyncStatus(uiState),
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.metaText,
                                     color = threadsSyncStatusColor(uiState),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -217,7 +223,7 @@ fun ThreadsScreen(
                                         ThreadFilter.WaitingOnApproval -> "Needs Approval"
                                         ThreadFilter.SystemError -> "System Error"
                                     },
-                                    style = MaterialTheme.typography.labelLarge,
+                                    style = MaterialTheme.typography.sectionLabel,
                                     color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
@@ -226,7 +232,7 @@ fun ThreadsScreen(
                     if (!uiState.canCreateThread) {
                         Text(
                             text = "Connect to a desktop app-server before creating a new thread.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.supportingText,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -330,7 +336,7 @@ private fun ThreadCard(
                 )
                 Text(
                     text = threadMetaLabel(thread),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.metaText,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
@@ -340,21 +346,21 @@ private fun ThreadCard(
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = relativeTimeLabel(thread.updatedAtEpochSeconds),
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.metaText,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Spacer(modifier = Modifier.height(CodexSpacing.listGap))
         Text(
             text = threadTitle(thread),
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.listItemTitle,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Spacer(modifier = Modifier.height(CodexSpacing.microGap))
         Text(
             text = thread.preview,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.denseSupportingText,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -368,7 +374,7 @@ private fun ThreadCard(
             Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
             Text(
                 text = resultDigest.displayText,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.sectionLabel,
                 color = threadResultDigestColor(resultDigest),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -384,7 +390,7 @@ private fun ThreadCard(
             if (runtimeLabel != null) {
                 Text(
                     text = runtimeLabel,
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.metaText,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {

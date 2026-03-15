@@ -28,6 +28,9 @@ import androidx.compose.ui.unit.dp
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.designsystem.theme.cardBorder
+import dev.codex.mobile.core.designsystem.theme.cardTitle
+import dev.codex.mobile.core.designsystem.theme.sectionLabel
+import dev.codex.mobile.core.designsystem.theme.supportingText
 import kotlinx.coroutines.delay
 
 @Composable
@@ -78,7 +81,7 @@ internal fun InAppAlertHost(
                 ) {
                     Text(
                         text = "+$overflowCount more",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.sectionLabel,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -123,13 +126,13 @@ private fun AlertBanner(
         ) {
             Text(
                 text = alert.title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.cardTitle,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = alert.message,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.supportingText,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

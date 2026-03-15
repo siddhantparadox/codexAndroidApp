@@ -42,6 +42,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.designsystem.theme.cardBorder
+import dev.codex.mobile.core.designsystem.theme.metaText
+import dev.codex.mobile.core.designsystem.theme.sectionLabel
+import dev.codex.mobile.core.designsystem.theme.statusText
 
 @Composable
 fun CodexCard(
@@ -77,7 +80,7 @@ fun SectionHeader(
     ) {
         Text(
             text = title.uppercase(),
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.sectionLabel,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         if (trailing != null) {
@@ -108,7 +111,7 @@ fun StatusChip(
         }
         Text(
             text = label.uppercase(),
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.statusText,
             color = color,
         )
     }
@@ -190,7 +193,7 @@ fun CodexBottomBar(
                             ) {
                                 Text(
                                     text = pendingApprovals.toString(),
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.metaText,
                                 )
                             }
                         }
@@ -198,7 +201,7 @@ fun CodexBottomBar(
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = destination.label.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.metaText,
                         color = tint,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,

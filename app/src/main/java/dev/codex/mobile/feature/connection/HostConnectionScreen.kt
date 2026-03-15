@@ -54,6 +54,13 @@ import dev.codex.mobile.app.CodexAppGraph
 import dev.codex.mobile.core.designsystem.component.CodexCard
 import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
+import dev.codex.mobile.core.designsystem.theme.cardTitle
+import dev.codex.mobile.core.designsystem.theme.denseSupportingText
+import dev.codex.mobile.core.designsystem.theme.metaText
+import dev.codex.mobile.core.designsystem.theme.panelHeadline
+import dev.codex.mobile.core.designsystem.theme.screenTitle
+import dev.codex.mobile.core.designsystem.theme.sectionLabel
+import dev.codex.mobile.core.designsystem.theme.supportingText
 import dev.codex.mobile.core.model.AccountState
 import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.HostKind
@@ -99,7 +106,7 @@ fun HostConnectionScreen(
                     }
                     Text(
                         text = "Host Connection",
-                        style = MaterialTheme.typography.headlineMedium,
+                        style = MaterialTheme.typography.screenTitle,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -156,7 +163,7 @@ fun HostConnectionScreen(
                 ) {
                     Text(
                         text = "Remembered Desktops".uppercase(),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.sectionLabel,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     StatusChip(
@@ -185,7 +192,7 @@ fun HostConnectionScreen(
                     Spacer(modifier = Modifier.size(CodexSpacing.sectionGap))
                     Text(
                         text = "Use a trusted LAN address for codex app-server and keep the host bound to a private endpoint. The mobile client is a control surface for the desktop runtime, not a separate execution environment.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.supportingText,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -222,12 +229,12 @@ private fun ConnectDesktopCard(
     CodexCard(modifier = modifier.fillMaxWidth()) {
         Text(
             text = "Connect Your Desktop",
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.panelHeadline,
         )
         Spacer(modifier = Modifier.height(CodexSpacing.microGap))
         Text(
             text = "Run npx codexremote on your computer, then scan the QR code it shows.",
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.supportingText,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
@@ -240,7 +247,7 @@ private fun ConnectDesktopCard(
         Spacer(modifier = Modifier.height(CodexSpacing.listGap))
         Text(
             text = "Type a connection code instead",
-            style = MaterialTheme.typography.labelLarge,
+            style = MaterialTheme.typography.sectionLabel,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(modifier = Modifier.height(CodexSpacing.microGap))
@@ -268,7 +275,7 @@ private fun ConnectDesktopCard(
             Spacer(modifier = Modifier.height(CodexSpacing.microGap))
             Text(
                 text = error,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.denseSupportingText,
                 color = MaterialTheme.colorScheme.error,
             )
         }
@@ -351,13 +358,13 @@ private fun RememberedDesktopCard(
                 Column {
                     Text(
                         text = host.name,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.cardTitle,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         text = "${host.address}:${host.port}",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.supportingText,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -401,23 +408,23 @@ private fun PendingBootstrapSheet(
     ) {
         Text(
             text = "Connect To Desktop",
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.panelHeadline,
         )
         CodexCard {
             Text(
                 text = bootstrap.desktopName,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.cardTitle,
             )
             Spacer(modifier = Modifier.height(CodexSpacing.microGap))
             Text(
                 text = "${bootstrap.host}:${bootstrap.port}",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.supportingText,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(modifier = Modifier.height(CodexSpacing.listGap))
             Text(
                 text = "Trusted local network only. This phone will control the desktop runtime over your LAN.",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.denseSupportingText,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -465,11 +472,11 @@ private fun ConnectionStatusCard(
                 Column {
                     Text(
                         text = "Desktop Runtime",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.cardTitle,
                     )
                     Text(
                         text = account.summary,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.supportingText,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -485,7 +492,7 @@ private fun ConnectionStatusCard(
             Spacer(modifier = Modifier.height(CodexSpacing.listGap))
             Text(
                 text = message,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.metaText,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

@@ -53,11 +53,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.designsystem.component.StatusChip
+import dev.codex.mobile.core.designsystem.theme.codeBlock
+import dev.codex.mobile.core.designsystem.theme.codeInline
+import dev.codex.mobile.core.designsystem.theme.denseSupportingText
+import dev.codex.mobile.core.designsystem.theme.sectionLabel
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.CollabAgentState
@@ -254,7 +257,7 @@ private fun TechnicalPill(
         }
         Text(
             text = presentation.badge,
-            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+            style = MaterialTheme.typography.codeInline,
             color = if (isLive || selected) palette.accent else palette.accent.copy(alpha = 0.92f),
             maxLines = 1,
         )
@@ -323,7 +326,7 @@ private fun TechnicalPillDetailPanel(
                             ) {
                                 Text(
                                     text = presentation.badge,
-                                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                                    style = MaterialTheme.typography.codeInline,
                                     color = palette.accent,
                                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                                 )
@@ -355,7 +358,7 @@ private fun TechnicalPillDetailPanel(
                         if (presentation.preview.isNotBlank() && presentation.preview != presentation.title) {
                             Text(
                                 text = presentation.preview,
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.denseSupportingText,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 3,
                                 overflow = TextOverflow.Ellipsis,
@@ -464,7 +467,7 @@ private fun TechnicalItemDetail(
                     item.progressMessages.forEach { message ->
                         Text(
                             text = message,
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.denseSupportingText,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -537,7 +540,7 @@ private fun TechnicalItemDetail(
             is ThreadItem.ContextCompaction -> {
                 Text(
                     text = "Codex compacted the thread history to continue the conversation.",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.denseSupportingText,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -557,7 +560,7 @@ private fun TechnicalItemDetail(
 private fun TechnicalSectionTitle(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.sectionLabel,
         color = MaterialTheme.colorScheme.primary,
     )
 }
@@ -569,7 +572,7 @@ private fun MetadataLine(
 ) {
     Text(
         text = "$label: $value",
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.denseSupportingText,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
@@ -602,7 +605,7 @@ private fun CodeBlock(
         ) {
             Text(
                 text = text,
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                style = MaterialTheme.typography.codeBlock,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = maxLines,
                 overflow = TextOverflow.Ellipsis,
@@ -627,7 +630,7 @@ private fun WrapPills(labels: List<String>) {
             ) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelMedium.copy(fontFamily = FontFamily.Monospace),
+                    style = MaterialTheme.typography.codeInline,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                 )
@@ -645,12 +648,12 @@ private fun AgentStateRow(state: CollabAgentState) {
         Column(modifier = Modifier.padding(8.dp)) {
             Text(
                 text = "${state.threadId} • ${state.status}",
-                style = MaterialTheme.typography.labelLarge.copy(fontFamily = FontFamily.Monospace),
+                style = MaterialTheme.typography.codeInline,
             )
             state.message?.let { message ->
                 Text(
                     text = message,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.denseSupportingText,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

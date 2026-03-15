@@ -25,10 +25,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
+import dev.codex.mobile.core.designsystem.theme.codeInline
 import dev.codex.mobile.core.model.UserInputContent
 import java.util.Base64
 
@@ -160,7 +160,7 @@ private fun ImageAttachmentCard(
                 ?.let { value ->
                     Text(
                         text = value,
-                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                        style = MaterialTheme.typography.codeInline,
                         color = attachmentSupportingColor(isUser = isUser),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -204,7 +204,7 @@ private fun LabeledAttachmentCard(
                 ?.let { value ->
                     Text(
                         text = value,
-                        style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                        style = MaterialTheme.typography.codeInline,
                         color = attachmentSupportingColor(isUser = isUser),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
