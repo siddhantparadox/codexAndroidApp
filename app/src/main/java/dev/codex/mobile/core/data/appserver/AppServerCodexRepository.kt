@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Base64
 import dev.codex.mobile.BuildConfig
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.data.upsertHostProfile
 import dev.codex.mobile.core.data.local.AppLocalStateStore
 import dev.codex.mobile.core.data.local.PersistedAppState
 import dev.codex.mobile.core.data.local.PersistedThreadSettings
@@ -169,28 +170,40 @@ internal class AppServerCodexRepository(
         name: String,
         address: String,
         port: Int,
-    ) {
+        desktopId: String?,
+        activate: Boolean,
+    ): String? {
         val trimmedName = name.trim()
         val trimmedAddress = address.trim()
-        if (trimmedName.isEmpty() || trimmedAddress.isEmpty()) return
+        if (trimmedName.isEmpty() || trimmedAddress.isEmpty()) return null
 
         AppLog.action(
             name = "save_host",
             detail = "$trimmedName@$trimmedAddress:$port",
         )
 
+        val resolvedHostId = desktopId?.takeIf(String::isNotBlank)
+            ?: hostId(name = trimmedName, address = trimmedAddress, port = port)
+        val upsertResult = upsertHostProfile(
+            currentHosts = repositoryState.value.hosts,
+            generatedId = resolvedHostId,
+            name = trimmedName,
+            address = trimmedAddress,
+            port = port,
+            kind = inferHostKind(trimmedName),
+            desktopId = desktopId?.takeIf(String::isNotBlank),
+            activate = activate,
+        )
         repositoryState.update { current ->
             current.copy(
-                hosts = current.hosts + HostProfile(
-                    id = hostId(name = trimmedName, address = trimmedAddress, port = port),
-                    name = trimmedName,
-                    address = trimmedAddress,
-                    port = port,
-                    kind = inferHostKind(trimmedName),
-                ),
+                hosts = upsertResult.hosts,
             )
         }
         persistLocalState()
+        if (activate) {
+            reconnectToActiveHost()
+        }
+        return upsertResult.hostId
     }
 
     override suspend fun setActiveHost(hostId: String) {

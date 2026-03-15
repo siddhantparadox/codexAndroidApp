@@ -10,6 +10,7 @@ build/
 # Kotlin / JVM
 .kotlin/
 out/
+node_modules/
 
 # Android local machine config
 local.properties

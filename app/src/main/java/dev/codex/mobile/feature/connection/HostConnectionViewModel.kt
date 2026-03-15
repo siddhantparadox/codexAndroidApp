@@ -21,6 +21,10 @@ data class HostConnectionUiState(
     val hosts: List<HostProfile> = emptyList(),
     val connection: ConnectionState = ConnectionState(),
     val account: AccountState = AccountState(),
+    val connectionCode: String = "",
+    val bootstrapError: String? = null,
+    val pendingBootstrap: ConnectionBootstrap? = null,
+    val showManualEntry: Boolean = false,
     val hostName: String = "",
     val address: String = "",
     val port: String = "4500",
@@ -49,31 +53,89 @@ class HostConnectionViewModel(
     )
 
     fun onHostNameChanged(value: String) {
-        formState.update { it.copy(hostName = value) }
+        formState.update { it.copy(hostName = value, bootstrapError = null) }
     }
 
     fun onAddressChanged(value: String) {
-        formState.update { it.copy(address = value) }
+        formState.update { it.copy(address = value, bootstrapError = null) }
     }
 
     fun onPortChanged(value: String) {
-        formState.update { it.copy(port = value.filter(Char::isDigit).take(5)) }
+        formState.update {
+            it.copy(
+                port = value.filter(Char::isDigit).take(5),
+                bootstrapError = null,
+            )
+        }
+    }
+
+    fun onConnectionCodeChanged(value: String) {
+        formState.update { it.copy(connectionCode = value, bootstrapError = null) }
+    }
+
+    fun submitConnectionCode() {
+        val rawCode = formState.value.connectionCode
+        resolveBootstrap(rawCode)
+    }
+
+    fun handleScannedBootstrap(rawValue: String) {
+        resolveBootstrap(rawValue)
+    }
+
+    fun dismissPendingBootstrap() {
+        formState.update { it.copy(pendingBootstrap = null) }
+    }
+
+    fun showBootstrapError(message: String) {
+        formState.update { it.copy(bootstrapError = message, pendingBootstrap = null) }
+    }
+
+    fun confirmPendingBootstrap() {
+        val bootstrap = formState.value.pendingBootstrap ?: return
+        viewModelScope.launch {
+            repository.saveHost(
+                name = bootstrap.desktopName,
+                address = bootstrap.host,
+                port = bootstrap.port,
+                desktopId = bootstrap.desktopId,
+                activate = true,
+            )
+            formState.update {
+                it.copy(
+                    connectionCode = "",
+                    bootstrapError = null,
+                    pendingBootstrap = null,
+                )
+            }
+        }
+    }
+
+    fun toggleManualEntry() {
+        formState.update { current ->
+            current.copy(showManualEntry = !current.showManualEntry, bootstrapError = null)
+        }
     }
 
     fun saveConnection() {
         val snapshot = formState.value
+        val resolvedName = snapshot.hostName.trim().ifEmpty {
+            snapshot.address.trim().ifEmpty { "Desktop" }
+        }
         val port = snapshot.port.toIntOrNull() ?: 4500
         viewModelScope.launch {
             repository.saveHost(
-                name = snapshot.hostName,
+                name = resolvedName,
                 address = snapshot.address,
                 port = port,
+                activate = true,
             )
             formState.update {
                 it.copy(
                     hostName = "",
                     address = "",
                     port = "4500",
+                    showManualEntry = false,
+                    bootstrapError = null,
                 )
             }
         }
@@ -88,6 +150,26 @@ class HostConnectionViewModel(
     companion object {
         fun factory(repository: CodexRepository): ViewModelProvider.Factory = viewModelFactory {
             initializer { HostConnectionViewModel(repository) }
+        }
+    }
+
+    private fun resolveBootstrap(rawValue: String) {
+        val parsedBootstrap = parseConnectionBootstrap(rawValue)
+        formState.update { current ->
+            parsedBootstrap.fold(
+                onSuccess = { bootstrap ->
+                    current.copy(
+                        pendingBootstrap = bootstrap,
+                        bootstrapError = null,
+                    )
+                },
+                onFailure = { error ->
+                    current.copy(
+                        pendingBootstrap = null,
+                        bootstrapError = error.message ?: "Unable to read the desktop code.",
+                    )
+                },
+            )
         }
     }
 }

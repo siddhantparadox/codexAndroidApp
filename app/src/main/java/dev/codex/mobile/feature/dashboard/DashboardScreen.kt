@@ -262,12 +262,12 @@ private fun ConnectionStrip(
     ) {
         if (activeHost == null) {
             Text(
-                text = "Connect a desktop app-server",
+                text = "Connect your desktop",
                 style = MaterialTheme.typography.titleMedium,
             )
             Spacer(modifier = Modifier.height(CodexSpacing.microGap))
             Text(
-                text = "Add a trusted LAN host to start syncing threads and usage.",
+                text = "Scan the QR code from npx codexremote to start syncing threads and usage.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
@@ -950,7 +950,7 @@ private fun threadStatusColor(status: ThreadStatus): Color = when {
 private fun connectionLabel(phase: ConnectionPhase): String = when (phase) {
     ConnectionPhase.Connected -> "Connected"
     ConnectionPhase.Connecting -> "Connecting"
-    ConnectionPhase.Disconnected -> "Disconnected"
+    ConnectionPhase.Disconnected -> "Offline"
     ConnectionPhase.Error -> "Error"
     ConnectionPhase.Idle -> "Idle"
 }

@@ -11,6 +11,7 @@ enum class HostKind {
 @Serializable
 data class HostProfile(
     val id: String,
+    val desktopId: String? = null,
     val name: String,
     val address: String,
     val port: Int,

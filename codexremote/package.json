@@ -1,0 +1,23 @@
+{
+  "name": "codexremote",
+  "version": "0.1.1",
+  "description": "Start Codex app-server and print a mobile connection QR in the terminal.",
+  "type": "module",
+  "bin": {
+    "codexremote": "bin/codexremote.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "codex",
+    "app-server",
+    "qr",
+    "mobile"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "qrcode-terminal": "0.12.0",
+    "ws": "8.19.0"
+  }
+}

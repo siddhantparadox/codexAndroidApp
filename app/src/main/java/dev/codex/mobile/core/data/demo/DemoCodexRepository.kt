@@ -1,6 +1,7 @@
 package dev.codex.mobile.core.data.demo
 
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.data.upsertHostProfile
 import dev.codex.mobile.core.model.AccountRateLimit
 import dev.codex.mobile.core.model.AccountRateLimits
 import dev.codex.mobile.core.model.AccountRateLimitWindow
@@ -89,6 +90,7 @@ class DemoCodexRepository : CodexRepository {
             hosts = listOf(
                 HostProfile(
                     id = "work-laptop",
+                    desktopId = "work-laptop",
                     name = "MacBook Pro 16\"",
                     address = "192.168.1.15",
                     port = 4500,
@@ -97,6 +99,7 @@ class DemoCodexRepository : CodexRepository {
                 ),
                 HostProfile(
                     id = "home-desktop",
+                    desktopId = "home-desktop",
                     name = "Home Desktop",
                     address = "192.168.1.42",
                     port = 4500,
@@ -145,26 +148,38 @@ class DemoCodexRepository : CodexRepository {
     override fun observeInAppThreadNotifications(): Flow<List<InAppThreadNotification>> =
         store.map { it.inAppThreadNotifications }
 
-    override suspend fun saveHost(name: String, address: String, port: Int) {
+    override suspend fun saveHost(
+        name: String,
+        address: String,
+        port: Int,
+        desktopId: String?,
+        activate: Boolean,
+    ): String? {
         val trimmedName = name.trim()
         val trimmedAddress = address.trim()
-        if (trimmedName.isEmpty() || trimmedAddress.isEmpty()) return
+        if (trimmedName.isEmpty() || trimmedAddress.isEmpty()) return null
 
         AppLog.action(
             name = "save_host",
             detail = "$trimmedName@$trimmedAddress:$port",
         )
+        val resolvedId = desktopId ?: trimmedName.lowercase().replace(" ", "-")
+        val upsertResult = upsertHostProfile(
+            currentHosts = store.value.hosts,
+            generatedId = resolvedId,
+            name = trimmedName,
+            address = trimmedAddress,
+            port = port,
+            kind = HostKind.Desktop,
+            desktopId = desktopId,
+            activate = activate,
+        )
         store.update { current ->
             current.copy(
-                hosts = current.hosts + HostProfile(
-                    id = trimmedName.lowercase().replace(" ", "-"),
-                    name = trimmedName,
-                    address = trimmedAddress,
-                    port = port,
-                    kind = HostKind.Desktop,
-                ),
+                hosts = upsertResult.hosts,
             )
         }
+        return upsertResult.hostId
     }
 
     override suspend fun setActiveHost(hostId: String) {

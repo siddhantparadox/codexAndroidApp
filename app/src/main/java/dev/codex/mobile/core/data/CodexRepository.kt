@@ -51,7 +51,9 @@ interface CodexRepository {
         name: String,
         address: String,
         port: Int,
-    )
+        desktopId: String? = null,
+        activate: Boolean = false,
+    ): String?
 
     suspend fun setActiveHost(hostId: String)
 

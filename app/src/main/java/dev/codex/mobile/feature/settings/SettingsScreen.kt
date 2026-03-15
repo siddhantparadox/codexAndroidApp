@@ -144,7 +144,7 @@ fun SettingsScreen(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            text = "Add, activate, and inspect laptop app-server endpoints",
+                            text = "Pair, reconnect, and inspect remembered desktop endpoints",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
