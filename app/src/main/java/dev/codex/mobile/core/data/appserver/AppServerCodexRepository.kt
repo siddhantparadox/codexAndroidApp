@@ -669,7 +669,9 @@ internal class AppServerCodexRepository(
     private suspend fun reconnectToActiveHost(): Unit = connectMutex.withLock {
         reconnectJob?.cancel()
         reconnectJob = null
-        val previousActiveHostId = repositoryState.value.connection.activeHostId
+        val currentState = repositoryState.value
+        val previousConnection = currentState.connection
+        val previousActiveHostId = previousConnection.activeHostId
         sessionEventsJob?.cancel()
         sessionEventsJob = null
         session?.close()
@@ -678,11 +680,18 @@ internal class AppServerCodexRepository(
         pendingUserInputRequests.clear()
         pendingDynamicToolRequests.clear()
 
-        val activeHost = repositoryState.value.hosts.firstOrNull { it.isActive }
+        val activeHost = currentState.hosts.firstOrNull { it.isActive }
         val preserveThreadCache = shouldPreserveThreadCache(
             previousActiveHostId = previousActiveHostId,
             nextActiveHostId = activeHost?.id,
-            currentThreadItemCache = repositoryState.value.threadItemCache,
+            currentThreadItemCache = currentState.threadItemCache,
+        )
+        val preserveLiveDesktopState = shouldPreserveLiveDesktopState(
+            previousActiveHostId = previousActiveHostId,
+            nextActiveHostId = activeHost?.id,
+            previousPhase = previousConnection.phase,
+            currentThreads = currentState.threads,
+            currentThreadDetails = currentState.threadDetails,
         )
         if (activeHost == null) {
             reconnectAttemptCount = 0
@@ -713,29 +722,39 @@ internal class AppServerCodexRepository(
         }
 
         val socketUrl = "ws://${activeHost.address}:${activeHost.port}"
+        val connectionPhase = connectionPhaseForAttempt(
+            previousActiveHostId = previousActiveHostId,
+            nextActiveHostId = activeHost.id,
+            previousPhase = previousConnection.phase,
+            currentThreads = currentState.threads,
+            currentThreadDetails = currentState.threadDetails,
+        )
         repositoryState.update { current ->
             current.copy(
                 connection = ConnectionState(
                     activeHostId = activeHost.id,
-                    phase = ConnectionPhase.Connecting,
-                    message = "Connecting to $socketUrl",
+                    phase = connectionPhase,
+                    message = desktopConnectionMessage(
+                        hostName = activeHost.name,
+                        phase = connectionPhase,
+                    ),
                 ),
-                account = AccountState(),
-                rateLimits = null,
+                account = if (preserveLiveDesktopState) current.account else AccountState(),
+                rateLimits = if (preserveLiveDesktopState) current.rateLimits else null,
                 usageWrapped = current.usageWrapped.forHost(activeHost.id),
-                threads = emptyList(),
-                threadDetails = emptyMap(),
-                activeItemIdsByThread = emptyMap(),
+                threads = if (preserveLiveDesktopState) current.threads else emptyList(),
+                threadDetails = if (preserveLiveDesktopState) current.threadDetails else emptyMap(),
+                activeItemIdsByThread = if (preserveLiveDesktopState) current.activeItemIdsByThread else emptyMap(),
                 threadItemCache = if (preserveThreadCache) current.threadItemCache else emptyMap(),
                 threadSettingsCache = if (preserveThreadCache) current.threadSettingsCache else emptyMap(),
                 approvals = emptyList(),
                 userInputRequests = emptyList(),
                 dynamicToolRequests = emptyList(),
                 activeTurnIds = emptyMap(),
-                composerCatalog = ComposerCatalog(),
+                composerCatalog = if (preserveLiveDesktopState) current.composerCatalog else ComposerCatalog(),
                 unreadThreadResultDigests = emptyMap(),
                 inAppThreadNotifications = emptyList(),
-                lastResultTurnIdByThread = emptyMap(),
+                lastResultTurnIdByThread = if (preserveLiveDesktopState) current.lastResultTurnIdByThread else emptyMap(),
             )
         }
         schedulePersistLocalState()
@@ -777,7 +796,7 @@ internal class AppServerCodexRepository(
                     connection = ConnectionState(
                         activeHostId = activeHost.id,
                         phase = ConnectionPhase.Connected,
-                        message = socketUrl,
+                        message = null,
                     ),
                     account = account,
                     rateLimits = rateLimits,
@@ -802,29 +821,49 @@ internal class AppServerCodexRepository(
             newSession.close()
             session = null
             repositoryState.update { current ->
-                current.copy(
-                    connection = ConnectionState(
-                        activeHostId = activeHost.id,
-                        phase = ConnectionPhase.Error,
-                        message = error.toConnectionMessage(),
-                    ),
-                    account = AccountState(),
-                    rateLimits = null,
-                    usageWrapped = current.usageWrapped.withError(
-                        hostId = activeHost.id,
-                        errorMessage = error.toUsageWrappedMessage(activeHost),
-                    ),
-                    threads = emptyList(),
-                    threadDetails = emptyMap(),
-                    activeItemIdsByThread = emptyMap(),
-                    approvals = emptyList(),
-                    userInputRequests = emptyList(),
-                    dynamicToolRequests = emptyList(),
-                    activeTurnIds = emptyMap(),
-                    unreadThreadResultDigests = emptyMap(),
-                    inAppThreadNotifications = emptyList(),
-                    lastResultTurnIdByThread = emptyMap(),
-                )
+                if (preserveLiveDesktopState) {
+                    current.copy(
+                        connection = ConnectionState(
+                            activeHostId = activeHost.id,
+                            phase = ConnectionPhase.Reconnecting,
+                            message = desktopConnectionMessage(
+                                hostName = activeHost.name,
+                                phase = ConnectionPhase.Reconnecting,
+                            ),
+                        ),
+                        approvals = emptyList(),
+                        userInputRequests = emptyList(),
+                        dynamicToolRequests = emptyList(),
+                        activeTurnIds = emptyMap(),
+                        unreadThreadResultDigests = emptyMap(),
+                        inAppThreadNotifications = emptyList(),
+                        lastResultTurnIdByThread = emptyMap(),
+                    )
+                } else {
+                    current.copy(
+                        connection = ConnectionState(
+                            activeHostId = activeHost.id,
+                            phase = ConnectionPhase.Error,
+                            message = error.toConnectionMessage(),
+                        ),
+                        account = AccountState(),
+                        rateLimits = null,
+                        usageWrapped = current.usageWrapped.withError(
+                            hostId = activeHost.id,
+                            errorMessage = error.toUsageWrappedMessage(activeHost),
+                        ),
+                        threads = emptyList(),
+                        threadDetails = emptyMap(),
+                        activeItemIdsByThread = emptyMap(),
+                        approvals = emptyList(),
+                        userInputRequests = emptyList(),
+                        dynamicToolRequests = emptyList(),
+                        activeTurnIds = emptyMap(),
+                        unreadThreadResultDigests = emptyMap(),
+                        inAppThreadNotifications = emptyList(),
+                        lastResultTurnIdByThread = emptyMap(),
+                    )
+                }
             }
             schedulePersistLocalState()
             scheduleReconnectToActiveHost(
@@ -1171,6 +1210,7 @@ internal class AppServerCodexRepository(
             name = "transport_closed",
             detail = "host=$activeHostId error=${event.isError} message=${event.message.orEmpty()}",
         )
+        val hostName = repositoryState.value.hosts.firstOrNull { host -> host.id == activeHostId }?.name ?: "Desktop"
         session = null
         sessionEventsJob?.cancel()
         sessionEventsJob = null
@@ -1181,11 +1221,16 @@ internal class AppServerCodexRepository(
             current.copy(
                 connection = ConnectionState(
                     activeHostId = activeHostId,
-                    phase = if (event.isError) ConnectionPhase.Error else ConnectionPhase.Disconnected,
-                    message = event.message ?: if (event.isError) "Connection lost." else "Disconnected.",
+                    phase = if (event.isError) ConnectionPhase.Reconnecting else ConnectionPhase.Disconnected,
+                    message = if (event.isError) {
+                        desktopConnectionMessage(
+                            hostName = hostName,
+                            phase = ConnectionPhase.Reconnecting,
+                        )
+                    } else {
+                        event.message ?: "Disconnected."
+                    },
                 ),
-                account = AccountState(),
-                rateLimits = null,
                 approvals = emptyList(),
                 userInputRequests = emptyList(),
                 dynamicToolRequests = emptyList(),
@@ -1209,9 +1254,7 @@ internal class AppServerCodexRepository(
         expectedHostId: String,
         trigger: String,
     ): Unit {
-        if (repositoryState.value.hosts.none { host -> host.isActive && host.id == expectedHostId }) {
-            return
-        }
+        val activeHost = repositoryState.value.hosts.firstOrNull { host -> host.isActive && host.id == expectedHostId } ?: return
         if (reconnectJob?.isActive == true) {
             return
         }
@@ -1219,6 +1262,21 @@ internal class AppServerCodexRepository(
         val attempt = reconnectAttemptCount + 1
         reconnectAttemptCount = attempt
         val delayMs = reconnectDelayMillis(attempt)
+        repositoryState.update { current ->
+            if (current.connection.activeHostId == expectedHostId && current.connection.phase == ConnectionPhase.Reconnecting) {
+                current.copy(
+                    connection = current.connection.copy(
+                        message = desktopConnectionMessage(
+                            hostName = activeHost.name,
+                            phase = ConnectionPhase.Reconnecting,
+                            nextRetryDelayMs = delayMs,
+                        ),
+                    ),
+                )
+            } else {
+                current
+            }
+        }
         AppLog.action(
             name = "transport_reconnect_scheduled",
             detail = "host=$expectedHostId attempt=$attempt delayMs=$delayMs trigger=$trigger",
@@ -2122,6 +2180,40 @@ internal fun shouldPreserveThreadCache(
     else -> false
 }
 
+internal fun shouldPreserveLiveDesktopState(
+    previousActiveHostId: String?,
+    nextActiveHostId: String?,
+    previousPhase: ConnectionPhase,
+    currentThreads: List<ThreadSummary>,
+    currentThreadDetails: Map<String, ThreadDetail>,
+): Boolean = previousActiveHostId != null &&
+    previousActiveHostId == nextActiveHostId && (
+    previousPhase == ConnectionPhase.Connected ||
+        previousPhase == ConnectionPhase.Reconnecting ||
+        currentThreads.isNotEmpty() ||
+        currentThreadDetails.isNotEmpty()
+    )
+
+internal fun connectionPhaseForAttempt(
+    previousActiveHostId: String?,
+    nextActiveHostId: String?,
+    previousPhase: ConnectionPhase,
+    currentThreads: List<ThreadSummary>,
+    currentThreadDetails: Map<String, ThreadDetail>,
+): ConnectionPhase = if (
+    shouldPreserveLiveDesktopState(
+        previousActiveHostId = previousActiveHostId,
+        nextActiveHostId = nextActiveHostId,
+        previousPhase = previousPhase,
+        currentThreads = currentThreads,
+        currentThreadDetails = currentThreadDetails,
+    )
+) {
+    ConnectionPhase.Reconnecting
+} else {
+    ConnectionPhase.Connecting
+}
+
 private fun List<ThreadSummary>.syncThreadOrdering(): List<ThreadSummary> = distinctBy { it.id }
     .sortedByDescending { it.updatedAtEpochSeconds }
 
@@ -2218,6 +2310,26 @@ internal fun reconnectDelayMillis(attempt: Int): Long {
     return min(MAX_RECONNECT_DELAY_MS, exponentialDelay)
 }
 
+internal fun desktopConnectionMessage(
+    hostName: String,
+    phase: ConnectionPhase,
+    nextRetryDelayMs: Long? = null,
+): String? = when (phase) {
+    ConnectionPhase.Connecting -> "Connecting to $hostName"
+    ConnectionPhase.Reconnecting -> if (nextRetryDelayMs == null) {
+        "Reconnecting to $hostName"
+    } else {
+        "Reconnecting to $hostName in ${formatReconnectDelay(nextRetryDelayMs)}"
+    }
+
+    else -> null
+}
+
+internal fun formatReconnectDelay(delayMs: Long): String {
+    val wholeSeconds = ((delayMs + 999L) / 1_000L).coerceAtLeast(1L)
+    return "${wholeSeconds}s"
+}
+
 private const val MAX_THREAD_ACTIVITIES: Int = 40
 private const val MAX_IN_APP_THREAD_NOTIFICATIONS: Int = 6
 private const val INITIAL_RECONNECT_DELAY_MS: Long = 1_000L
@@ -2227,7 +2339,7 @@ private fun currentEpochSeconds(): Long = System.currentTimeMillis() / 1_000
 
 private fun Throwable.toConnectionMessage(): String = when (this) {
     is UnknownHostException -> "Host not found."
-    else -> message ?: "Unable to connect to app-server."
+    else -> message ?: "Unable to connect to the desktop bridge."
 }
 
 private fun Throwable.toUsageWrappedMessage(activeHost: HostProfile): String {
@@ -2368,3 +2480,4 @@ private fun kotlinx.serialization.json.JsonObject.contextRemainingPercent(): Int
     val remainingPercent = ((1.0 - usedRatio) * 100.0).toInt()
     return remainingPercent.coerceIn(0, 100)
 }
+

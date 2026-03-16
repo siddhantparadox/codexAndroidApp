@@ -18,13 +18,15 @@ import dev.codex.mobile.core.model.ComposerPersonality
 import dev.codex.mobile.core.model.ComposerReasoningEffort
 import dev.codex.mobile.core.model.ComposerSandboxMode
 import dev.codex.mobile.core.model.ComposerSkillOption
-import dev.codex.mobile.core.model.ThreadReplyRequest
+import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadDynamicToolRequest
 import dev.codex.mobile.core.model.ThreadDynamicToolResponse
-import dev.codex.mobile.core.model.ThreadUserInputResponse
+import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadUserInputRequest
+import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.isActive
+import dev.codex.mobile.core.model.isConnected
 import dev.codex.mobile.navigation.ThreadDetailRoute
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -80,6 +82,7 @@ private data class ThreadBaseUiState(
     val userInputRequests: List<ThreadUserInputRequest> = emptyList(),
     val dynamicToolRequests: List<ThreadDynamicToolRequest> = emptyList(),
     val draft: String = "",
+    val isConnected: Boolean = false,
     val canInterrupt: Boolean = false,
     val isInterrupting: Boolean = false,
 )
@@ -87,6 +90,12 @@ private data class ThreadBaseUiState(
 private data class ThreadLoadState(
     val detail: ThreadDetail? = null,
     val isInitialLoadInFlight: Boolean = true,
+)
+
+private data class ThreadInteractionState(
+    val connection: ConnectionState = ConnectionState(),
+    val draft: String = "",
+    val interruptInFlight: Boolean = false,
 )
 
 class ThreadDetailViewModel(
@@ -185,23 +194,29 @@ class ThreadDetailViewModel(
         Triple(approvals, userInputRequests, dynamicToolRequests)
     }
 
+    private val interactionState = combine(
+        repository.observeConnection(),
+        draft,
+        interruptRequested,
+    ) { connection, currentDraft, interruptInFlight ->
+        ThreadInteractionState(
+            connection = connection,
+            draft = currentDraft,
+            interruptInFlight = interruptInFlight,
+        )
+    }
+
     private val baseUiState = combine(
         threadLoadState,
         repository.observeActiveItemIds(route.threadId),
         pendingRequestState,
-        draft,
-        interruptRequested,
-    ) { threadLoad: ThreadLoadState,
-        activeItemIds: Set<String>,
-        pendingRequests: Triple<List<ApprovalItem>, List<ThreadUserInputRequest>, List<ThreadDynamicToolRequest>>,
-        currentDraft: String,
-        interruptInFlight: Boolean
-        ->
+        interactionState,
+    ) { threadLoad, activeItemIds, pendingRequests, interaction ->
         val approvals = pendingRequests.first
         val userInputRequests = pendingRequests.second
         val dynamicToolRequests = pendingRequests.third
         val detail = threadLoad.detail
-        val canInterrupt = detail?.summary?.status?.isActive == true
+        val canInterrupt = interaction.connection.isConnected && detail?.summary?.status?.isActive == true
         ThreadBaseUiState(
             detail = detail,
             isInitialLoadInFlight = threadLoad.isInitialLoadInFlight,
@@ -209,9 +224,10 @@ class ThreadDetailViewModel(
             approvals = approvals.filter { approval -> approval.threadId == route.threadId },
             userInputRequests = userInputRequests.filter { request -> request.threadId == route.threadId },
             dynamicToolRequests = dynamicToolRequests.filter { request -> request.threadId == route.threadId },
-            draft = currentDraft,
+            draft = interaction.draft,
+            isConnected = interaction.connection.isConnected,
             canInterrupt = canInterrupt,
-            isInterrupting = canInterrupt && interruptInFlight,
+            isInterrupting = canInterrupt && interaction.interruptInFlight,
         )
     }
 
@@ -236,7 +252,7 @@ class ThreadDetailViewModel(
             selectedSandboxMode = composer.selectedSandboxMode,
             selectedSkill = composer.selectedSkill,
             selectedImage = composer.selectedImage,
-            sendEnabled = base.draft.isNotBlank() || composer.selectedSkill != null || composer.selectedImage != null,
+            sendEnabled = base.isConnected && (base.draft.isNotBlank() || composer.selectedSkill != null || composer.selectedImage != null),
         )
     }.stateIn(
         scope = viewModelScope,
@@ -375,3 +391,4 @@ class ThreadDetailViewModel(
         }
     }
 }
+

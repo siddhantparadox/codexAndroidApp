@@ -28,7 +28,7 @@ fun ThreadSourceKind.displayLabel(): String = when (this) {
     ThreadSourceKind.Cli -> "CLI"
     ThreadSourceKind.VsCode -> "VS Code"
     ThreadSourceKind.Exec -> "Exec"
-    ThreadSourceKind.AppServer -> "App Server"
+    ThreadSourceKind.AppServer -> "Desktop"
     ThreadSourceKind.SubAgent -> "Sub-agent"
     ThreadSourceKind.Unknown -> "Thread"
 }
@@ -38,3 +38,4 @@ fun ThreadSummary.runtimeSettingsLabel(): String? = listOfNotNull(
     currentReasoningEffort?.displayLabel(),
 ).joinToString(separator = " • ")
     .ifBlank { null }
+

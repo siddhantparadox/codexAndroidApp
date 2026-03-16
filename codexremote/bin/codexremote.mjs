@@ -4,12 +4,10 @@ import process from "node:process";
 import qrcode from "qrcode-terminal";
 
 import {
-  DEFAULT_APP_SERVER_PORT,
-  probeCodexAppServer,
-  spawnCodexAppServer,
-  waitForChildExit,
-  waitForCodexAppServer,
-} from "../lib/appServer.mjs";
+  DEFAULT_BRIDGE_PORT,
+  probeCodexRemoteBridge,
+  startCodexRemoteBridge,
+} from "../lib/bridgeServer.mjs";
 import { isTcpPortOccupied, pickLanIpv4Address } from "../lib/network.mjs";
 import {
   DEFAULT_USAGE_WRAPPED_PORT,
@@ -24,8 +22,9 @@ if (process.argv.includes("--help") || process.argv.includes("-h")) {
   process.exit(0);
 }
 
-let ownedChild = null;
+let ownedBridge = null;
 let ownedUsageService = null;
+let reuseExistingBridge = false;
 
 try {
   const desktopName = process.env.CODEXREMOTE_DESKTOP_NAME || process.env.COMPUTERNAME || process.env.HOSTNAME || "Codex Desktop";
@@ -35,18 +34,20 @@ try {
     throw new Error("No LAN IPv4 address was found. Connect to Wi-Fi or Ethernet and try again.");
   }
 
-  const appServerOccupied = await isTcpPortOccupied(DEFAULT_APP_SERVER_PORT);
-  const reusingAppServer = appServerOccupied ? await probeCodexAppServer(VERSION) : false;
-  if (appServerOccupied && !reusingAppServer) {
+  const bridgeOccupied = await isTcpPortOccupied(DEFAULT_BRIDGE_PORT);
+  const bridgeStatus = bridgeOccupied ? await probeCodexRemoteBridge(VERSION, DEFAULT_BRIDGE_PORT) : null;
+  reuseExistingBridge = bridgeStatus != null;
+  if (bridgeOccupied && !reuseExistingBridge) {
     throw new Error(
-      `Port ${DEFAULT_APP_SERVER_PORT} is already in use by another process. Stop that process or free the port before running codexremote.`,
+      `Port ${DEFAULT_BRIDGE_PORT} is already in use by another process. Stop that process or free the port before running codexremote.`,
     );
   }
 
-  if (!appServerOccupied) {
-    const codexLaunch = spawnCodexAppServer();
-    ownedChild = codexLaunch.child;
-    await waitForCodexAppServer(ownedChild, codexLaunch.readStartupError, VERSION);
+  if (!bridgeOccupied) {
+    ownedBridge = await startCodexRemoteBridge({
+      versionName: VERSION,
+      port: DEFAULT_BRIDGE_PORT,
+    });
   }
 
   const usageServiceOccupied = await isTcpPortOccupied(DEFAULT_USAGE_WRAPPED_PORT);
@@ -69,24 +70,24 @@ try {
     desktopId,
     desktopName,
     host,
-    port: DEFAULT_APP_SERVER_PORT,
+    port: DEFAULT_BRIDGE_PORT,
   };
-  const connectionCode = encodeConnectionCode(host, DEFAULT_APP_SERVER_PORT);
+  const connectionCode = encodeConnectionCode(host, DEFAULT_BRIDGE_PORT);
 
   printBootstrapCard({
     desktopName,
     host,
-    port: DEFAULT_APP_SERVER_PORT,
+    port: DEFAULT_BRIDGE_PORT,
     usageWrappedPort: DEFAULT_USAGE_WRAPPED_PORT,
     connectionCode,
     payload,
-    reusingAppServer,
+    reuseExistingBridge,
     reusingUsageService,
   });
 
   registerShutdownHandlers();
-  if (ownedChild) {
-    await waitForChildExit(ownedChild);
+  if (ownedBridge) {
+    await ownedBridge.waitForExit();
   } else {
     await waitForSignal();
   }
@@ -99,7 +100,7 @@ try {
 function printUsage() {
   console.log("Usage: npx codexremote");
   console.log("");
-  console.log("Starts Codex app-server on port 4500, starts Usage Wrapped on port 4501, and prints a QR code for Codex Mobile.");
+  console.log("Starts the CodexRemote bridge on port 4500, starts Usage Wrapped on port 4501, and prints a QR code for Codex Mobile.");
 }
 
 function printBootstrapCard({
@@ -109,11 +110,11 @@ function printBootstrapCard({
   usageWrappedPort,
   connectionCode,
   payload,
-  reusingAppServer,
+  reuseExistingBridge,
   reusingUsageService,
 }) {
   console.log("");
-  console.log(reusingAppServer ? "Codex app-server is already running on port 4500." : "Mobile access is on.");
+  console.log(reuseExistingBridge ? "CodexRemote bridge is already running on port 4500." : "Mobile access is on.");
   console.log(reusingUsageService ? "Usage Wrapped is already running on port 4501." : "Usage Wrapped is on.");
   console.log(`Desktop: ${desktopName}`);
   console.log(`Address: ws://${host}:${port}`);
@@ -123,7 +124,7 @@ function printBootstrapCard({
   qrcode.generate(JSON.stringify(payload), { small: true });
   console.log("");
   console.log("Scan the QR code from Codex Mobile.");
-  console.log("Press Ctrl+C to stop.");
+  console.log(reuseExistingBridge ? "Press Ctrl+C to close this helper. The existing bridge will keep running." : "Press Ctrl+C to stop.");
 }
 
 function encodeConnectionCode(host, port) {
@@ -162,8 +163,8 @@ function registerShutdownHandlers() {
   process.on("SIGINT", shutdownAndExit);
   process.on("SIGTERM", shutdownAndExit);
   process.on("exit", () => {
-    if (ownedChild) {
-      ownedChild.kill();
+    if (ownedBridge) {
+      void ownedBridge.close();
     }
     if (ownedUsageService) {
       ownedUsageService.server.close();
@@ -172,9 +173,9 @@ function registerShutdownHandlers() {
 }
 
 async function shutdownOwnedProcesses() {
-  if (ownedChild) {
-    ownedChild.kill();
-    ownedChild = null;
+  if (ownedBridge) {
+    await ownedBridge.close();
+    ownedBridge = null;
   }
   if (ownedUsageService) {
     try {

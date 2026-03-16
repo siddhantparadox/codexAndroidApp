@@ -458,7 +458,7 @@ class DemoCodexRepository : CodexRepository {
 
         store.update { current ->
             val detail = current.threadDetails[threadId] ?: return@update current
-            val responseText = "Queued the follow-up and kept the next turn scoped to app-server supported actions."
+            val responseText = "Queued the follow-up and kept the next turn scoped to desktop-supported actions."
             val updatedThreads = current.threads.map { summary ->
                 if (summary.id == threadId) {
                     summary.copy(
@@ -984,4 +984,5 @@ private fun previewForApprovalDecision(decision: ApprovalDecision): String = whe
     ApprovalDecision.Decline -> "Approval declined from mobile."
     ApprovalDecision.Cancel -> "Approval cancelled from mobile."
 }
+
 

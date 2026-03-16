@@ -50,3 +50,7 @@ Thumbs.db
 Desktop.ini
 codexremote/.npm-token
 
+# Local sandbox tool homes
+.android-home/
+.gradle-user-home/
+

@@ -1,13 +1,16 @@
 package dev.codex.mobile.core.data.appserver
 
 import dev.codex.mobile.core.model.ComposerSandboxMode
+import dev.codex.mobile.core.model.ConnectionPhase
+import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
+import dev.codex.mobile.core.model.ThreadSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AppServerCodexRepositoryHelpersTest {
@@ -39,6 +42,80 @@ class AppServerCodexRepositoryHelpersTest {
         )
 
         assertFalse(shouldPreserve)
+    }
+
+    @Test
+    fun preservesLiveDesktopStateWhenSameHostWasAlreadyConnected() {
+        val shouldPreserve = shouldPreserveLiveDesktopState(
+            previousActiveHostId = "host-1",
+            nextActiveHostId = "host-1",
+            previousPhase = ConnectionPhase.Connected,
+            currentThreads = emptyList(),
+            currentThreadDetails = emptyMap(),
+        )
+
+        assertTrue(shouldPreserve)
+    }
+
+    @Test
+    fun doesNotPreserveLiveDesktopStateWhenSwitchingHosts() {
+        val shouldPreserve = shouldPreserveLiveDesktopState(
+            previousActiveHostId = "host-1",
+            nextActiveHostId = "host-2",
+            previousPhase = ConnectionPhase.Connected,
+            currentThreads = emptyList(),
+            currentThreadDetails = emptyMap(),
+        )
+
+        assertFalse(shouldPreserve)
+    }
+
+    @Test
+    fun usesReconnectingPhaseWhenDesktopStateCanResume() {
+        val phase = connectionPhaseForAttempt(
+            previousActiveHostId = "host-1",
+            nextActiveHostId = "host-1",
+            previousPhase = ConnectionPhase.Connected,
+            currentThreads = emptyList(),
+            currentThreadDetails = emptyMap(),
+        )
+
+        assertEquals(ConnectionPhase.Reconnecting, phase)
+    }
+
+    @Test
+    fun usesConnectingPhaseForFreshHostConnection() {
+        val phase = connectionPhaseForAttempt(
+            previousActiveHostId = null,
+            nextActiveHostId = "host-1",
+            previousPhase = ConnectionPhase.Idle,
+            currentThreads = emptyList(),
+            currentThreadDetails = emptyMap(),
+        )
+
+        assertEquals(ConnectionPhase.Connecting, phase)
+    }
+
+    @Test
+    fun desktopConnectionMessageIncludesRetryDelayForReconnects() {
+        assertEquals(
+            "Reconnecting to Work Desktop in 8s",
+            desktopConnectionMessage(
+                hostName = "Work Desktop",
+                phase = ConnectionPhase.Reconnecting,
+                nextRetryDelayMs = 8_000L,
+            ),
+        )
+    }
+
+    @Test
+    fun desktopConnectionMessageIsNullWhenAlreadyConnected() {
+        assertNull(
+            desktopConnectionMessage(
+                hostName = "Work Desktop",
+                phase = ConnectionPhase.Connected,
+            ),
+        )
     }
 
     @Test

@@ -78,6 +78,34 @@ class CodexRootViewModelTest {
     }
 
     @Test
+    fun reconnectingStateDoesNotShowConnectionAlert() = runTest {
+        val approval = sampleApproval()
+        val notification = sampleThreadNotification()
+        val repository = FakeCodexRepository(
+            preferences = AppPreferences(
+                themePreference = ThemePreference.System,
+                connectionAlerts = true,
+            ),
+            hosts = listOf(sampleHost()),
+            connection = ConnectionState(
+                activeHostId = "desktop-1",
+                phase = ConnectionPhase.Reconnecting,
+                message = "Reconnecting to Work Desktop in 4s",
+            ),
+            approvals = listOf(approval),
+            threads = listOf(sampleThread()),
+            notifications = listOf(notification),
+        )
+        val viewModel = CodexRootViewModel(repository = repository)
+
+        val state = viewModel.uiState.first { current -> current.alerts.size == 2 }
+
+        assertTrue(state.alerts.none { alert -> alert.id.startsWith(CONNECTION_ALERT_PREFIX) })
+        assertTrue(state.alerts.any { alert -> alert.id == approvalAlertId(approval.id) })
+        assertTrue(state.alerts.any { alert -> alert.id == notification.id })
+    }
+
+    @Test
     fun dismissAlertRemovesApprovalBanner() = runTest {
         val approval = sampleApproval()
         val repository = FakeCodexRepository(

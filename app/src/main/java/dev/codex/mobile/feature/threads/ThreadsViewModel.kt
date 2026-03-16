@@ -128,7 +128,7 @@ class ThreadsViewModel(
         onThreadCreationFailed: (String) -> Unit = {},
     ) {
         if (!uiState.value.canCreateThread) {
-            onThreadCreationFailed("Connect to a desktop app-server before creating a new thread.")
+            onThreadCreationFailed("Connect to your desktop before creating a new thread.")
             return
         }
         viewModelScope.launch {
@@ -222,3 +222,4 @@ class ThreadsViewModel(
 }
 
 private fun currentEpochSeconds(): Long = System.currentTimeMillis() / 1_000
+

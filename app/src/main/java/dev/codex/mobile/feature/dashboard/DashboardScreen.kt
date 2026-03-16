@@ -323,7 +323,7 @@ private fun ConnectionStrip(
             StatusChip(
                 label = connectionLabel(connection.phase),
                 color = connectionColor(connection.phase),
-                pulsingDot = connection.phase == ConnectionPhase.Connected,
+                pulsingDot = connection.phase == ConnectionPhase.Connected || connection.phase == ConnectionPhase.Reconnecting,
             )
         }
     }
@@ -950,6 +950,7 @@ private fun threadStatusColor(status: ThreadStatus): Color = when {
 private fun connectionLabel(phase: ConnectionPhase): String = when (phase) {
     ConnectionPhase.Connected -> "Connected"
     ConnectionPhase.Connecting -> "Connecting"
+    ConnectionPhase.Reconnecting -> "Reconnecting"
     ConnectionPhase.Disconnected -> "Offline"
     ConnectionPhase.Error -> "Error"
     ConnectionPhase.Idle -> "Idle"
@@ -959,6 +960,7 @@ private fun connectionLabel(phase: ConnectionPhase): String = when (phase) {
 private fun connectionColor(phase: ConnectionPhase): Color = when (phase) {
     ConnectionPhase.Connected -> MaterialTheme.colorScheme.primary
     ConnectionPhase.Connecting -> Color(0xFFD59734)
+    ConnectionPhase.Reconnecting -> Color(0xFFD59734)
     ConnectionPhase.Disconnected -> MaterialTheme.colorScheme.onSurfaceVariant
     ConnectionPhase.Error -> MaterialTheme.colorScheme.error
     ConnectionPhase.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -970,6 +972,9 @@ private fun accountStatusLabel(account: AccountState): String = when (account.st
     AccountStatus.ApiKey -> "API key"
     AccountStatus.ChatGpt -> "ChatGPT"
 }
+
+
+
 
 
 

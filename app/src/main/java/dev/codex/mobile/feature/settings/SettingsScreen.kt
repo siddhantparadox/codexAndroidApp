@@ -209,7 +209,7 @@ fun SettingsScreen(
                 )
                 Spacer(modifier = Modifier.height(CodexSpacing.listGap))
                 Text(
-                    text = "This client is designed for trusted local-network app-server connections. Keep the host bound to a private endpoint and avoid exposing it directly to the public internet.",
+                    text = "This client is designed for trusted local-network desktop connections. Keep the bridge bound to a private endpoint and avoid exposing it directly to the public internet.",
                     style = MaterialTheme.typography.supportingText,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -308,4 +308,5 @@ private fun TogglePreference(
         }
     }
 }
+
 

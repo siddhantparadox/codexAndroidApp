@@ -245,7 +245,7 @@ fun ThreadsScreen(
                     }
                     if (!uiState.canCreateThread) {
                         Text(
-                            text = "Connect to a desktop app-server before creating a new thread.",
+                            text = "Connect to your desktop before creating a new thread.",
                             style = MaterialTheme.typography.supportingText,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -524,4 +524,5 @@ private fun threadsSyncStatusColor(uiState: ThreadsUiState): Color = when {
     uiState.canRefresh -> MaterialTheme.colorScheme.onSurfaceVariant
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
+
 

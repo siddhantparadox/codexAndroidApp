@@ -3,6 +3,7 @@ package dev.codex.mobile.core.model
 enum class ConnectionPhase {
     Idle,
     Connecting,
+    Reconnecting,
     Connected,
     Disconnected,
     Error,

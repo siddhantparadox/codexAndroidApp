@@ -202,7 +202,7 @@ fun HostConnectionScreen(
                     )
                     Spacer(modifier = Modifier.size(CodexSpacing.sectionGap))
                     Text(
-                        text = "Use a trusted LAN address for codex app-server and keep the host bound to a private endpoint. The mobile client is a control surface for the desktop runtime, not a separate execution environment.",
+                        text = "Use a trusted LAN address for your desktop bridge and keep it bound to a private endpoint. The mobile client is a control surface for the desktop runtime, not a separate execution environment.",
                         style = MaterialTheme.typography.supportingText,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -426,7 +426,7 @@ private fun RememberedDesktopCard(
                         activeHostId = activeHostId,
                         connectionPhase = connectionPhase,
                     ),
-                    pulsingDot = host.id == activeHostId && connectionPhase == ConnectionPhase.Connected,
+                    pulsingDot = host.id == activeHostId && (connectionPhase == ConnectionPhase.Connected || connectionPhase == ConnectionPhase.Reconnecting),
                 )
                 IconButton(onClick = onOpenActions) {
                     Icon(
@@ -511,7 +511,7 @@ private fun ConnectionStatusCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
-                    imageVector = if (connectionPhase == ConnectionPhase.Connected) {
+                    imageVector = if (connectionPhase == ConnectionPhase.Connected || connectionPhase == ConnectionPhase.Reconnecting) {
                         Icons.Rounded.LaptopMac
                     } else {
                         Icons.Rounded.LinkOff
@@ -536,7 +536,7 @@ private fun ConnectionStatusCard(
             StatusChip(
                 label = hostConnectionLabel(connectionPhase),
                 color = hostConnectionColor(connectionPhase),
-                pulsingDot = connectionPhase == ConnectionPhase.Connected,
+                pulsingDot = connectionPhase == ConnectionPhase.Connected || connectionPhase == ConnectionPhase.Reconnecting,
             )
         }
         connectionMessage?.let { message ->
@@ -574,6 +574,7 @@ private fun hostStatusColor(
 private fun hostConnectionLabel(connectionPhase: ConnectionPhase): String = when (connectionPhase) {
     ConnectionPhase.Connected -> "Connected"
     ConnectionPhase.Connecting -> "Connecting"
+    ConnectionPhase.Reconnecting -> "Reconnecting"
     ConnectionPhase.Disconnected -> "Offline"
     ConnectionPhase.Error -> "Error"
     ConnectionPhase.Idle -> "Idle"
@@ -583,6 +584,7 @@ private fun hostConnectionLabel(connectionPhase: ConnectionPhase): String = when
 private fun hostConnectionColor(connectionPhase: ConnectionPhase): Color = when (connectionPhase) {
     ConnectionPhase.Connected -> MaterialTheme.colorScheme.primary
     ConnectionPhase.Connecting -> Color(0xFFD59734)
+    ConnectionPhase.Reconnecting -> Color(0xFFD59734)
     ConnectionPhase.Disconnected -> MaterialTheme.colorScheme.onSurfaceVariant
     ConnectionPhase.Error -> MaterialTheme.colorScheme.error
     ConnectionPhase.Idle -> MaterialTheme.colorScheme.onSurfaceVariant
@@ -609,3 +611,4 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     is ContextWrapper -> baseContext.findActivity()
     else -> null
 }
+

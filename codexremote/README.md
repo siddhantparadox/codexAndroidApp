@@ -1,15 +1,16 @@
 # codexremote
 
-Start `codex app-server` on your desktop, start the local Usage Wrapped sidecar,
+Start the local CodexRemote desktop bridge, start the Usage Wrapped sidecar,
 and print a QR code so Codex Mobile can connect over your local network.
 
 ## What It Does
 
 `codexremote`:
 
-- starts `codex app-server` on port `4500`
+- starts the CodexRemote bridge on port `4500`
+- starts `codex app-server` behind the bridge over `stdio`
 - starts the Usage Wrapped HTTP service on port `4501`
-- reuses an existing healthy Codex app-server on `4500` if one is already running
+- reuses an existing healthy CodexRemote bridge on `4500` if one is already running
 - reuses an existing healthy Usage Wrapped service on `4501` if one is already running
 - detects your LAN IPv4 address
 - prints a QR code and a short connection code in the terminal
@@ -102,7 +103,7 @@ If that fails, install Codex and make sure it is on your `PATH`.
 
 Another process is already using port `4500`.
 
-- If it is already `codex app-server`, `codexremote` will reuse it.
+- If it is already a healthy CodexRemote bridge, `codexremote` will reuse it.
 - Otherwise, stop the conflicting process and rerun `codexremote`.
 
 ### `Port 4501 is already in use`
@@ -135,8 +136,9 @@ Check these first:
 
 ## Security
 
-`codex app-server` is exposed over raw WebSocket on your local network and
-`Usage Wrapped` is exposed over local HTTP.
+The CodexRemote bridge is exposed over local WebSocket on your network and
+`codex app-server` stays local to the desktop process over `stdio`. `Usage
+Wrapped` is exposed over local HTTP.
 
 Only use `codexremote` on a trusted local network. Do not expose ports `4500`
 or `4501` to the public internet.
@@ -153,7 +155,8 @@ node ./bin/codexremote.mjs
 Run tests:
 
 ```bash
-npm test
+node ./test/bridgeServer.test.mjs
+node ./test/usageWrappedAggregator.test.mjs
 ```
 
 To test the linked CLI locally:
@@ -166,4 +169,5 @@ codexremote
 ## References
 
 - [Codex App Server](https://developers.openai.com/codex/app-server/)
+- [Codex CLI Reference](https://developers.openai.com/codex/cli/reference/)
 - [WSL2 setup](./wsl-setup.md)

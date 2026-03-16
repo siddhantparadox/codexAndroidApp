@@ -114,7 +114,7 @@ fun ApprovalsScreen(
                     )
                     Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
                     Text(
-                        text = "New approval requests will appear here when Codex or app-server asks for a decision.",
+                        text = "New approval requests will appear here when Codex needs a decision from the desktop session.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -387,4 +387,5 @@ private fun ApprovalButton(
         )
     }
 }
+
 
