@@ -24,6 +24,18 @@ class AppServerApprovalMapperTest {
                 put("itemId", "item-1")
                 put("command", "Get-Item simple_page.html")
                 put(
+                    "commandActions",
+                    buildJsonArray {
+                        add(
+                            buildJsonObject {
+                                put("type", "openPage")
+                                put("name", "developers.openai.com")
+                                put("path", "https://developers.openai.com")
+                            },
+                        )
+                    },
+                )
+                put(
                     "availableDecisions",
                     buildJsonArray {
                         add(JsonPrimitive("accept"))
@@ -57,6 +69,8 @@ class AppServerApprovalMapperTest {
 
         requireNotNull(approval)
         assertEquals(4, approval.availableDecisions.size)
+        assertEquals(1, approval.commandActions.size)
+        assertEquals("openPage", approval.commandActions.single().type)
         assertEquals(ApprovalDecision.Accept, approval.availableDecisions.first())
         assertTrue(approval.availableDecisions[1] is ApprovalDecision.AcceptWithExecpolicyAmendment)
         assertTrue(approval.availableDecisions[2] is ApprovalDecision.ApplyNetworkPolicyAmendment)

@@ -72,6 +72,7 @@ data class ApprovalItem(
     val kind: ApprovalKind,
     val command: String? = null,
     val cwd: String? = null,
+    val commandActions: List<CommandActionHint> = emptyList(),
     val filePaths: List<String> = emptyList(),
     val networkContext: ApprovalNetworkContext? = null,
     val requestedPermissions: ApprovalPermissions? = null,

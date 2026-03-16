@@ -26,6 +26,8 @@ import dev.codex.mobile.core.model.HostProfile
 import dev.codex.mobile.core.model.InAppThreadNotification
 import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.ThreadDynamicToolRequest
+import dev.codex.mobile.core.model.ThreadDynamicToolResponse
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadItemStatus
 import dev.codex.mobile.core.model.ThreadResultDigest
@@ -142,6 +144,9 @@ class DemoCodexRepository : CodexRepository {
 
     override fun observeUserInputRequests(): Flow<List<ThreadUserInputRequest>> =
         store.map { it.userInputRequests }
+
+    override fun observeDynamicToolRequests(): Flow<List<ThreadDynamicToolRequest>> =
+        store.map { emptyList() }
 
     override fun observeComposerCatalog(): Flow<ComposerCatalog> = store.map { it.composerCatalog }
 
@@ -395,6 +400,16 @@ class DemoCodexRepository : CodexRepository {
                 },
             )
         }
+    }
+
+    override suspend fun respondToDynamicTool(
+        requestId: String,
+        response: ThreadDynamicToolResponse,
+    ) {
+        AppLog.action(
+            name = "respond_dynamic_tool",
+            detail = "demo request=$requestId response=$response",
+        )
     }
 
     override suspend fun refreshComposerCatalog() {

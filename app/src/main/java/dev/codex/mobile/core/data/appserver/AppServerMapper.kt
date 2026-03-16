@@ -18,6 +18,8 @@ import dev.codex.mobile.core.model.CollabAgentState
 import dev.codex.mobile.core.model.CommandActionHint
 import dev.codex.mobile.core.model.FileChangeEntry
 import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.ThreadDynamicToolKind
+import dev.codex.mobile.core.model.ThreadDynamicToolRequest
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadItemStatus
 import dev.codex.mobile.core.model.ThreadSourceKind
@@ -28,6 +30,7 @@ import dev.codex.mobile.core.model.ThreadUserInputAnswer
 import dev.codex.mobile.core.model.ThreadUserInputField
 import dev.codex.mobile.core.model.ThreadUserInputFieldKind
 import dev.codex.mobile.core.model.ToolContentItem
+import dev.codex.mobile.core.model.approvalAnswersFor
 import dev.codex.mobile.core.model.ThreadUserInputOption
 import dev.codex.mobile.core.model.ThreadUserInputPayload
 import dev.codex.mobile.core.model.ThreadUserInputQuestion
@@ -179,6 +182,9 @@ internal fun JsonObject.toApprovalItem(requestId: JsonPrimitive): ApprovalItem? 
             kind = ApprovalKind.CommandExecution,
             command = params.string("command"),
             cwd = params.string("cwd"),
+            commandActions = params.arrayAt("commandActions")
+                ?.mapNotNull { action -> action.jsonObject.toCommandActionHint() }
+                .orEmpty(),
             networkContext = params.objectAt("networkApprovalContext")?.toApprovalNetworkContext(),
             requestedPermissions = params.objectAt("additionalPermissions")?.toApprovalPermissionsOrNull(),
             reason = params.string("reason"),
@@ -254,6 +260,31 @@ internal fun JsonObject.toThreadUserInputRequest(requestId: JsonPrimitive): Thre
     }
 
     else -> null
+}
+
+internal fun JsonObject.toThreadDynamicToolRequest(requestId: JsonPrimitive): ThreadDynamicToolRequest? {
+    if (string("method") != "item/tool/call") return null
+    val params = requireNotNull(objectAt("params"))
+    val threadId = requireNotNull(params.string("threadId"))
+    val tool = requireNotNull(params.string("tool"))
+    val kind = when (tool) {
+        "pick_photo" -> ThreadDynamicToolKind.PickPhoto
+        else -> return null
+    }
+    val argumentsElement = params.elementAt("arguments")
+    val argumentsObject = argumentsElement as? JsonObject
+    return ThreadDynamicToolRequest(
+        requestId = requestId.content,
+        threadId = threadId,
+        turnId = params.string("turnId"),
+        itemId = params.string("itemId"),
+        tool = tool,
+        kind = kind,
+        prompt = argumentsObject?.string("reason")
+            ?: argumentsObject?.string("prompt")
+            ?: argumentsObject?.string("message"),
+        arguments = argumentsElement?.toDisplayJson().orEmpty(),
+    )
 }
 
 internal fun JsonObject.toThreadStatus(): ThreadStatus = when (string("type")) {
@@ -503,11 +534,36 @@ internal fun toolRequestUserInputResponsePayload(
     }
 }
 
+internal fun dynamicToolCallResponsePayload(
+    contentItems: List<JsonObject> = emptyList(),
+    success: Boolean? = null,
+): JsonObject = buildJsonObject {
+    if (contentItems.isNotEmpty()) {
+        put(
+            "contentItems",
+            buildJsonArray {
+                contentItems.forEach(::add)
+            },
+        )
+    }
+    success?.let { put("success", it) }
+}
+
+internal fun dynamicToolImageContentItemPayload(
+    imageUrl: String,
+): JsonObject = buildJsonObject {
+    put("type", "inputImage")
+    put("imageUrl", imageUrl)
+}
+
 internal fun userInputResponsePayload(
     request: ThreadUserInputRequest,
     response: ThreadUserInputResponse,
 ): JsonObject? = when (val payload = request.payload) {
     is ThreadUserInputPayload.ToolQuestions -> {
+        request.approvalAnswersFor(response)
+            ?.let(::toolRequestUserInputResponsePayload)
+            ?.let { return it }
         val acceptResponse = response as? ThreadUserInputResponse.Accept ?: return null
         val answers = acceptResponse.answers.mapValues { (_, answer) ->
             when (answer) {

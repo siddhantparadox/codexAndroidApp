@@ -39,6 +39,7 @@ import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
 import dev.codex.mobile.core.model.ThreadActivity
 import dev.codex.mobile.core.model.ThreadActivityEmphasis
+import dev.codex.mobile.core.model.ThreadDynamicToolRequest
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.UserInputContent
@@ -53,6 +54,8 @@ internal fun ThreadTranscriptRowView(
     autoRevealExpandedContent: Boolean,
     onDecision: (String, ApprovalDecision) -> Unit,
     onSubmitUserInput: (String, ThreadUserInputResponse) -> Unit,
+    onChooseDynamicTool: (ThreadDynamicToolRequest) -> Unit,
+    onCancelDynamicTool: (String) -> Unit,
     onReviewDiff: (dev.codex.mobile.core.model.FileChangeEntry) -> Unit,
 ) {
     when (row) {
@@ -81,6 +84,12 @@ internal fun ThreadTranscriptRowView(
         is TranscriptRow.UserInputRequestCard -> InlineUserInputRequestCard(
             request = row.request,
             onSubmit = onSubmitUserInput,
+        )
+
+        is TranscriptRow.DynamicToolRequestCard -> InlineDynamicToolRequestCard(
+            request = row.request,
+            onChoosePhoto = onChooseDynamicTool,
+            onCancel = onCancelDynamicTool,
         )
     }
 }

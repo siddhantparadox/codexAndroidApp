@@ -54,6 +54,8 @@ import dev.codex.mobile.core.designsystem.component.StatusChip
 import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.util.AppLog
 import dev.codex.mobile.core.model.FileChangeEntry
+import dev.codex.mobile.core.model.ThreadDynamicToolRequest
+import dev.codex.mobile.core.model.ThreadDynamicToolResponse
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
@@ -92,11 +94,30 @@ fun ThreadDetailScreen(
     var reviewedDiff by remember(detail?.summary?.id) {
         mutableStateOf<FileChangeEntry?>(null)
     }
+    var pendingPhotoPickerRequestId by remember(detail?.summary?.id) {
+        mutableStateOf<String?>(null)
+    }
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
-        uri?.let { pickedUri ->
-            viewModel.attachImage(pickedUri.toString())
+        val pendingRequestId = pendingPhotoPickerRequestId
+        pendingPhotoPickerRequestId = null
+        if (pendingRequestId != null) {
+            if (uri != null) {
+                viewModel.respondToDynamicTool(
+                    requestId = pendingRequestId,
+                    response = ThreadDynamicToolResponse.PickPhotoSelected(uri.toString()),
+                )
+            } else {
+                viewModel.respondToDynamicTool(
+                    requestId = pendingRequestId,
+                    response = ThreadDynamicToolResponse.Cancel,
+                )
+            }
+        } else {
+            uri?.let { pickedUri ->
+                viewModel.attachImage(pickedUri.toString())
+            }
         }
     }
 
@@ -121,11 +142,13 @@ fun ThreadDetailScreen(
                 activeItemIds = uiState.activeItemIds,
                 approvals = uiState.approvals,
                 userInputRequests = uiState.userInputRequests,
+                dynamicToolRequests = uiState.dynamicToolRequests,
             )
             val transcriptRows = buildTranscriptRows(
                 items = visibleItems,
                 approvals = uiState.approvals,
                 userInputRequests = uiState.userInputRequests,
+                dynamicToolRequests = uiState.dynamicToolRequests,
                 showPendingAgentPlaceholder = showPendingAgentPlaceholder,
             )
             val waitingOnUnavailableApproval =
@@ -245,6 +268,20 @@ fun ThreadDetailScreen(
                             autoRevealExpandedContent = followMode,
                             onDecision = viewModel::resolveApproval,
                             onSubmitUserInput = viewModel::respondToUserInput,
+                            onChooseDynamicTool = { request ->
+                                pendingPhotoPickerRequestId = request.requestId
+                                photoPicker.launch(
+                                    PickVisualMediaRequest(
+                                        ActivityResultContracts.PickVisualMedia.ImageOnly,
+                                    ),
+                                )
+                            },
+                            onCancelDynamicTool = { requestId ->
+                                viewModel.respondToDynamicTool(
+                                    requestId = requestId,
+                                    response = ThreadDynamicToolResponse.Cancel,
+                                )
+                            },
                             onReviewDiff = { change ->
                                 reviewedDiff = change
                             },

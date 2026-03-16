@@ -11,6 +11,8 @@ import dev.codex.mobile.core.model.ConnectionState
 import dev.codex.mobile.core.model.HostProfile
 import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.ThreadDynamicToolRequest
+import dev.codex.mobile.core.model.ThreadDynamicToolResponse
 import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.ThreadUserInputResponse
@@ -41,6 +43,8 @@ interface CodexRepository {
     fun observeApprovals(): Flow<List<ApprovalItem>>
 
     fun observeUserInputRequests(): Flow<List<ThreadUserInputRequest>>
+
+    fun observeDynamicToolRequests(): Flow<List<ThreadDynamicToolRequest>>
 
     fun observeComposerCatalog(): Flow<ComposerCatalog>
 
@@ -86,6 +90,11 @@ interface CodexRepository {
     suspend fun respondToUserInput(
         requestId: String,
         response: ThreadUserInputResponse,
+    )
+
+    suspend fun respondToDynamicTool(
+        requestId: String,
+        response: ThreadDynamicToolResponse,
     )
 
     suspend fun refreshComposerCatalog()

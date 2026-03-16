@@ -1,6 +1,7 @@
 package dev.codex.mobile.feature.threaddetail
 
 import dev.codex.mobile.core.model.ApprovalItem
+import dev.codex.mobile.core.model.ThreadDynamicToolRequest
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadUserInputRequest
@@ -42,6 +43,12 @@ internal sealed interface TranscriptRow {
         override val id: String = "user-input-${request.requestId}"
     }
 
+    data class DynamicToolRequestCard(
+        val request: ThreadDynamicToolRequest,
+    ) : TranscriptRow {
+        override val id: String = "dynamic-tool-${request.requestId}"
+    }
+
     object PendingAgentPlaceholder : TranscriptRow {
         override val id: String = "pending-agent-placeholder"
     }
@@ -51,11 +58,13 @@ internal fun buildTranscriptRows(
     items: List<ThreadItem>,
     approvals: List<ApprovalItem>,
     userInputRequests: List<ThreadUserInputRequest>,
+    dynamicToolRequests: List<ThreadDynamicToolRequest>,
     showPendingAgentPlaceholder: Boolean = false,
 ): List<TranscriptRow> {
     if (items.isEmpty() &&
         approvals.isEmpty() &&
         userInputRequests.isEmpty() &&
+        dynamicToolRequests.isEmpty() &&
         !showPendingAgentPlaceholder
     ) {
         return emptyList()
@@ -71,6 +80,11 @@ internal fun buildTranscriptRows(
     val orphanApprovals: List<ApprovalItem> = approvals.filter { approval -> approval.itemId !in itemIds }
     val orphanUserInputRequests: List<ThreadUserInputRequest> = userInputRequests
         .filter { request -> request.itemId == null || request.itemId !in itemIds }
+    val dynamicToolRequestsByItemId: Map<String, List<ThreadDynamicToolRequest>> = dynamicToolRequests
+        .filter { request -> request.itemId != null && request.itemId in itemIds }
+        .groupBy { request -> requireNotNull(request.itemId) }
+    val orphanDynamicToolRequests: List<ThreadDynamicToolRequest> = dynamicToolRequests
+        .filter { request -> request.itemId == null || request.itemId !in itemIds }
 
     val rows: MutableList<TranscriptRow> = mutableListOf()
     var index: Int = 0
@@ -84,6 +98,9 @@ internal fun buildTranscriptRows(
                 rows += userInputRequestsByItemId[item.id].orEmpty().map { request ->
                     TranscriptRow.UserInputRequestCard(request)
                 }
+                rows += dynamicToolRequestsByItemId[item.id].orEmpty().map { request ->
+                    TranscriptRow.DynamicToolRequestCard(request)
+                }
                 index += 1
             }
 
@@ -95,6 +112,9 @@ internal fun buildTranscriptRows(
                 rows += userInputRequestsByItemId[item.id].orEmpty().map { request ->
                     TranscriptRow.UserInputRequestCard(request)
                 }
+                rows += dynamicToolRequestsByItemId[item.id].orEmpty().map { request ->
+                    TranscriptRow.DynamicToolRequestCard(request)
+                }
                 index += 1
             }
 
@@ -102,6 +122,7 @@ internal fun buildTranscriptRows(
                 val stripItems: MutableList<ThreadItem> = mutableListOf()
                 val stripApprovals: MutableList<ApprovalItem> = mutableListOf()
                 val stripUserInputRequests: MutableList<ThreadUserInputRequest> = mutableListOf()
+                val stripDynamicToolRequests: MutableList<ThreadDynamicToolRequest> = mutableListOf()
 
                 while (index < items.size) {
                     val nextItem: ThreadItem = items[index]
@@ -111,6 +132,7 @@ internal fun buildTranscriptRows(
                     stripItems += nextItem
                     stripApprovals += approvalsByItemId[nextItem.id].orEmpty()
                     stripUserInputRequests += userInputRequestsByItemId[nextItem.id].orEmpty()
+                    stripDynamicToolRequests += dynamicToolRequestsByItemId[nextItem.id].orEmpty()
                     index += 1
                 }
 
@@ -121,6 +143,9 @@ internal fun buildTranscriptRows(
                         approvals = stripApprovals,
                         userInputRequests = stripUserInputRequests,
                     )
+                    rows += stripDynamicToolRequests.map { request ->
+                        TranscriptRow.DynamicToolRequestCard(request)
+                    }
                 }
             }
         }
@@ -128,6 +153,7 @@ internal fun buildTranscriptRows(
 
     rows += orphanApprovals.map { approval -> TranscriptRow.ApprovalCard(approval) }
     rows += orphanUserInputRequests.map { request -> TranscriptRow.UserInputRequestCard(request) }
+    rows += orphanDynamicToolRequests.map { request -> TranscriptRow.DynamicToolRequestCard(request) }
     if (showPendingAgentPlaceholder) {
         rows += TranscriptRow.PendingAgentPlaceholder
     }
@@ -140,11 +166,12 @@ internal fun shouldShowPendingAgentPlaceholder(
     activeItemIds: Set<String>,
     approvals: List<ApprovalItem>,
     userInputRequests: List<ThreadUserInputRequest>,
+    dynamicToolRequests: List<ThreadDynamicToolRequest>,
 ): Boolean {
     if (!status.isActive || status.isWaitingOnApproval || status.isWaitingOnUserInput) {
         return false
     }
-    if (approvals.isNotEmpty() || userInputRequests.isNotEmpty()) {
+    if (approvals.isNotEmpty() || userInputRequests.isNotEmpty() || dynamicToolRequests.isNotEmpty()) {
         return false
     }
     return items.none { item -> item.id in activeItemIds }

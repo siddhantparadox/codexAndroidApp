@@ -48,6 +48,7 @@ import dev.codex.mobile.core.model.ThreadUserInputQuestion
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.ThreadUserInputTextFormat
+import dev.codex.mobile.core.model.approvalPrompt
 import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -69,11 +70,20 @@ internal fun InlineUserInputRequestCard(
 
         Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
         when (val payload = request.payload) {
-            is ThreadUserInputPayload.ToolQuestions -> ToolQuestionRequestContent(
-                requestId = request.requestId,
-                questions = payload.questions,
-                onSubmit = onSubmit,
-            )
+            is ThreadUserInputPayload.ToolQuestions -> {
+                if (request.approvalPrompt != null) {
+                    ToolApprovalRequestContent(
+                        request = request,
+                        onSubmit = onSubmit,
+                    )
+                } else {
+                    ToolQuestionRequestContent(
+                        requestId = request.requestId,
+                        questions = payload.questions,
+                        onSubmit = onSubmit,
+                    )
+                }
+            }
 
             is ThreadUserInputPayload.McpForm -> McpFormRequestContent(
                 requestId = request.requestId,
@@ -97,11 +107,18 @@ private fun UserInputCardHeader(
     val title: String
     val subtitle: String
     val chipLabel: String
+    val approvalPrompt = request.approvalPrompt
     when (val payload = request.payload) {
         is ThreadUserInputPayload.ToolQuestions -> {
-            title = "Clarification needed"
-            subtitle = "Codex is waiting for a short answer before it can continue this turn."
-            chipLabel = "Needs Input"
+            if (approvalPrompt != null) {
+                title = "Tool approval required"
+                subtitle = approvalPrompt.prompt
+                chipLabel = "Approval"
+            } else {
+                title = "Clarification needed"
+                subtitle = "Codex is waiting for a short answer before it can continue this turn."
+                chipLabel = "Needs Input"
+            }
         }
 
         is ThreadUserInputPayload.McpForm -> {
@@ -153,6 +170,42 @@ private fun UserInputCardHeader(
             label = chipLabel,
             color = UserInputAccent,
         )
+    }
+}
+
+@Composable
+private fun ToolApprovalRequestContent(
+    request: ThreadUserInputRequest,
+    onSubmit: (String, ThreadUserInputResponse) -> Unit,
+) {
+    val approvalPrompt = requireNotNull(request.approvalPrompt)
+    approvalPrompt.actions.forEachIndexed { index, action ->
+        when (action.response) {
+            is ThreadUserInputResponse.Accept -> Button(
+                onClick = { onSubmit(request.requestId, action.response) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = action.label)
+            }
+
+            ThreadUserInputResponse.Decline -> OutlinedButton(
+                onClick = { onSubmit(request.requestId, action.response) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = action.label)
+            }
+
+            ThreadUserInputResponse.Cancel -> OutlinedButton(
+                onClick = { onSubmit(request.requestId, action.response) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = action.label)
+            }
+        }
+
+        if (index != approvalPrompt.actions.lastIndex) {
+            Spacer(modifier = Modifier.height(CodexSpacing.tightGap))
+        }
     }
 }
 

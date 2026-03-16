@@ -124,6 +124,12 @@ internal fun skillsListParamsPayload(forceReload: Boolean): JsonObject = buildJs
 
 internal fun threadStartParamsPayload(cwd: String? = null): JsonObject = buildJsonObject {
     cwd?.takeIf { it.isNotBlank() }?.let { put("cwd", it) }
+    put(
+        "dynamicTools",
+        buildJsonArray {
+            add(pickPhotoDynamicToolPayload())
+        },
+    )
 }
 
 internal fun threadResumeParamsPayload(threadId: String): JsonObject = buildJsonObject {
@@ -176,4 +182,19 @@ internal fun turnInterruptParamsPayload(
 ): JsonObject = buildJsonObject {
     put("threadId", threadId)
     put("turnId", turnId)
+}
+
+private fun pickPhotoDynamicToolPayload(): JsonObject = buildJsonObject {
+    put("name", "pick_photo")
+    put("description", "Open the Android photo picker and return one selected image.")
+    putJsonObject("inputSchema") {
+        put("type", "object")
+        putJsonObject("properties") {
+            putJsonObject("reason") {
+                put("type", "string")
+                put("description", "Short explanation shown to the user before launching the picker.")
+            }
+        }
+        put("additionalProperties", false)
+    }
 }

@@ -21,8 +21,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Terminal
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,6 +41,8 @@ import dev.codex.mobile.core.designsystem.theme.CodexSpacing
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
+import dev.codex.mobile.core.model.ThreadUserInputResponse
+import dev.codex.mobile.core.model.approvalPrompt
 import dev.codex.mobile.core.model.decisionLabel
 import dev.codex.mobile.core.model.detailLines
 import dev.codex.mobile.core.model.headline
@@ -91,17 +95,17 @@ fun ApprovalsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = if (uiState.approvals.isEmpty()) {
+                    text = if (uiState.entries.isEmpty()) {
                         "No active approval requests."
                     } else {
-                        "${uiState.approvals.size} request(s) need a decision."
+                        "${uiState.entries.size} request(s) need a decision."
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        if (uiState.approvals.isEmpty()) {
+        if (uiState.entries.isEmpty()) {
             item {
                 CodexCard {
                     Text(
@@ -110,19 +114,29 @@ fun ApprovalsScreen(
                     )
                     Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
                     Text(
-                        text = "New command and file-change requests will appear here when app-server asks for a decision.",
+                        text = "New approval requests will appear here when Codex or app-server asks for a decision.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
         } else {
-            items(uiState.approvals, key = { approval -> approval.id }) { approval ->
-                ApprovalCard(
-                    approval = approval,
-                    onDecision = { decision -> viewModel.resolveApproval(approval.id, decision) },
-                    onClick = { onOpenThread(approval.threadId) },
-                )
+            items(uiState.entries, key = { entry -> entry.id }) { entry ->
+                when (entry) {
+                    is ApprovalQueueEntry.Standard -> ApprovalCard(
+                        approval = entry.approval,
+                        onDecision = { decision -> viewModel.resolveApproval(entry.approval.id, decision) },
+                        onClick = { onOpenThread(entry.threadId) },
+                    )
+
+                    is ApprovalQueueEntry.ToolPrompt -> ToolApprovalCard(
+                        entry = entry,
+                        onDecision = { response ->
+                            viewModel.respondToUserInput(entry.request.requestId, response)
+                        },
+                        onClick = { onOpenThread(entry.threadId) },
+                    )
+                }
             }
         }
     }
@@ -215,6 +229,116 @@ private fun ApprovalCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ToolApprovalCard(
+    entry: ApprovalQueueEntry.ToolPrompt,
+    onDecision: (ThreadUserInputResponse) -> Unit,
+    onClick: () -> Unit,
+) {
+    val prompt = requireNotNull(entry.request.approvalPrompt)
+    CodexCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.NotificationsActive,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Tool Approval".uppercase(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Column(modifier = Modifier.padding(CodexSpacing.cardPadding)) {
+                Text(
+                    text = prompt.prompt,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (prompt.header.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+                    Text(
+                        text = prompt.header,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(modifier = Modifier.height(CodexSpacing.listGap))
+                Text(
+                    text = "Responding here resolves the pending tool approval for this thread.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(modifier = Modifier.height(CodexSpacing.sectionGap))
+                prompt.actions.forEachIndexed { index, action ->
+                    ToolApprovalButton(
+                        label = action.label,
+                        response = action.response,
+                        onClick = { onDecision(action.response) },
+                    )
+                    if (index != prompt.actions.lastIndex) {
+                        Spacer(modifier = Modifier.height(CodexSpacing.listGap))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToolApprovalButton(
+    label: String,
+    response: ThreadUserInputResponse,
+    onClick: () -> Unit,
+) {
+    when (response) {
+        is ThreadUserInputResponse.Accept -> Button(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(text = label)
+        }
+
+        ThreadUserInputResponse.Decline -> OutlinedButton(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(text = label)
+        }
+
+        ThreadUserInputResponse.Cancel -> OutlinedButton(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(text = label)
         }
     }
 }

@@ -14,6 +14,8 @@ import dev.codex.mobile.core.model.HostKind
 import dev.codex.mobile.core.model.HostProfile
 import dev.codex.mobile.core.model.InAppThreadNotification
 import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.ThreadDynamicToolRequest
+import dev.codex.mobile.core.model.ThreadDynamicToolResponse
 import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadSourceKind
@@ -158,6 +160,8 @@ private class FakeCodexRepository(
 
     override fun observeUserInputRequests(): Flow<List<ThreadUserInputRequest>> = flowOf(emptyList())
 
+    override fun observeDynamicToolRequests(): Flow<List<ThreadDynamicToolRequest>> = flowOf(emptyList())
+
     override fun observeComposerCatalog(): Flow<ComposerCatalog> = flowOf(ComposerCatalog())
 
     override fun observeUnreadThreadResultDigests(): Flow<Map<String, ThreadResultDigest>> = flowOf(emptyMap())
@@ -209,6 +213,11 @@ private class FakeCodexRepository(
     override suspend fun respondToUserInput(
         requestId: String,
         response: dev.codex.mobile.core.model.ThreadUserInputResponse,
+    ) = Unit
+
+    override suspend fun respondToDynamicTool(
+        requestId: String,
+        response: ThreadDynamicToolResponse,
     ) = Unit
 
     override suspend fun refreshComposerCatalog() = Unit

@@ -2,6 +2,8 @@ package dev.codex.mobile.core.data.appserver
 
 import dev.codex.mobile.core.model.ComposerSandboxMode
 import dev.codex.mobile.core.model.ThreadItem
+import dev.codex.mobile.core.model.ThreadStatus
+import dev.codex.mobile.core.model.ThreadStatusType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -57,6 +59,58 @@ class AppServerCodexRepositoryHelpersTest {
         )
 
         assertEquals(existingItems, mergedItems)
+    }
+
+    @Test
+    fun authoritativeSnapshotReplacesStaleCachedItems() {
+        val existingItems = listOf(
+            ThreadItem.UserMessage(id = "item-1", text = "user"),
+            ThreadItem.AgentMessage(id = "item-2", text = "commentary", phase = "commentary"),
+            ThreadItem.WebSearch(id = "item-3", query = "stale"),
+        )
+        val snapshotItems = listOf(
+            ThreadItem.UserMessage(id = "item-1", text = "user"),
+            ThreadItem.AgentMessage(id = "item-2", text = "commentary", phase = "commentary"),
+            ThreadItem.AgentMessage(
+                id = "item-4",
+                text = "Do you want the new section to cover OpenAI API pricing or ChatGPT subscription pricing?",
+                phase = "final_answer",
+            ),
+        )
+
+        val mergedItems = mergeThreadItems(
+            existingItems = existingItems,
+            snapshotItems = snapshotItems,
+            snapshotIsAuthoritative = true,
+        )
+
+        assertEquals(snapshotItems, mergedItems)
+    }
+
+    @Test
+    fun completedSnapshotWithoutActiveTurnIsAuthoritative() {
+        val shouldUseSnapshot = shouldUseAuthoritativeThreadSnapshot(
+            snapshotItems = listOf(
+                ThreadItem.AgentMessage(id = "item-1", text = "done"),
+            ),
+            snapshotStatus = ThreadStatus(type = ThreadStatusType.Idle),
+            activeTurnId = null,
+        )
+
+        assertTrue(shouldUseSnapshot)
+    }
+
+    @Test
+    fun activeThreadSnapshotIsNotAuthoritative() {
+        val shouldUseSnapshot = shouldUseAuthoritativeThreadSnapshot(
+            snapshotItems = listOf(
+                ThreadItem.AgentMessage(id = "item-1", text = "still running"),
+            ),
+            snapshotStatus = ThreadStatus(type = ThreadStatusType.Active),
+            activeTurnId = "turn-1",
+        )
+
+        assertFalse(shouldUseSnapshot)
     }
 
     @Test

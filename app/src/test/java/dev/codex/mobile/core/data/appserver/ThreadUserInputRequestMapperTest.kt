@@ -2,6 +2,9 @@ package dev.codex.mobile.core.data.appserver
 
 import dev.codex.mobile.core.model.ThreadUserInputAnswer
 import dev.codex.mobile.core.model.ThreadUserInputPayload
+import dev.codex.mobile.core.model.ThreadUserInputResponse
+import dev.codex.mobile.core.model.approvalPrompt
+import dev.codex.mobile.core.model.isApprovalPrompt
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
@@ -53,9 +56,46 @@ class ThreadUserInputRequestMapperTest {
         assertEquals("request-1", request.requestId)
         assertEquals("thread-1", request.threadId)
         assertEquals("item-1", request.itemId)
+        assertFalse(request.isApprovalPrompt)
         val payload = request.payload as ThreadUserInputPayload.ToolQuestions
         assertEquals(1, payload.questions.size)
         assertTrue(payload.questions.single().isOtherAllowed)
+    }
+
+    @Test
+    fun mapsApprovalShapedToolRequestUserInputServerRequest() {
+        val json = Json.parseToJsonElement(
+            """
+            {
+              "method": "item/tool/requestUserInput",
+              "params": {
+                "threadId": "thread-1",
+                "turnId": "turn-1",
+                "itemId": "item-approval-1",
+                "questions": [
+                  {
+                    "id": "q-1",
+                    "header": "Approval",
+                    "question": "Allow the GitHub tool call to continue?",
+                    "options": [
+                      { "label": "Accept", "description": "Run the tool call." },
+                      { "label": "Decline", "description": "Do not run the tool call." },
+                      { "label": "Cancel", "description": "Decide later." }
+                    ],
+                    "isOther": false,
+                    "isSecret": false
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+        ).jsonObject
+
+        val request = json.toThreadUserInputRequest(requestId = JsonPrimitive("request-approval-1"))
+
+        requireNotNull(request)
+        assertTrue(request.isApprovalPrompt)
+        assertEquals(3, requireNotNull(request.approvalPrompt).actions.size)
     }
 
     @Test
@@ -254,5 +294,96 @@ class ThreadUserInputRequestMapperTest {
         )
 
         assertEquals("decline", payload.string("action"))
+    }
+
+    @Test
+    fun buildsToolApprovalDeclineResponsePayloadFromOptionAnswers() {
+        val request = Json.parseToJsonElement(
+            """
+            {
+              "method": "item/tool/requestUserInput",
+              "params": {
+                "threadId": "thread-1",
+                "turnId": "turn-1",
+                "itemId": "item-approval-2",
+                "questions": [
+                  {
+                    "id": "q-1",
+                    "header": "Approval",
+                    "question": "Allow the GitHub tool call to continue?",
+                    "options": [
+                      { "label": "Accept", "description": "Run the tool call." },
+                      { "label": "Decline", "description": "Do not run the tool call." },
+                      { "label": "Cancel", "description": "Decide later." }
+                    ],
+                    "isOther": false,
+                    "isSecret": false
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+        ).jsonObject.toThreadUserInputRequest(requestId = JsonPrimitive("request-6"))
+
+        requireNotNull(request)
+        val payload = requireNotNull(
+            userInputResponsePayload(
+                request = request,
+                response = ThreadUserInputResponse.Decline,
+            ),
+        )
+
+        assertEquals(
+            "Decline",
+            payload.getValue("answers").jsonObject
+                .getValue("q-1").jsonObject
+                .getValue("answers").jsonArray[0]
+                .jsonPrimitive.content,
+        )
+    }
+
+    @Test
+    fun buildsToolApprovalCancelResponsePayloadFromOptionAnswers() {
+        val request = Json.parseToJsonElement(
+            """
+            {
+              "method": "item/tool/requestUserInput",
+              "params": {
+                "threadId": "thread-1",
+                "turnId": "turn-1",
+                "itemId": "item-approval-3",
+                "questions": [
+                  {
+                    "id": "q-1",
+                    "header": "Approval",
+                    "question": "Allow the GitHub tool call to continue?",
+                    "options": [
+                      { "label": "Accept", "description": "Run the tool call." },
+                      { "label": "Cancel", "description": "Decide later." }
+                    ],
+                    "isOther": false,
+                    "isSecret": false
+                  }
+                ]
+              }
+            }
+            """.trimIndent(),
+        ).jsonObject.toThreadUserInputRequest(requestId = JsonPrimitive("request-7"))
+
+        requireNotNull(request)
+        val payload = requireNotNull(
+            userInputResponsePayload(
+                request = request,
+                response = ThreadUserInputResponse.Cancel,
+            ),
+        )
+
+        assertEquals(
+            "Cancel",
+            payload.getValue("answers").jsonObject
+                .getValue("q-1").jsonObject
+                .getValue("answers").jsonArray[0]
+                .jsonPrimitive.content,
+        )
     }
 }

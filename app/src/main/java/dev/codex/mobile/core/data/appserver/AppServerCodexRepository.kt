@@ -32,6 +32,9 @@ import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
 import dev.codex.mobile.core.model.ThreadActivity
 import dev.codex.mobile.core.model.ThreadActivityEmphasis
+import dev.codex.mobile.core.model.ThreadDynamicToolKind
+import dev.codex.mobile.core.model.ThreadDynamicToolRequest
+import dev.codex.mobile.core.model.ThreadDynamicToolResponse
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadStatus
@@ -85,6 +88,7 @@ private data class RepositoryState(
     val threadSettingsCache: Map<String, PersistedThreadSettings> = emptyMap(),
     val approvals: List<ApprovalItem> = emptyList(),
     val userInputRequests: List<ThreadUserInputRequest> = emptyList(),
+    val dynamicToolRequests: List<ThreadDynamicToolRequest> = emptyList(),
     val activeTurnIds: Map<String, String> = emptyMap(),
     val composerCatalog: ComposerCatalog = ComposerCatalog(),
     val unreadThreadResultDigests: Map<String, ThreadResultDigest> = emptyMap(),
@@ -102,6 +106,11 @@ private data class PendingApprovalRequest(
 private data class PendingUserInputRequest(
     val requestId: JsonPrimitive,
     val request: ThreadUserInputRequest,
+)
+
+private data class PendingDynamicToolRequest(
+    val requestId: JsonPrimitive,
+    val request: ThreadDynamicToolRequest,
 )
 
 internal class AppServerCodexRepository(
@@ -127,6 +136,7 @@ internal class AppServerCodexRepository(
     private val openedThreadIds: MutableSet<String> = linkedSetOf()
     private val pendingApprovalRequests: MutableMap<String, PendingApprovalRequest> = linkedMapOf()
     private val pendingUserInputRequests: MutableMap<String, PendingUserInputRequest> = linkedMapOf()
+    private val pendingDynamicToolRequests: MutableMap<String, PendingDynamicToolRequest> = linkedMapOf()
 
     @Volatile
     private var session: CodexAppServerSession? = null
@@ -173,6 +183,9 @@ internal class AppServerCodexRepository(
 
     override fun observeUserInputRequests(): Flow<List<ThreadUserInputRequest>> =
         repositoryState.map { it.userInputRequests }
+
+    override fun observeDynamicToolRequests(): Flow<List<ThreadDynamicToolRequest>> =
+        repositoryState.map { it.dynamicToolRequests }
 
     override fun observeComposerCatalog(): Flow<ComposerCatalog> = repositoryState.map { it.composerCatalog }
 
@@ -476,6 +489,39 @@ internal class AppServerCodexRepository(
         )
     }
 
+    override suspend fun respondToDynamicTool(
+        requestId: String,
+        response: ThreadDynamicToolResponse,
+    ) {
+        val pending = pendingDynamicToolRequests[requestId] ?: return
+        val currentSession = session ?: return
+        val payload = when (response) {
+            is ThreadDynamicToolResponse.PickPhotoSelected -> {
+                val imageDataUrl = contentUriToDataUrl(response.contentUri)
+                if (imageDataUrl == null) {
+                    dynamicToolCallResponsePayload(success = false)
+                } else {
+                    dynamicToolCallResponsePayload(
+                        contentItems = listOf(dynamicToolImageContentItemPayload(imageDataUrl)),
+                        success = true,
+                    )
+                }
+            }
+
+            ThreadDynamicToolResponse.Cancel -> dynamicToolCallResponsePayload(success = false)
+        }
+
+        AppLog.action(
+            name = "respond_dynamic_tool",
+            detail = "request=$requestId tool=${pending.request.tool} response=$response",
+        )
+
+        currentSession.respondToRequest(
+            requestId = pending.requestId,
+            result = payload,
+        )
+    }
+
     override suspend fun refreshComposerCatalog() {
         val currentSession = session ?: return
         val catalog = runCatching {
@@ -630,6 +676,7 @@ internal class AppServerCodexRepository(
         session = null
         pendingApprovalRequests.clear()
         pendingUserInputRequests.clear()
+        pendingDynamicToolRequests.clear()
 
         val activeHost = repositoryState.value.hosts.firstOrNull { it.isActive }
         val preserveThreadCache = shouldPreserveThreadCache(
@@ -652,6 +699,7 @@ internal class AppServerCodexRepository(
                     threadSettingsCache = emptyMap(),
                     approvals = emptyList(),
                     userInputRequests = emptyList(),
+                    dynamicToolRequests = emptyList(),
                     activeTurnIds = emptyMap(),
                     composerCatalog = ComposerCatalog(),
                     unreadThreadResultDigests = emptyMap(),
@@ -682,6 +730,7 @@ internal class AppServerCodexRepository(
                 threadSettingsCache = if (preserveThreadCache) current.threadSettingsCache else emptyMap(),
                 approvals = emptyList(),
                 userInputRequests = emptyList(),
+                dynamicToolRequests = emptyList(),
                 activeTurnIds = emptyMap(),
                 composerCatalog = ComposerCatalog(),
                 unreadThreadResultDigests = emptyMap(),
@@ -770,6 +819,7 @@ internal class AppServerCodexRepository(
                     activeItemIdsByThread = emptyMap(),
                     approvals = emptyList(),
                     userInputRequests = emptyList(),
+                    dynamicToolRequests = emptyList(),
                     activeTurnIds = emptyMap(),
                     unreadThreadResultDigests = emptyMap(),
                     inAppThreadNotifications = emptyList(),
@@ -928,6 +978,11 @@ internal class AppServerCodexRepository(
                             } else {
                                 base.cwd ?: derivedItem.cwd
                             },
+                            commandActions = if (base.commandActions.isNotEmpty()) {
+                                base.commandActions
+                            } else {
+                                derivedItem.commandActions
+                            },
                         )
 
                         is ThreadItem.FileChange -> base.copy(
@@ -1051,6 +1106,57 @@ internal class AppServerCodexRepository(
                 }
             }
 
+            "item/tool/call" -> {
+                val currentSession = session ?: return
+                val dynamicToolRequest = wrapper.toThreadDynamicToolRequest(request.requestId)
+                if (dynamicToolRequest == null) {
+                    val toolName = request.params.string("tool").orEmpty().ifBlank { "unknown" }
+                    AppLog.action(
+                        name = "dynamic_tool_request_unsupported",
+                        detail = "thread=$threadId tool=$toolName",
+                    )
+                    appendActivity(
+                        threadId = threadId,
+                        activity = ThreadActivity(
+                            id = "dynamic-tool-unsupported-${request.requestId.content}",
+                            title = "Unsupported dynamic tool",
+                            detail = toolName,
+                            emphasis = ThreadActivityEmphasis.Warning,
+                        ),
+                    )
+                    currentSession.respondToRequest(
+                        requestId = request.requestId,
+                        result = dynamicToolCallResponsePayload(success = false),
+                    )
+                    return
+                }
+
+                pendingDynamicToolRequests[dynamicToolRequest.requestId] = PendingDynamicToolRequest(
+                    requestId = request.requestId,
+                    request = dynamicToolRequest,
+                )
+                AppLog.action(
+                    name = "dynamic_tool_requested",
+                    detail = "thread=${dynamicToolRequest.threadId} request=${dynamicToolRequest.requestId} tool=${dynamicToolRequest.tool}",
+                )
+                appendActivity(
+                    threadId = dynamicToolRequest.threadId,
+                    activity = ThreadActivity(
+                        id = "dynamic-tool-${dynamicToolRequest.requestId}",
+                        title = "Dynamic tool requested",
+                        detail = dynamicToolRequest.prompt ?: dynamicToolRequest.tool,
+                        emphasis = ThreadActivityEmphasis.Active,
+                    ),
+                )
+                repositoryState.update { current ->
+                    val updatedDynamicToolRequests = current.dynamicToolRequests
+                        .filterNot { pending -> pending.requestId == dynamicToolRequest.requestId } + dynamicToolRequest
+                    current.copy(
+                        dynamicToolRequests = updatedDynamicToolRequests,
+                    )
+                }
+            }
+
             else -> Unit
         }
     }
@@ -1070,6 +1176,7 @@ internal class AppServerCodexRepository(
         sessionEventsJob = null
         pendingApprovalRequests.clear()
         pendingUserInputRequests.clear()
+        pendingDynamicToolRequests.clear()
         repositoryState.update { current ->
             current.copy(
                 connection = ConnectionState(
@@ -1081,6 +1188,7 @@ internal class AppServerCodexRepository(
                 rateLimits = null,
                 approvals = emptyList(),
                 userInputRequests = emptyList(),
+                dynamicToolRequests = emptyList(),
                 activeTurnIds = emptyMap(),
                 unreadThreadResultDigests = emptyMap(),
                 inAppThreadNotifications = emptyList(),
@@ -1593,12 +1701,15 @@ internal class AppServerCodexRepository(
         val threadId = params.string("threadId") ?: return
         pendingApprovalRequests.remove(requestId)
         pendingUserInputRequests.remove(requestId)
+        pendingDynamicToolRequests.remove(requestId)
         repositoryState.update { current ->
             val remainingApprovals = current.approvals.filterNot { it.id == requestId }
             val remainingUserInputRequests = current.userInputRequests.filterNot { it.requestId == requestId }
+            val remainingDynamicToolRequests = current.dynamicToolRequests.filterNot { it.requestId == requestId }
             current.copy(
                 approvals = remainingApprovals,
                 userInputRequests = remainingUserInputRequests,
+                dynamicToolRequests = remainingDynamicToolRequests,
                 threads = current.threads.map { thread ->
                     if (
                         thread.id == threadId &&
@@ -1798,11 +1909,16 @@ internal class AppServerCodexRepository(
                     ).let { status ->
                         summary.copy(status = status)
                     }
-                }
+            }
             val mergedDetail = detail.copy(
                 items = mergeThreadItems(
                     existingItems = if (cachedItems.isNotEmpty()) cachedItems else existingDetail?.items.orEmpty(),
                     snapshotItems = detail.items,
+                    snapshotIsAuthoritative = shouldUseAuthoritativeThreadSnapshot(
+                        snapshotItems = detail.items,
+                        snapshotStatus = detail.summary.status,
+                        activeTurnId = activeTurnId,
+                    ),
                 ),
                 activities = existingDetail?.activities.orEmpty(),
                 summary = mergedSummary,
@@ -1967,9 +2083,11 @@ internal class AppServerCodexRepository(
 internal fun mergeThreadItems(
     existingItems: List<ThreadItem>,
     snapshotItems: List<ThreadItem>,
+    snapshotIsAuthoritative: Boolean = false,
 ): List<ThreadItem> {
     if (existingItems.isEmpty()) return snapshotItems
     if (snapshotItems.isEmpty()) return existingItems
+    if (snapshotIsAuthoritative) return snapshotItems
     if (existingItems.size > snapshotItems.size) return existingItems
 
     val snapshotById = snapshotItems.associateBy { it.id }
@@ -1984,6 +2102,14 @@ internal fun mergeThreadItems(
             .forEach(::add)
     }
 }
+
+internal fun shouldUseAuthoritativeThreadSnapshot(
+    snapshotItems: List<ThreadItem>,
+    snapshotStatus: ThreadStatus,
+    activeTurnId: String?,
+): Boolean = snapshotItems.isNotEmpty() &&
+    activeTurnId == null &&
+    snapshotStatus.type != ThreadStatusType.Active
 
 internal fun shouldPreserveThreadCache(
     previousActiveHostId: String?,

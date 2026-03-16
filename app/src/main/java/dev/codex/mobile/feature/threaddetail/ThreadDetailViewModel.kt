@@ -20,6 +20,8 @@ import dev.codex.mobile.core.model.ComposerSandboxMode
 import dev.codex.mobile.core.model.ComposerSkillOption
 import dev.codex.mobile.core.model.ThreadReplyRequest
 import dev.codex.mobile.core.model.ThreadDetail
+import dev.codex.mobile.core.model.ThreadDynamicToolRequest
+import dev.codex.mobile.core.model.ThreadDynamicToolResponse
 import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.isActive
@@ -38,6 +40,7 @@ data class ThreadDetailUiState(
     val activeItemIds: Set<String> = emptySet(),
     val approvals: List<ApprovalItem> = emptyList(),
     val userInputRequests: List<ThreadUserInputRequest> = emptyList(),
+    val dynamicToolRequests: List<ThreadDynamicToolRequest> = emptyList(),
     val draft: String = "",
     val canInterrupt: Boolean = false,
     val isInterrupting: Boolean = false,
@@ -75,6 +78,7 @@ private data class ThreadBaseUiState(
     val activeItemIds: Set<String> = emptySet(),
     val approvals: List<ApprovalItem> = emptyList(),
     val userInputRequests: List<ThreadUserInputRequest> = emptyList(),
+    val dynamicToolRequests: List<ThreadDynamicToolRequest> = emptyList(),
     val draft: String = "",
     val canInterrupt: Boolean = false,
     val isInterrupting: Boolean = false,
@@ -176,8 +180,9 @@ class ThreadDetailViewModel(
     private val pendingRequestState = combine(
         repository.observeApprovals(),
         repository.observeUserInputRequests(),
-    ) { approvals, userInputRequests ->
-        approvals to userInputRequests
+        repository.observeDynamicToolRequests(),
+    ) { approvals, userInputRequests, dynamicToolRequests ->
+        Triple(approvals, userInputRequests, dynamicToolRequests)
     }
 
     private val baseUiState = combine(
@@ -188,12 +193,13 @@ class ThreadDetailViewModel(
         interruptRequested,
     ) { threadLoad: ThreadLoadState,
         activeItemIds: Set<String>,
-        pendingRequests: Pair<List<ApprovalItem>, List<ThreadUserInputRequest>>,
+        pendingRequests: Triple<List<ApprovalItem>, List<ThreadUserInputRequest>, List<ThreadDynamicToolRequest>>,
         currentDraft: String,
         interruptInFlight: Boolean
         ->
         val approvals = pendingRequests.first
         val userInputRequests = pendingRequests.second
+        val dynamicToolRequests = pendingRequests.third
         val detail = threadLoad.detail
         val canInterrupt = detail?.summary?.status?.isActive == true
         ThreadBaseUiState(
@@ -202,6 +208,7 @@ class ThreadDetailViewModel(
             activeItemIds = activeItemIds,
             approvals = approvals.filter { approval -> approval.threadId == route.threadId },
             userInputRequests = userInputRequests.filter { request -> request.threadId == route.threadId },
+            dynamicToolRequests = dynamicToolRequests.filter { request -> request.threadId == route.threadId },
             draft = currentDraft,
             canInterrupt = canInterrupt,
             isInterrupting = canInterrupt && interruptInFlight,
@@ -218,6 +225,7 @@ class ThreadDetailViewModel(
             activeItemIds = base.activeItemIds,
             approvals = base.approvals,
             userInputRequests = base.userInputRequests,
+            dynamicToolRequests = base.dynamicToolRequests,
             draft = base.draft,
             canInterrupt = base.canInterrupt,
             isInterrupting = base.isInterrupting,
@@ -338,6 +346,18 @@ class ThreadDetailViewModel(
     ) {
         viewModelScope.launch {
             repository.respondToUserInput(
+                requestId = requestId,
+                response = response,
+            )
+        }
+    }
+
+    fun respondToDynamicTool(
+        requestId: String,
+        response: ThreadDynamicToolResponse,
+    ) {
+        viewModelScope.launch {
+            repository.respondToDynamicTool(
                 requestId = requestId,
                 response = response,
             )

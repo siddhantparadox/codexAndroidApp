@@ -3,6 +3,8 @@ package dev.codex.mobile.feature.threaddetail
 import dev.codex.mobile.core.model.ApprovalDecision
 import dev.codex.mobile.core.model.ApprovalItem
 import dev.codex.mobile.core.model.ApprovalKind
+import dev.codex.mobile.core.model.ThreadDynamicToolKind
+import dev.codex.mobile.core.model.ThreadDynamicToolRequest
 import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadItemStatus
 import dev.codex.mobile.core.model.ThreadStatus
@@ -47,6 +49,7 @@ class ThreadTranscriptRowsTest {
                     ),
                 ),
             ),
+            dynamicToolRequests = emptyList(),
         )
 
         val technicalStrip = rows.filterIsInstance<TranscriptRow.TechnicalStrip>().single()
@@ -76,6 +79,7 @@ class ThreadTranscriptRowsTest {
                     ),
                 ),
             ),
+            dynamicToolRequests = emptyList(),
         )
 
         assertTrue(rows.single() is TranscriptRow.UserInputRequestCard)
@@ -111,6 +115,7 @@ class ThreadTranscriptRowsTest {
                     ),
                 ),
             ),
+            dynamicToolRequests = emptyList(),
         )
 
         assertEquals(3, rows.size)
@@ -143,6 +148,7 @@ class ThreadTranscriptRowsTest {
                 ),
             ),
             userInputRequests = emptyList(),
+            dynamicToolRequests = emptyList(),
         )
 
         assertEquals(2, rows.size)
@@ -158,6 +164,7 @@ class ThreadTranscriptRowsTest {
             ),
             approvals = emptyList(),
             userInputRequests = emptyList(),
+            dynamicToolRequests = emptyList(),
             showPendingAgentPlaceholder = true,
         )
 
@@ -179,6 +186,7 @@ class ThreadTranscriptRowsTest {
                 activeItemIds = emptySet(),
                 approvals = emptyList(),
                 userInputRequests = emptyList(),
+                dynamicToolRequests = emptyList(),
             ),
         )
         assertFalse(
@@ -188,6 +196,7 @@ class ThreadTranscriptRowsTest {
                 activeItemIds = setOf(userMessage.id),
                 approvals = emptyList(),
                 userInputRequests = emptyList(),
+                dynamicToolRequests = emptyList(),
             ),
         )
         assertFalse(
@@ -200,7 +209,42 @@ class ThreadTranscriptRowsTest {
                 activeItemIds = emptySet(),
                 approvals = emptyList(),
                 userInputRequests = emptyList(),
+                dynamicToolRequests = emptyList(),
             ),
         )
+    }
+
+    @Test
+    fun attachesDynamicToolRequestAfterTechnicalStrip() {
+        val item = ThreadItem.DynamicToolCall(
+            id = "dynamic-1",
+            tool = "pick_photo",
+            status = ThreadItemStatus.InProgress,
+            arguments = """{"reason":"Attach a screenshot"}""",
+        )
+
+        val rows = buildTranscriptRows(
+            items = listOf(
+                ThreadItem.UserMessage(id = "user-1", text = "Look at my screenshot"),
+                item,
+            ),
+            approvals = emptyList(),
+            userInputRequests = emptyList(),
+            dynamicToolRequests = listOf(
+                ThreadDynamicToolRequest(
+                    requestId = "dynamic-request-1",
+                    threadId = "thread-1",
+                    turnId = "turn-1",
+                    itemId = item.id,
+                    tool = "pick_photo",
+                    kind = ThreadDynamicToolKind.PickPhoto,
+                    prompt = "Attach a screenshot",
+                ),
+            ),
+        )
+
+        assertEquals(3, rows.size)
+        assertTrue(rows[1] is TranscriptRow.TechnicalStrip)
+        assertTrue(rows[2] is TranscriptRow.DynamicToolRequestCard)
     }
 }

@@ -71,6 +71,8 @@ import dev.codex.mobile.core.model.ThreadItemStatus
 import dev.codex.mobile.core.model.ThreadUserInputRequest
 import dev.codex.mobile.core.model.ThreadUserInputResponse
 import dev.codex.mobile.core.model.ToolContentItem
+import dev.codex.mobile.core.model.UserInputContent
+import dev.codex.mobile.core.model.displayLabel
 
 private enum class TechnicalPillFamily {
     Plan,
@@ -489,7 +491,10 @@ private fun TechnicalItemDetail(
                                 textStyle = MaterialTheme.typography.bodySmall,
                             )
 
-                            is ToolContentItem.Image -> MetadataLine("Image", contentItem.imageUrl)
+                            is ToolContentItem.Image -> ThreadUserAttachment(
+                                item = UserInputContent.Image(contentItem.imageUrl),
+                                isUser = false,
+                            )
                         }
                     }
                 }
@@ -815,12 +820,7 @@ private fun technicalStatusLabel(status: ThreadItemStatus): String = when (statu
     ThreadItemStatus.Declined -> "Declined"
 }
 
-private fun commandActionLabel(action: CommandActionHint): String = buildString {
-    append(action.type)
-    action.name?.let { append(" • $it") }
-    action.path?.let { append(" • $it") }
-    action.query?.let { append(" • $it") }
-}
+private fun commandActionLabel(action: CommandActionHint): String = action.displayLabel()
 
 private fun firstPreviewLine(text: String): String = text
     .lines()
@@ -855,7 +855,11 @@ private fun mcpPreview(entry: ThreadItem.McpToolCall): String = when {
 private fun dynamicToolPreview(entry: ThreadItem.DynamicToolCall): String = when {
     entry.contentItems.isNotEmpty() -> when (val firstItem: ToolContentItem = entry.contentItems.first()) {
         is ToolContentItem.Text -> firstPreviewLine(firstItem.text)
-        is ToolContentItem.Image -> firstItem.imageUrl
+        is ToolContentItem.Image -> if (firstItem.imageUrl.startsWith("data:image/")) {
+            "Image attached"
+        } else {
+            firstItem.imageUrl
+        }
     }
 
     entry.success != null -> if (entry.success) "Completed successfully" else "Marked unsuccessful"

@@ -7,23 +7,29 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.codex.mobile.core.data.CodexRepository
 import dev.codex.mobile.core.model.ApprovalDecision
-import dev.codex.mobile.core.model.ApprovalItem
+import dev.codex.mobile.core.model.ThreadUserInputResponse
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 data class ApprovalsUiState(
-    val approvals: List<ApprovalItem> = emptyList(),
+    val entries: List<ApprovalQueueEntry> = emptyList(),
 )
 
 class ApprovalsViewModel(
     private val repository: CodexRepository,
 ) : ViewModel() {
-    val uiState: StateFlow<ApprovalsUiState> = repository.observeApprovals().map { approvals ->
+    val uiState: StateFlow<ApprovalsUiState> = combine(
+        repository.observeApprovals(),
+        repository.observeUserInputRequests(),
+    ) { approvals, userInputRequests ->
         ApprovalsUiState(
-            approvals = approvals,
+            entries = buildApprovalQueueEntries(
+                approvals = approvals,
+                userInputRequests = userInputRequests,
+            ),
         )
     }.stateIn(
         scope = viewModelScope,
@@ -37,6 +43,15 @@ class ApprovalsViewModel(
     ) {
         viewModelScope.launch {
             repository.resolveApproval(id, decision)
+        }
+    }
+
+    fun respondToUserInput(
+        requestId: String,
+        response: ThreadUserInputResponse,
+    ) {
+        viewModelScope.launch {
+            repository.respondToUserInput(requestId, response)
         }
     }
 

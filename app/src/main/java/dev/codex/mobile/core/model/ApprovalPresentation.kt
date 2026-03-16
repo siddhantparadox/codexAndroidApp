@@ -18,6 +18,22 @@ internal fun ApprovalItem.headline(): String = when (kind) {
 internal fun ApprovalItem.detailLines(): List<String> = when (kind) {
     ApprovalKind.CommandExecution -> buildList {
         cwd?.let { add("CWD: $it") }
+        commandActions.takeIf(List<CommandActionHint>::isNotEmpty)?.let { actions ->
+            val actionPreview = actions.take(3).joinToString(separator = " | ") { action ->
+                action.displayLabel()
+            }
+            add(
+                buildString {
+                    append("Actions: ")
+                    append(actionPreview)
+                    if (actions.size > 3) {
+                        append(" | +")
+                        append(actions.size - 3)
+                        append(" more")
+                    }
+                },
+            )
+        }
         requestedPermissions
             ?.takeUnless(ApprovalPermissions::isEmpty)
             ?.summaryLines()
