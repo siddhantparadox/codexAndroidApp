@@ -25,7 +25,7 @@ test("bridge intercepts initialize and forwards later requests to the stdio tran
         name: "fake-codex",
       },
     },
-    versionName: "0.2.0",
+    versionName: "0.3.0",
     host: "127.0.0.1",
     port: 0,
   });
@@ -90,7 +90,7 @@ test("bridge replays unresolved server requests after reconnect and drops them a
         name: "fake-codex",
       },
     },
-    versionName: "0.2.0",
+    versionName: "0.3.0",
     host: "127.0.0.1",
     port: 0,
   });
@@ -152,7 +152,7 @@ test("probeCodexRemoteBridge identifies a healthy bridge", async (t) => {
         name: "fake-codex",
       },
     },
-    versionName: "0.2.0",
+    versionName: "0.3.0",
     host: "127.0.0.1",
     port: 0,
   });
@@ -161,7 +161,7 @@ test("probeCodexRemoteBridge identifies a healthy bridge", async (t) => {
     await bridge.close();
   });
 
-  const status = await probeCodexRemoteBridge("0.2.0", bridge.port);
+  const status = await probeCodexRemoteBridge("0.3.0", bridge.port);
   assert.equal(status.kind, "codexremote_bridge");
   assert.equal(status.transport, "stdio");
 });
@@ -286,3 +286,4 @@ function waitForMessage(socket, predicate, timeoutMs = 1_000) {
     socket.on("error", handleError);
   });
 }
+
