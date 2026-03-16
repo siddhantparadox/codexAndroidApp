@@ -1,16 +1,34 @@
 package dev.codex.mobile.feature.threads
 
 import dev.codex.mobile.core.data.demo.DemoCodexRepository
+import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.isActive
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ThreadsViewModelTest {
+    @Test
+    fun reconnectingCreateThreadMessageExplainsRecoveryState() {
+        assertEquals(
+            "Reconnecting to your desktop. Existing threads stay available, but new threads are disabled until the connection resumes.",
+            threadCreationUnavailableMessage(ConnectionPhase.Reconnecting),
+        )
+    }
+
+    @Test
+    fun reconnectingRefreshMessageExplainsRecoveryState() {
+        assertEquals(
+            "Reconnecting to your desktop. Thread updates will resume automatically.",
+            threadRefreshUnavailableMessage(ConnectionPhase.Reconnecting),
+        )
+    }
+
     @Test
     fun filteringKeepsOnlyActiveThreads() = runTest {
         val viewModel = ThreadsViewModel(repository = DemoCodexRepository())

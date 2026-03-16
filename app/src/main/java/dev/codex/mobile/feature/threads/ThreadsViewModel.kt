@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadSummary
 import dev.codex.mobile.core.model.ThreadStatusType
@@ -33,6 +34,8 @@ data class ThreadsUiState(
     val selectedFilter: ThreadFilter = ThreadFilter.All,
     val canCreateThread: Boolean = false,
     val canRefresh: Boolean = false,
+    val connectionPhase: ConnectionPhase = ConnectionPhase.Idle,
+    val createThreadUnavailableMessage: String = threadCreationUnavailableMessage(ConnectionPhase.Idle),
     val isRefreshing: Boolean = false,
     val lastRefreshAtEpochSeconds: Long? = null,
     val refreshErrorMessage: String? = null,
@@ -50,6 +53,8 @@ private data class ThreadsRefreshState(
 private data class ThreadListingState(
     val canCreateThread: Boolean = false,
     val canRefresh: Boolean = false,
+    val connectionPhase: ConnectionPhase = ConnectionPhase.Idle,
+    val createThreadUnavailableMessage: String = threadCreationUnavailableMessage(ConnectionPhase.Idle),
     val unreadResultDigests: Map<String, ThreadResultDigest> = emptyMap(),
     val existingCwdOptions: List<ThreadCwdOption> = emptyList(),
     val threads: List<ThreadSummary> = emptyList(),
@@ -73,6 +78,8 @@ class ThreadsViewModel(
         ThreadListingState(
             canCreateThread = connection.isConnected,
             canRefresh = connection.isConnected,
+            connectionPhase = connection.phase,
+            createThreadUnavailableMessage = threadCreationUnavailableMessage(connection.phase),
             unreadResultDigests = unreadResultDigests,
             existingCwdOptions = buildThreadCwdOptions(threads),
             threads = threads.filter { thread ->
@@ -101,6 +108,8 @@ class ThreadsViewModel(
             selectedFilter = filter,
             canCreateThread = listing.canCreateThread,
             canRefresh = listing.canRefresh,
+            connectionPhase = listing.connectionPhase,
+            createThreadUnavailableMessage = listing.createThreadUnavailableMessage,
             isRefreshing = refresh.isRefreshing,
             lastRefreshAtEpochSeconds = refresh.lastRefreshAtEpochSeconds,
             refreshErrorMessage = refresh.refreshErrorMessage,
@@ -128,7 +137,7 @@ class ThreadsViewModel(
         onThreadCreationFailed: (String) -> Unit = {},
     ) {
         if (!uiState.value.canCreateThread) {
-            onThreadCreationFailed("Connect to your desktop before creating a new thread.")
+            onThreadCreationFailed(uiState.value.createThreadUnavailableMessage)
             return
         }
         viewModelScope.launch {
@@ -175,7 +184,7 @@ class ThreadsViewModel(
                 refreshState.update { current ->
                     current.copy(
                         isRefreshing = false,
-                        refreshErrorMessage = "Connect to refresh threads.",
+                        refreshErrorMessage = threadRefreshUnavailableMessage(uiState.value.connectionPhase),
                     )
                 }
             }
@@ -219,6 +228,16 @@ class ThreadsViewModel(
             initializer { ThreadsViewModel(repository) }
         }
     }
+}
+
+internal fun threadCreationUnavailableMessage(phase: ConnectionPhase): String = when (phase) {
+    ConnectionPhase.Reconnecting -> "Reconnecting to your desktop. Existing threads stay available, but new threads are disabled until the connection resumes."
+    else -> "Connect to your desktop before creating a new thread."
+}
+
+internal fun threadRefreshUnavailableMessage(phase: ConnectionPhase): String = when (phase) {
+    ConnectionPhase.Reconnecting -> "Reconnecting to your desktop. Thread updates will resume automatically."
+    else -> "Connect to refresh threads."
 }
 
 private fun currentEpochSeconds(): Long = System.currentTimeMillis() / 1_000

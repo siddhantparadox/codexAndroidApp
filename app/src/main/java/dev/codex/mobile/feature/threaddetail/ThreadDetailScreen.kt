@@ -196,30 +196,46 @@ fun ThreadDetailScreen(
             LaunchedEffect(
                 detail.summary.id,
                 transcriptRows,
-                uiState.activeItemIds,
                 isImeVisible,
                 followMode,
                 scrollToLatestRequestId,
             ) {
                 if (totalTranscriptRows <= 0) return@LaunchedEffect
-                val laidOutRowCount = snapshotFlow { listState.layoutInfo.totalItemsCount }
-                    .first { itemCount -> itemCount >= totalTranscriptRows }
                 val targetIndex = totalTranscriptRows - 1
-                AppLog.action(
-                    name = "thread_autoscroll_prepare",
-                    detail = "thread=${detail.summary.id} rows=$totalTranscriptRows laidOut=$laidOutRowCount target=$targetIndex initial=$hasInitialScroll follow=$followMode ime=$isImeVisible request=$scrollToLatestRequestId",
-                )
                 val hasExplicitScrollRequest: Boolean =
                     scrollToLatestRequestId != handledScrollToLatestRequestId
+                val lastVisibleIndex: Int = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+                val bottomAnchorVisible: Boolean = listState.isItemFullyVisible(targetIndex)
+                val shouldAutoScroll: Boolean = !hasInitialScroll || (
+                    followMode && (
+                        hasExplicitScrollRequest ||
+                            lastVisibleIndex < targetIndex ||
+                            !bottomAnchorVisible
+                    )
+                )
+
+                if (!shouldAutoScroll) {
+                    handledScrollToLatestRequestId = scrollToLatestRequestId
+                    return@LaunchedEffect
+                }
+
+                val laidOutRowCount = if (listState.layoutInfo.totalItemsCount >= totalTranscriptRows) {
+                    listState.layoutInfo.totalItemsCount
+                } else {
+                    snapshotFlow { listState.layoutInfo.totalItemsCount }
+                        .first { itemCount -> itemCount >= totalTranscriptRows }
+                }
+
+                AppLog.action(
+                    name = "thread_autoscroll_prepare",
+                    detail = "thread=${detail.summary.id} rows=$totalTranscriptRows laidOut=$laidOutRowCount target=$targetIndex initial=$hasInitialScroll follow=$followMode ime=$isImeVisible request=$scrollToLatestRequestId bottomVisible=$bottomAnchorVisible",
+                )
                 if (!hasInitialScroll) {
                     listState.scrollToItem(targetIndex)
                     hasInitialScroll = true
                     followMode = true
                 } else if (followMode) {
-                    val lastVisibleIndex: Int = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-                    if (lastVisibleIndex < targetIndex || isImeVisible || hasExplicitScrollRequest) {
-                        listState.animateScrollToItem(targetIndex)
-                    }
+                    listState.animateScrollToItem(targetIndex)
                 }
                 handledScrollToLatestRequestId = scrollToLatestRequestId
                 val visibleItems = listState.layoutInfo.visibleItemsInfo
@@ -570,6 +586,12 @@ private fun androidx.compose.foundation.lazy.LazyListState.isNearBottom(totalRow
     if (totalRows <= 1) return true
     val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: return true
     return lastVisibleIndex >= totalRows - 3
+}
+
+private fun androidx.compose.foundation.lazy.LazyListState.isItemFullyVisible(index: Int): Boolean {
+    val item = layoutInfo.visibleItemsInfo.firstOrNull { visibleItem -> visibleItem.index == index } ?: return false
+    return item.offset >= layoutInfo.viewportStartOffset &&
+        item.offset + item.size <= layoutInfo.viewportEndOffset
 }
 
 private fun shouldRenderTranscriptItem(item: ThreadItem): Boolean = when (item) {

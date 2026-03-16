@@ -69,6 +69,7 @@ import dev.codex.mobile.core.designsystem.theme.metaText
 import dev.codex.mobile.core.designsystem.theme.screenTitle
 import dev.codex.mobile.core.designsystem.theme.sectionLabel
 import dev.codex.mobile.core.designsystem.theme.supportingText
+import dev.codex.mobile.core.model.ConnectionPhase
 import dev.codex.mobile.core.model.ThreadSourceKind
 import dev.codex.mobile.core.model.ThreadResultDigest
 import dev.codex.mobile.core.model.ThreadResultDigestKind
@@ -245,7 +246,7 @@ fun ThreadsScreen(
                     }
                     if (!uiState.canCreateThread) {
                         Text(
-                            text = "Connect to your desktop before creating a new thread.",
+                            text = uiState.createThreadUnavailableMessage,
                             style = MaterialTheme.typography.supportingText,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -512,6 +513,7 @@ private fun threadSourceIcon(source: ThreadSourceKind) = when (source) {
 private fun threadsSyncStatus(uiState: ThreadsUiState): String = when {
     uiState.isRefreshing -> "Syncing threads…"
     uiState.refreshErrorMessage != null -> uiState.refreshErrorMessage
+    uiState.connectionPhase == ConnectionPhase.Reconnecting -> "Reconnecting to desktop…"
     uiState.lastRefreshAtEpochSeconds != null -> "Updated ${relativeTimeLabel(uiState.lastRefreshAtEpochSeconds)}"
     uiState.canRefresh -> "Live sync on"
     else -> "Connect to refresh threads"
@@ -521,6 +523,7 @@ private fun threadsSyncStatus(uiState: ThreadsUiState): String = when {
 private fun threadsSyncStatusColor(uiState: ThreadsUiState): Color = when {
     uiState.isRefreshing -> MaterialTheme.colorScheme.primary
     uiState.refreshErrorMessage != null -> MaterialTheme.colorScheme.error
+    uiState.connectionPhase == ConnectionPhase.Reconnecting -> Color(0xFFD59734)
     uiState.canRefresh -> MaterialTheme.colorScheme.onSurfaceVariant
     else -> MaterialTheme.colorScheme.onSurfaceVariant
 }
