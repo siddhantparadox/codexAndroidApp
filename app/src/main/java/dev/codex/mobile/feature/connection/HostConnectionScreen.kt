@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LaptopMac
 import androidx.compose.material.icons.rounded.LinkOff
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -77,6 +78,9 @@ fun HostConnectionScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val qrScanner = rememberDesktopQrScanner(context = context)
+    val actionHost = uiState.hosts.firstOrNull { host -> host.id == uiState.pendingHostActionId }
+    val renameHost = uiState.hosts.firstOrNull { host -> host.id == uiState.renameHostId }
+    val removeHost = uiState.hosts.firstOrNull { host -> host.id == uiState.removeHostId }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -154,30 +158,37 @@ fun HostConnectionScreen(
                 onSaveManualConnection = viewModel::saveConnection,
             )
         }
-        if (uiState.hosts.isNotEmpty()) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = "Remembered Desktops".uppercase(),
-                        style = MaterialTheme.typography.sectionLabel,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Remembered Desktops".uppercase(),
+                    style = MaterialTheme.typography.sectionLabel,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (uiState.hosts.isNotEmpty()) {
                     StatusChip(
                         label = "${uiState.hosts.count { it.isActive }} Active",
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }
+        }
+        if (uiState.hosts.isEmpty()) {
+            item {
+                RememberedDesktopsEmptyStateCard()
+            }
+        } else {
             items(uiState.hosts, key = { host -> host.id }) { host ->
                 RememberedDesktopCard(
                     host = host,
                     activeHostId = uiState.connection.activeHostId,
                     connectionPhase = uiState.connection.phase,
                     onClick = { viewModel.activateHost(host.id) },
+                    onOpenActions = { viewModel.showHostActions(host.id) },
                 )
             }
         }
@@ -210,6 +221,33 @@ fun HostConnectionScreen(
                 onCancel = viewModel::dismissPendingBootstrap,
             )
         }
+    }
+    actionHost?.let { host ->
+        RememberedDesktopActionSheet(
+            host = host,
+            onConnect = { viewModel.activateHost(host.id) },
+            onRename = { viewModel.startRenamingHost(host.id) },
+            onRemove = { viewModel.confirmHostRemovalPrompt(host.id) },
+            onDismissRequest = viewModel::dismissHostActions,
+        )
+    }
+    renameHost?.let { host ->
+        RenameConnectionSheet(
+            host = host,
+            renameValue = uiState.renameHostName,
+            onRenameValueChanged = viewModel::onRenameHostNameChanged,
+            onSave = viewModel::confirmRenameHost,
+            onDismissRequest = viewModel::dismissRenameHost,
+        )
+    }
+    removeHost?.let { host ->
+        RemoveConnectionSheet(
+            host = host,
+            isActiveConnection = host.id == uiState.connection.activeHostId,
+            isOnlyConnection = uiState.hosts.size == 1,
+            onRemove = viewModel::confirmRemoveHost,
+            onDismissRequest = viewModel::dismissRemoveHost,
+        )
     }
 }
 
@@ -328,6 +366,7 @@ private fun RememberedDesktopCard(
     activeHostId: String?,
     connectionPhase: ConnectionPhase,
     onClick: () -> Unit,
+    onOpenActions: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     CodexCard(
@@ -372,19 +411,31 @@ private fun RememberedDesktopCard(
                 }
             }
             Spacer(modifier = Modifier.size(CodexSpacing.sectionGap))
-            StatusChip(
-                label = hostStatusLabel(
-                    hostId = host.id,
-                    activeHostId = activeHostId,
-                    connectionPhase = connectionPhase,
-                ),
-                color = hostStatusColor(
-                    hostId = host.id,
-                    activeHostId = activeHostId,
-                    connectionPhase = connectionPhase,
-                ),
-                pulsingDot = host.id == activeHostId && connectionPhase == ConnectionPhase.Connected,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
+            ) {
+                StatusChip(
+                    label = hostStatusLabel(
+                        hostId = host.id,
+                        activeHostId = activeHostId,
+                        connectionPhase = connectionPhase,
+                    ),
+                    color = hostStatusColor(
+                        hostId = host.id,
+                        activeHostId = activeHostId,
+                        connectionPhase = connectionPhase,
+                    ),
+                    pulsingDot = host.id == activeHostId && connectionPhase == ConnectionPhase.Connected,
+                )
+                IconButton(onClick = onOpenActions) {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreVert,
+                        contentDescription = "Connection actions for ${host.name}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
     }
 }

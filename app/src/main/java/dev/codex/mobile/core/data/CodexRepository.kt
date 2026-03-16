@@ -58,6 +58,10 @@ interface CodexRepository {
 
     suspend fun setActiveHost(hostId: String)
 
+    suspend fun renameHost(hostId: String, name: String): Boolean
+
+    suspend fun removeHost(hostId: String): Boolean
+
     suspend fun setThemePreference(preference: ThemePreference)
 
     suspend fun setConnectionAlerts(enabled: Boolean)

@@ -1,6 +1,8 @@
 package dev.codex.mobile.core.data.demo
 
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.data.removeHostProfile
+import dev.codex.mobile.core.data.renameHostProfile
 import dev.codex.mobile.core.data.upsertHostProfile
 import dev.codex.mobile.core.model.AccountRateLimit
 import dev.codex.mobile.core.model.AccountRateLimits
@@ -178,6 +180,15 @@ class DemoCodexRepository : CodexRepository {
         store.update { current ->
             current.copy(
                 hosts = upsertResult.hosts,
+                connection = if (activate) {
+                    ConnectionState(
+                        activeHostId = upsertResult.hostId,
+                        phase = ConnectionPhase.Connected,
+                        message = "ws://$trimmedAddress:$port",
+                    )
+                } else {
+                    current.connection
+                },
             )
         }
         return upsertResult.hostId
@@ -186,12 +197,65 @@ class DemoCodexRepository : CodexRepository {
     override suspend fun setActiveHost(hostId: String) {
         AppLog.action(name = "activate_host", detail = hostId)
         store.update { current ->
+            val selectedHost = current.hosts.firstOrNull { host -> host.id == hostId } ?: return@update current
             current.copy(
                 hosts = current.hosts.map { host ->
                     host.copy(isActive = host.id == hostId)
                 },
+                connection = ConnectionState(
+                    activeHostId = hostId,
+                    phase = ConnectionPhase.Connected,
+                    message = "ws://${selectedHost.address}:${selectedHost.port}",
+                ),
             )
         }
+    }
+
+    override suspend fun renameHost(hostId: String, name: String): Boolean {
+        val updatedHosts = renameHostProfile(
+            currentHosts = store.value.hosts,
+            hostId = hostId,
+            name = name,
+        ) ?: return false
+
+        AppLog.action(name = "rename_host", detail = hostId)
+        store.update { current ->
+            current.copy(hosts = updatedHosts)
+        }
+        return true
+    }
+
+    override suspend fun removeHost(hostId: String): Boolean {
+        val removalResult = removeHostProfile(
+            currentHosts = store.value.hosts,
+            hostId = hostId,
+        )
+        val removedHost = removalResult.removedHost ?: return false
+        val shouldDisconnect = removedHost.isActive || store.value.connection.activeHostId == hostId
+
+        AppLog.action(name = "remove_host", detail = hostId)
+        store.update { current ->
+            current.copy(
+                hosts = removalResult.hosts,
+                connection = if (shouldDisconnect) {
+                    ConnectionState(phase = ConnectionPhase.Idle)
+                } else {
+                    current.connection
+                },
+                account = if (shouldDisconnect) AccountState() else current.account,
+                rateLimits = if (shouldDisconnect) AccountRateLimits() else current.rateLimits,
+                usageWrapped = if (shouldDisconnect) UsageWrappedState() else current.usageWrapped,
+                threads = if (shouldDisconnect) emptyList() else current.threads,
+                threadDetails = if (shouldDisconnect) emptyMap() else current.threadDetails,
+                activeItemIdsByThread = if (shouldDisconnect) emptyMap() else current.activeItemIdsByThread,
+                approvals = if (shouldDisconnect) emptyList() else current.approvals,
+                userInputRequests = if (shouldDisconnect) emptyList() else current.userInputRequests,
+                composerCatalog = if (shouldDisconnect) ComposerCatalog() else current.composerCatalog,
+                unreadThreadResultDigests = if (shouldDisconnect) emptyMap() else current.unreadThreadResultDigests,
+                inAppThreadNotifications = if (shouldDisconnect) emptyList() else current.inAppThreadNotifications,
+            )
+        }
+        return true
     }
 
     override suspend fun setThemePreference(preference: ThemePreference) {

@@ -174,6 +174,10 @@ private class FakeCodexRepository(
 
     override suspend fun setActiveHost(hostId: String) = Unit
 
+    override suspend fun renameHost(hostId: String, name: String): Boolean = false
+
+    override suspend fun removeHost(hostId: String): Boolean = false
+
     override suspend fun setThemePreference(preference: ThemePreference) = Unit
 
     override suspend fun setConnectionAlerts(enabled: Boolean) {

@@ -28,6 +28,10 @@ data class HostConnectionUiState(
     val hostName: String = "",
     val address: String = "",
     val port: String = "4500",
+    val pendingHostActionId: String? = null,
+    val renameHostId: String? = null,
+    val renameHostName: String = "",
+    val removeHostId: String? = null,
 )
 
 class HostConnectionViewModel(
@@ -84,6 +88,89 @@ class HostConnectionViewModel(
 
     fun dismissPendingBootstrap() {
         formState.update { it.copy(pendingBootstrap = null) }
+    }
+
+    fun showHostActions(hostId: String) {
+        if (uiState.value.hosts.none { host -> host.id == hostId }) return
+        formState.update { current ->
+            current.copy(
+                pendingHostActionId = hostId,
+                renameHostId = null,
+                renameHostName = "",
+                removeHostId = null,
+            )
+        }
+    }
+
+    fun dismissHostActions() {
+        formState.update { it.copy(pendingHostActionId = null) }
+    }
+
+    fun startRenamingHost(hostId: String) {
+        val host = uiState.value.hosts.firstOrNull { item -> item.id == hostId } ?: return
+        formState.update { current ->
+            current.copy(
+                pendingHostActionId = null,
+                renameHostId = host.id,
+                renameHostName = host.name,
+                removeHostId = null,
+            )
+        }
+    }
+
+    fun onRenameHostNameChanged(value: String) {
+        formState.update { it.copy(renameHostName = value) }
+    }
+
+    fun dismissRenameHost() {
+        formState.update {
+            it.copy(
+                renameHostId = null,
+                renameHostName = "",
+            )
+        }
+    }
+
+    fun confirmRenameHost() {
+        val snapshot = formState.value
+        val hostId = snapshot.renameHostId ?: return
+        viewModelScope.launch {
+            val renamed = repository.renameHost(hostId = hostId, name = snapshot.renameHostName)
+            if (!renamed) return@launch
+            formState.update {
+                it.copy(
+                    renameHostId = null,
+                    renameHostName = "",
+                )
+            }
+        }
+    }
+
+    fun confirmHostRemovalPrompt(hostId: String) {
+        if (uiState.value.hosts.none { host -> host.id == hostId }) return
+        formState.update { current ->
+            current.copy(
+                pendingHostActionId = null,
+                renameHostId = null,
+                renameHostName = "",
+                removeHostId = hostId,
+            )
+        }
+    }
+
+    fun dismissRemoveHost() {
+        formState.update { it.copy(removeHostId = null) }
+    }
+
+    fun confirmRemoveHost() {
+        val hostId = formState.value.removeHostId ?: return
+        viewModelScope.launch {
+            val removed = repository.removeHost(hostId)
+            if (!removed) return@launch
+            formState.update {
+                it.copy(removeHostId = null)
+            }
+        }
     }
 
     fun showBootstrapError(message: String) {
@@ -144,6 +231,14 @@ class HostConnectionViewModel(
     fun activateHost(hostId: String) {
         viewModelScope.launch {
             repository.setActiveHost(hostId)
+            formState.update { current ->
+                current.copy(
+                    pendingHostActionId = null,
+                    renameHostId = null,
+                    renameHostName = "",
+                    removeHostId = null,
+                )
+            }
         }
     }
 

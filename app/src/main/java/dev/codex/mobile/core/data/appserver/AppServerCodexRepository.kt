@@ -5,6 +5,8 @@ import android.net.Uri
 import android.util.Base64
 import dev.codex.mobile.BuildConfig
 import dev.codex.mobile.core.data.CodexRepository
+import dev.codex.mobile.core.data.removeHostProfile
+import dev.codex.mobile.core.data.renameHostProfile
 import dev.codex.mobile.core.data.upsertHostProfile
 import dev.codex.mobile.core.data.local.AppLocalStateStore
 import dev.codex.mobile.core.data.local.PersistedAppState
@@ -232,6 +234,40 @@ internal class AppServerCodexRepository(
         }
         persistLocalState()
         reconnectToActiveHost()
+    }
+
+    override suspend fun renameHost(hostId: String, name: String): Boolean {
+        val updatedHosts = renameHostProfile(
+            currentHosts = repositoryState.value.hosts,
+            hostId = hostId,
+            name = name,
+        ) ?: return false
+
+        AppLog.action(name = "rename_host", detail = hostId)
+        repositoryState.update { current ->
+            current.copy(hosts = updatedHosts)
+        }
+        persistLocalState()
+        return true
+    }
+
+    override suspend fun removeHost(hostId: String): Boolean {
+        val removalResult = removeHostProfile(
+            currentHosts = repositoryState.value.hosts,
+            hostId = hostId,
+        )
+        val removedHost = removalResult.removedHost ?: return false
+        val shouldDisconnect = removedHost.isActive || repositoryState.value.connection.activeHostId == hostId
+
+        AppLog.action(name = "remove_host", detail = hostId)
+        repositoryState.update { current ->
+            current.copy(hosts = removalResult.hosts)
+        }
+        persistLocalState()
+        if (shouldDisconnect) {
+            reconnectToActiveHost()
+        }
+        return true
     }
 
     override suspend fun setThemePreference(preference: ThemePreference) {
