@@ -36,7 +36,10 @@ internal class UsageCostEstimator {
         if (coveragePercent < 100) {
             notes.addUnique("Public API pricing covered $coveragePercent% of recorded tokens.")
         }
-        notes.addUnique("Reasoning tokens are estimated at the model's output-token rate.")
+        notes.addUnique("Estimated using public standard API token pricing from recorded session token totals.")
+        notes.addUnique("GPT-5.4 long-context rates are applied when turn-level input usage exceeds 272K tokens.")
+        notes.addUnique("Cached input tokens are billed at cached-input rates when recognized.")
+        notes.addUnique("Service-tier modifiers and built-in tool charges are not included.")
 
         return UsageWrappedCostEstimate(
             approximateUsd = approximateUsd.roundCurrency(),
@@ -72,8 +75,9 @@ private data class ModelPricing(
     fun matches(modelId: String): Boolean = modelId == this.modelId || modelId in aliases
 
     fun priceUsd(totals: UsageTokenTotals): Double {
-        val billedOutputTokens: Long = totals.output + totals.reasoning
-        return (totals.input.toDouble() / TokensPerMillion) * inputUsdPerMillion +
+        val freshInputTokens: Long = (totals.input - totals.cachedInput).coerceAtLeast(0L)
+        val billedOutputTokens: Long = totals.output
+        return (freshInputTokens.toDouble() / TokensPerMillion) * inputUsdPerMillion +
             (totals.cachedInput.toDouble() / TokensPerMillion) * cachedInputUsdPerMillion +
             (billedOutputTokens.toDouble() / TokensPerMillion) * outputUsdPerMillion
     }
@@ -85,6 +89,12 @@ private fun defaultPricingCatalog(): List<ModelPricing> = listOf(
         inputUsdPerMillion = 2.50,
         cachedInputUsdPerMillion = 0.25,
         outputUsdPerMillion = 15.00,
+    ),
+    ModelPricing(
+        modelId = "gpt-5.4-long-context",
+        inputUsdPerMillion = 5.00,
+        cachedInputUsdPerMillion = 0.50,
+        outputUsdPerMillion = 22.50,
     ),
     ModelPricing(
         modelId = "gpt-5.3-codex",
@@ -105,7 +115,13 @@ private fun defaultPricingCatalog(): List<ModelPricing> = listOf(
         inputUsdPerMillion = 1.25,
         cachedInputUsdPerMillion = 0.125,
         outputUsdPerMillion = 10.00,
-        aliases = setOf("gpt-5.1", "gpt-5.1-codex-max", "gpt-5.1-codex-mini"),
+        aliases = setOf("gpt-5.1", "gpt-5.1-codex-max"),
+    ),
+    ModelPricing(
+        modelId = "gpt-5.1-codex-mini",
+        inputUsdPerMillion = 0.25,
+        cachedInputUsdPerMillion = 0.025,
+        outputUsdPerMillion = 2.00,
     ),
     ModelPricing(
         modelId = "gpt-5-codex",

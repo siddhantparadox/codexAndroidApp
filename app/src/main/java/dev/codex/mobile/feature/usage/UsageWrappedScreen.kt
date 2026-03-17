@@ -553,40 +553,65 @@ private fun HighlightRow(
     }
 }
 
+private data class TokenBreakdownMetric(
+    val label: String,
+    val value: Long,
+    val progress: Float,
+)
+
 @Composable
 private fun TokenBreakdownCard(
     totals: UsageWrappedTokenTotals,
     modifier: Modifier = Modifier,
 ) {
-    val maxValue: Long = listOf(
-        totals.input,
-        totals.cachedInput,
-        totals.output,
-        totals.reasoning,
-        totals.total,
-    ).maxOrNull()?.coerceAtLeast(1L) ?: 1L
-    val rows: List<Pair<String, Long>> = listOf(
-        "Input" to totals.input,
-        "Cached input" to totals.cachedInput,
-        "Output" to totals.output,
-        "Reasoning" to totals.reasoning,
-        "Total" to totals.total,
+    val rows: List<TokenBreakdownMetric> = listOf(
+        TokenBreakdownMetric(
+            label = "Input (total)",
+            value = totals.input,
+            progress = ratioProgress(totals.input, totals.total),
+        ),
+        TokenBreakdownMetric(
+            label = "Cached input (within input)",
+            value = totals.cachedInput,
+            progress = ratioProgress(totals.cachedInput, totals.input),
+        ),
+        TokenBreakdownMetric(
+            label = "Output (total)",
+            value = totals.output,
+            progress = ratioProgress(totals.output, totals.total),
+        ),
+        TokenBreakdownMetric(
+            label = "Reasoning (within output)",
+            value = totals.reasoning,
+            progress = ratioProgress(totals.reasoning, totals.output),
+        ),
+        TokenBreakdownMetric(
+            label = "Total recorded tokens",
+            value = totals.total,
+            progress = if (totals.total > 0L) 1f else 0f,
+        ),
     )
     CodexCard(
         modifier = modifier.fillMaxWidth(),
     ) {
         SectionHeader(title = "Token breakdown")
         Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
-        rows.forEachIndexed { index, (label, value) ->
+        rows.forEachIndexed { index, metric ->
             TokenBreakdownRow(
-                label = label,
-                value = value,
-                progress = value.toFloat() / maxValue.toFloat(),
+                label = metric.label,
+                value = metric.value,
+                progress = metric.progress,
             )
             if (index != rows.lastIndex) {
                 Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
             }
         }
+        Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
+        Text(
+            text = "Cached input is included within input. Reasoning is included within output.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -683,6 +708,15 @@ private data class HeatmapCell(
     val date: String,
     val totalTokens: Long,
 )
+
+private fun ratioProgress(
+    numerator: Long,
+    denominator: Long,
+): Float = if (denominator <= 0L) {
+    0f
+} else {
+    (numerator.toFloat() / denominator.toFloat()).coerceIn(0f, 1f)
+}
 
 private fun buildHeatmapWeeks(
     activityByDate: Map<String, UsageWrappedActivityDay>,
@@ -879,7 +913,7 @@ private fun previewSummary(): UsageWrappedSummary {
         costEstimate = UsageWrappedCostEstimate(
             approximateUsd = 1842.73,
             coveragePercent = 100,
-            note = "Estimated using public GPT-5 and Codex API pricing. Reasoning tokens are treated at output-token rates.",
+            note = "Estimated using public standard API token pricing from recorded session token totals. GPT-5.4 long-context rates are applied when turn-level input usage exceeds 272K tokens. Cached input tokens are billed at cached-input rates when recognized. Service-tier modifiers and built-in tool charges are not included.",
         ),
         highlights = UsageWrappedHighlights(
             mostActiveDay = activity.maxByOrNull(UsageWrappedActivityDay::totalTokens)?.let { day ->

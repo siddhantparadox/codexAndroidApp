@@ -6,6 +6,9 @@ import readline from "node:readline";
 import { estimateUsageWrappedCost } from "./usageWrappedCost.mjs";
 
 const UNKNOWN_MODEL_ID = "_unknown";
+const GPT_54_MODEL_ID = "gpt-5.4";
+const GPT_54_LONG_CONTEXT_MODEL_ID = "gpt-5.4-long-context";
+const LONG_CONTEXT_INPUT_THRESHOLD = 272_000;
 
 export function defaultCodexHome() {
   const override = process.env.CODEX_HOME;
@@ -168,10 +171,22 @@ async function parseSession(filePath) {
             reasoning: numericValue(totals.reasoning_output_tokens),
             total: numericValue(totals.total_tokens),
           };
+          const lastUsage = event.info?.last_token_usage;
+          const lastTotals = {
+            input: numericValue(lastUsage?.input_tokens),
+            cachedInput: numericValue(lastUsage?.cached_input_tokens),
+            output: numericValue(lastUsage?.output_tokens),
+            reasoning: numericValue(lastUsage?.reasoning_output_tokens),
+            total: numericValue(lastUsage?.total_tokens),
+          };
+          const modelId = pricingBucketModelId(currentModel, lastTotals);
+          const correction = regressionTotals(tokenTotals, updatedTotals);
+          if (modelId !== UNKNOWN_MODEL_ID && isNonEmptyTotals(correction)) {
+            tokenTotalsByModel[modelId] = minusTotals(tokenTotalsByModel[modelId] ?? emptyTotals(), correction);
+          }
           const delta = deltaTotals(updatedTotals, tokenTotals);
           tokenTotals = updatedTotals;
-          if (isNonEmptyTotals(delta)) {
-            const modelId = currentModel && String(currentModel).trim() ? currentModel : UNKNOWN_MODEL_ID;
+          if (modelId !== UNKNOWN_MODEL_ID && isNonEmptyTotals(delta)) {
             tokenTotalsByModel[modelId] = plusTotals(tokenTotalsByModel[modelId] ?? emptyTotals(), delta);
           }
           break;
@@ -373,6 +388,26 @@ function plusTotals(left, right) {
   };
 }
 
+function minusTotals(left, right) {
+  return {
+    input: Math.max((left.input || 0) - (right.input || 0), 0),
+    cachedInput: Math.max((left.cachedInput || 0) - (right.cachedInput || 0), 0),
+    output: Math.max((left.output || 0) - (right.output || 0), 0),
+    reasoning: Math.max((left.reasoning || 0) - (right.reasoning || 0), 0),
+    total: Math.max((left.total || 0) - (right.total || 0), 0),
+  };
+}
+
+function regressionTotals(previous, current) {
+  return {
+    input: Math.max((previous.input || 0) - (current.input || 0), 0),
+    cachedInput: Math.max((previous.cachedInput || 0) - (current.cachedInput || 0), 0),
+    output: Math.max((previous.output || 0) - (current.output || 0), 0),
+    reasoning: Math.max((previous.reasoning || 0) - (current.reasoning || 0), 0),
+    total: Math.max((previous.total || 0) - (current.total || 0), 0),
+  };
+}
+
 function deltaTotals(current, previous) {
   return {
     input: Math.max((current.input || 0) - (previous.input || 0), 0),
@@ -396,6 +431,17 @@ function isNonEmptyTotals(totals) {
 function numericValue(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function pricingBucketModelId(modelId, lastTotals) {
+  const normalizedModelId = String(modelId || "").trim().toLowerCase();
+  if (!normalizedModelId) {
+    return UNKNOWN_MODEL_ID;
+  }
+  if (normalizedModelId === GPT_54_MODEL_ID && (lastTotals.input || 0) > LONG_CONTEXT_INPUT_THRESHOLD) {
+    return GPT_54_LONG_CONTEXT_MODEL_ID;
+  }
+  return normalizedModelId;
 }
 
 function toDateKey(value, timeZone) {

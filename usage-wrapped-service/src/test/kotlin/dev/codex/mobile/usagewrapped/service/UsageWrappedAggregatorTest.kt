@@ -15,7 +15,7 @@ class UsageWrappedAggregatorTest {
     )
 
     @Test
-    fun `summarize aggregates streaks tokens and activity`() {
+    fun summarizeAggregatesStreaksTokensAndActivity() {
         val aggregator = UsageWrappedAggregator(
             zoneId = zoneId,
             clock = clock,
@@ -58,7 +58,7 @@ class UsageWrappedAggregatorTest {
     }
 
     @Test
-    fun `current streak resets when latest activity is older than yesterday`() {
+    fun currentStreakResetsWhenLatestActivityIsOlderThanYesterday() {
         val aggregator = UsageWrappedAggregator(
             zoneId = zoneId,
             clock = clock,
@@ -82,7 +82,7 @@ class UsageWrappedAggregatorTest {
     }
 
     @Test
-    fun `summarize estimates API equivalent cost from model totals`() {
+    fun summarizeEstimatesApiEquivalentCostFromModelTotals() {
         val aggregator = UsageWrappedAggregator(
             zoneId = zoneId,
             clock = clock,
@@ -97,28 +97,82 @@ class UsageWrappedAggregatorTest {
                             input = 1_000_000L,
                             cachedInput = 1_000_000L,
                             output = 1_000_000L,
-                            reasoning = 1_000_000L,
-                            total = 4_000_000L,
+                            reasoning = 400_000L,
+                            total = 2_000_000L,
                         ),
                         "gpt-5.3-codex-spark" to UsageTokenTotals(
                             input = 1_000_000L,
                             cachedInput = 1_000_000L,
                             output = 1_000_000L,
-                            reasoning = 1_000_000L,
-                            total = 4_000_000L,
+                            reasoning = 400_000L,
+                            total = 2_000_000L,
                         ),
                     ),
                 ),
             ),
         )
 
-        assertEquals(62.68, summary.costEstimate?.approximateUsd)
+        assertEquals(29.43, summary.costEstimate?.approximateUsd)
         assertEquals(100, summary.costEstimate?.coveragePercent)
         assertTrue(
             summary.costEstimate?.note?.contains(
                 "gpt-5.3-codex-spark mapped to gpt-5.3-codex public API pricing.",
             ) == true,
         )
+    }
+
+    @Test
+    fun costEstimateBillsCachedInputAndReasoningWithoutDoubleCounting() {
+        val estimate = UsageCostEstimator().estimate(
+            tokenTotalsByModel = mapOf(
+                "gpt-5.4" to UsageTokenTotals(
+                    input = 1_000_000L,
+                    cachedInput = 800_000L,
+                    output = 100_000L,
+                    reasoning = 40_000L,
+                    total = 1_100_000L,
+                ),
+            ),
+        )
+
+        assertEquals(2.2, estimate?.approximateUsd)
+        assertEquals(100, estimate?.coveragePercent)
+    }
+
+    @Test
+    fun costEstimatePricesGpt51CodexMiniSeparately() {
+        val estimate = UsageCostEstimator().estimate(
+            tokenTotalsByModel = mapOf(
+                "gpt-5.1-codex-mini" to UsageTokenTotals(
+                    input = 1_000_000L,
+                    cachedInput = 500_000L,
+                    output = 100_000L,
+                    reasoning = 50_000L,
+                    total = 1_100_000L,
+                ),
+            ),
+        )
+
+        assertEquals(0.34, estimate?.approximateUsd)
+        assertEquals(100, estimate?.coveragePercent)
+    }
+
+    @Test
+    fun costEstimateUsesGpt54LongContextPricingBucket() {
+        val estimate = UsageCostEstimator().estimate(
+            tokenTotalsByModel = mapOf(
+                "gpt-5.4-long-context" to UsageTokenTotals(
+                    input = 400_000L,
+                    cachedInput = 0L,
+                    output = 40_000L,
+                    reasoning = 10_000L,
+                    total = 440_000L,
+                ),
+            ),
+        )
+
+        assertEquals(2.9, estimate?.approximateUsd)
+        assertEquals(100, estimate?.coveragePercent)
     }
 }
 

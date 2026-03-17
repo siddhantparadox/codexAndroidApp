@@ -825,7 +825,7 @@ private fun demoUsageWrappedState(): UsageWrappedState {
             costEstimate = UsageWrappedCostEstimate(
                 approximateUsd = 1264.12,
                 coveragePercent = 100,
-                note = "Estimated using public GPT-5 and Codex API pricing. Reasoning tokens are treated at output-token rates.",
+                note = "Estimated using public standard API token pricing from recorded session token totals. GPT-5.4 long-context rates are applied when turn-level input usage exceeds 272K tokens. Cached input tokens are billed at cached-input rates when recognized. Service-tier modifiers and built-in tool charges are not included.",
             ),
             highlights = UsageWrappedHighlights(
                 mostActiveDay = activity.maxByOrNull(UsageWrappedActivityDay::totalTokens)?.let { day ->

@@ -15,7 +15,7 @@ import {
   startUsageWrappedService,
 } from "../lib/usageWrappedService.mjs";
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   printUsage();

@@ -214,7 +214,7 @@ export async function startCodexRemoteBridge({
   }
 }
 
-export function probeCodexRemoteBridge(versionName = "0.3.0", port = DEFAULT_BRIDGE_PORT) {
+export function probeCodexRemoteBridge(versionName = "0.3.1", port = DEFAULT_BRIDGE_PORT) {
   return new Promise((resolve) => {
     let settled = false;
     let initializeComplete = false;

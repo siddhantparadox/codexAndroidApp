@@ -1,6 +1,6 @@
 {
   "name": "codexremote",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Start the CodexRemote desktop bridge, Usage Wrapped, and print a mobile connection QR in the terminal.",
   "type": "module",
   "bin": {
