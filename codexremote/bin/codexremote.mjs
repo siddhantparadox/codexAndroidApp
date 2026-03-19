@@ -15,7 +15,7 @@ import {
   startUsageWrappedService,
 } from "../lib/usageWrappedService.mjs";
 
-const VERSION = "0.3.1";
+const VERSION = "0.3.2";
 
 if (process.argv.includes("--help") || process.argv.includes("-h")) {
   printUsage();
@@ -192,4 +192,5 @@ function waitForSignal() {
     // Intentionally unresolved. The process exits via signal handlers.
   });
 }
+
 
