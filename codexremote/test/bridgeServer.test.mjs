@@ -166,6 +166,74 @@ test("probeCodexRemoteBridge identifies a healthy bridge", async (t) => {
   assert.equal(status.transport, "stdio");
 });
 
+test("bridge transforms thread/read responses through the rollout mirror", async (t) => {
+  const transport = new FakeTransport();
+  const mirrorEvents = [];
+  const bridge = new CodexRemoteBridgeServer({
+    transport,
+    initializeResult: {
+      serverInfo: {
+        name: "fake-codex",
+      },
+    },
+    versionName: "0.3.1",
+    host: "127.0.0.1",
+    port: 0,
+    rolloutLiveMirrorFactory: () => ({
+      observeClientMessage(message) {
+        mirrorEvents.push({ source: "client", message });
+      },
+      transformTransportMessage(message) {
+        mirrorEvents.push({ source: "transport", message });
+        return {
+          ...message,
+          result: {
+            ...message.result,
+            transformed: true,
+          },
+        };
+      },
+      close() {},
+    }),
+  });
+  await bridge.start();
+  t.after(async () => {
+    await bridge.close();
+  });
+
+  const socket = await connectInitializedSocket(bridge.port);
+  t.after(async () => {
+    await closeSocket(socket);
+  });
+
+  socket.send(JSON.stringify({
+    id: 4,
+    method: "thread/read",
+    params: {
+      threadId: "thread-1",
+    },
+  }));
+
+  await waitForCondition(() => transport.sent.length === 1);
+  const forwardedResponsePromise = waitForMessage(socket, (message) => message.id === 4);
+  transport.emit("message", {
+    id: 4,
+    result: {
+      thread: {
+        id: "thread-1",
+      },
+    },
+  });
+
+  const forwardedResponse = await forwardedResponsePromise;
+  assert.equal(forwardedResponse.result.transformed, true);
+  await waitForCondition(() => mirrorEvents.length >= 2);
+  assert.equal(mirrorEvents[0].source, "client");
+  assert.equal(mirrorEvents[0].message.method, "thread/read");
+  assert.equal(mirrorEvents[1].source, "transport");
+  assert.equal(mirrorEvents[1].message.id, 4);
+});
+
 async function connectInitializedSocket(port) {
   const socket = await openSocket(port);
 
@@ -286,4 +354,5 @@ function waitForMessage(socket, predicate, timeoutMs = 1_000) {
     socket.on("error", handleError);
   });
 }
+
 

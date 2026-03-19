@@ -2,6 +2,7 @@ import { once } from "node:events";
 import WebSocket, { WebSocketServer } from "ws";
 
 import { CodexAppServerProcess, STARTUP_TIMEOUT_MS } from "./appServer.mjs";
+import { createRolloutLiveMirrorController } from "./rolloutLiveMirror.mjs";
 
 export const BRIDGE_STATUS_METHOD = "bridge/status";
 export const DEFAULT_BRIDGE_HOST = "0.0.0.0";
@@ -18,6 +19,7 @@ export class CodexRemoteBridgeServer {
   #transport;
   #versionName;
   #activeClient = null;
+  #rolloutLiveMirror;
   #boundTransportMessage = (message) => {
     this.#handleTransportMessage(message);
   };
@@ -26,6 +28,7 @@ export class CodexRemoteBridgeServer {
     transport,
     initializeResult,
     versionName,
+    rolloutLiveMirrorFactory = createRolloutLiveMirrorController,
     host = DEFAULT_BRIDGE_HOST,
     port = DEFAULT_BRIDGE_PORT,
   }) {
@@ -34,6 +37,14 @@ export class CodexRemoteBridgeServer {
     this.#versionName = versionName;
     this.#host = host;
     this.#port = port;
+    this.#rolloutLiveMirror = rolloutLiveMirrorFactory({
+      sendNotification: (message) => {
+        if (!this.#activeClient?.codexremoteReady) {
+          return;
+        }
+        this.#sendJson(this.#activeClient, message);
+      },
+    });
   }
 
   get port() {
@@ -62,6 +73,7 @@ export class CodexRemoteBridgeServer {
 
   async close() {
     this.#transport.off("message", this.#boundTransportMessage);
+    this.#rolloutLiveMirror?.close?.();
 
     if (this.#activeClient?.readyState === WebSocket.OPEN) {
       this.#activeClient.close(1_001, "Bridge shutting down");
@@ -132,6 +144,7 @@ export class CodexRemoteBridgeServer {
       return;
     }
 
+    this.#rolloutLiveMirror?.observeClientMessage?.(message);
     this.#transport.send(message);
   }
 
@@ -148,10 +161,12 @@ export class CodexRemoteBridgeServer {
     }
 
     if (!this.#activeClient?.codexremoteReady) {
+      this.#rolloutLiveMirror?.transformTransportMessage?.(message);
       return;
     }
 
-    this.#sendJson(this.#activeClient, message);
+    const outgoingMessage = this.#rolloutLiveMirror?.transformTransportMessage?.(message) ?? message;
+    this.#sendJson(this.#activeClient, outgoingMessage);
   }
 
   #flushPendingServerRequests(socket) {
@@ -313,4 +328,5 @@ function withTimeout(promise, timeoutMs, message) {
     );
   });
 }
+
 

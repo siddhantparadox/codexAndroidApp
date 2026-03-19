@@ -242,6 +242,56 @@ class AppServerCodexRepositoryHelpersTest {
     }
 
     @Test
+    fun itemStartedPreservesExistingCompletedToolItem() {
+        val existingItems = listOf(
+            ThreadItem.CommandExecution(
+                id = "item-1",
+                command = "rg \"tool call\"",
+                status = dev.codex.mobile.core.model.ThreadItemStatus.Completed,
+                aggregatedOutput = "done",
+            ),
+        )
+        val incomingStartedItem = ThreadItem.CommandExecution(
+            id = "item-1",
+            command = "rg \"tool call\"",
+            status = dev.codex.mobile.core.model.ThreadItemStatus.InProgress,
+        )
+
+        val updatedItems = upsertThreadItems(
+            existingItems = existingItems,
+            item = incomingStartedItem,
+            replaceExisting = false,
+        )
+
+        assertEquals(existingItems, updatedItems)
+    }
+
+    @Test
+    fun itemCompletedReplacesExistingToolItem() {
+        val existingItems = listOf(
+            ThreadItem.CommandExecution(
+                id = "item-1",
+                command = "rg \"tool call\"",
+                status = dev.codex.mobile.core.model.ThreadItemStatus.InProgress,
+            ),
+        )
+        val completedItem = ThreadItem.CommandExecution(
+            id = "item-1",
+            command = "rg \"tool call\"",
+            status = dev.codex.mobile.core.model.ThreadItemStatus.Completed,
+            aggregatedOutput = "done",
+        )
+
+        val updatedItems = upsertThreadItems(
+            existingItems = existingItems,
+            item = completedItem,
+            replaceExisting = true,
+        )
+
+        assertEquals(listOf(completedItem), updatedItems)
+    }
+
+    @Test
     fun completedSnapshotWithoutActiveTurnIsAuthoritative() {
         val shouldUseSnapshot = shouldUseAuthoritativeThreadSnapshot(
             snapshotItems = listOf(
