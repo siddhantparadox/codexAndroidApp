@@ -44,6 +44,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -425,21 +426,9 @@ internal fun JsonObject.toThreadItem(): ThreadItem = when (string("type")) {
         tool = string("tool").orEmpty(),
         status = string("status").toThreadItemStatus(),
         senderThreadId = string("senderThreadId").orEmpty(),
-        receiverThreadIds = arrayAt("receiverThreadIds")
-            ?.map { it.jsonPrimitive.content }
-            .orEmpty(),
+        receiverThreadIds = toCollabReceiverThreadIds(),
         prompt = string("prompt"),
-        agentStates = objectAt("agentsStates")
-            ?.entries
-            ?.map { (threadId, value) ->
-                val state = value.jsonObject
-                CollabAgentState(
-                    threadId = threadId,
-                    status = state.string("status").orEmpty(),
-                    message = state.string("message"),
-                )
-            }
-            .orEmpty(),
+        agentStates = toCollabAgentStates(),
     )
 
     "webSearch" -> ThreadItem.WebSearch(
@@ -1107,6 +1096,86 @@ private fun fileChangeApprovalDecisionElement(decision: ApprovalDecision): JsonP
 
 private fun JsonObject.requireThreadItemId(): String = string("id")
     ?: "unknown-${string("type").orEmpty()}"
+
+private fun JsonObject.toCollabReceiverThreadIds(): List<String> = buildList {
+    arrayAt("receiverThreadIds")
+        ?.map { receiver -> receiver.jsonPrimitive.content }
+        ?.forEach(::add)
+    string("receiverThreadId")
+        ?.takeIf(String::isNotBlank)
+        ?.let(::add)
+    string("newThreadId")
+        ?.takeIf(String::isNotBlank)
+        ?.let(::add)
+}.distinct()
+
+private fun JsonObject.toCollabAgentStates(): List<CollabAgentState> {
+    objectAt("agentsStates")?.let { statesByThreadId ->
+        return statesByThreadId.toCollabAgentStatesByThreadId()
+    }
+
+    val receiverThreadIds = toCollabReceiverThreadIds()
+    return when (val agentStatus = elementAt("agentStatus")) {
+        is JsonObject -> {
+            if ("status" in agentStatus || "message" in agentStatus) {
+                agentStatus.toCollabAgentState(receiverThreadIds.firstOrNull()).let(::listOfNotNull)
+            } else {
+                agentStatus.toCollabAgentStatesByThreadId()
+            }
+        }
+
+        is JsonPrimitive -> {
+            val status = agentStatus.contentOrNull.orEmpty()
+            val receiverThreadId = receiverThreadIds.firstOrNull()
+            if (status.isBlank() && receiverThreadId.isNullOrBlank()) {
+                emptyList()
+            } else {
+                listOf(
+                    CollabAgentState(
+                        threadId = receiverThreadId.orEmpty(),
+                        status = status,
+                    ),
+                )
+            }
+        }
+
+        else -> emptyList()
+    }
+}
+
+private fun JsonObject.toCollabAgentStatesByThreadId(): List<CollabAgentState> = entries.mapNotNull { (threadId, value) ->
+    value.toCollabAgentState(threadId)
+}
+
+private fun JsonElement.toCollabAgentState(threadId: String?): CollabAgentState? = when (this) {
+    is JsonObject -> {
+        val status = string("status").orEmpty()
+        val message = string("message")
+        if (threadId.isNullOrBlank() && status.isBlank() && message.isNullOrBlank()) {
+            null
+        } else {
+            CollabAgentState(
+                threadId = threadId.orEmpty(),
+                status = status,
+                message = message,
+            )
+        }
+    }
+
+    is JsonPrimitive -> {
+        val status = contentOrNull.orEmpty()
+        if (threadId.isNullOrBlank() && status.isBlank()) {
+            null
+        } else {
+            CollabAgentState(
+                threadId = threadId.orEmpty(),
+                status = status,
+            )
+        }
+    }
+
+    else -> null
+}
 
 private fun String?.toThreadItemStatus(): ThreadItemStatus = when (this) {
     "completed" -> ThreadItemStatus.Completed

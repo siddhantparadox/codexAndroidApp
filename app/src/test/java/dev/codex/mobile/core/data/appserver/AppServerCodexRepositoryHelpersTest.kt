@@ -139,7 +139,7 @@ class AppServerCodexRepositoryHelpersTest {
     }
 
     @Test
-    fun authoritativeSnapshotReplacesStaleCachedItems() {
+    fun authoritativeConversationOnlySnapshotPreservesTechnicalHistory() {
         val existingItems = listOf(
             ThreadItem.UserMessage(id = "item-1", text = "user"),
             ThreadItem.AgentMessage(id = "item-2", text = "commentary", phase = "commentary"),
@@ -153,6 +153,83 @@ class AppServerCodexRepositoryHelpersTest {
                 text = "Do you want the new section to cover OpenAI API pricing or ChatGPT subscription pricing?",
                 phase = "final_answer",
             ),
+        )
+
+        val mergedItems = mergeThreadItems(
+            existingItems = existingItems,
+            snapshotItems = snapshotItems,
+            snapshotIsAuthoritative = true,
+        )
+
+        assertEquals(
+            listOf(
+                ThreadItem.UserMessage(id = "item-1", text = "user"),
+                ThreadItem.AgentMessage(id = "item-2", text = "commentary", phase = "commentary"),
+                ThreadItem.WebSearch(id = "item-3", query = "stale"),
+                ThreadItem.AgentMessage(
+                    id = "item-4",
+                    text = "Do you want the new section to cover OpenAI API pricing or ChatGPT subscription pricing?",
+                    phase = "final_answer",
+                ),
+            ),
+            mergedItems,
+        )
+    }
+
+    @Test
+    fun authoritativeSnapshotMissingSomeTechnicalItemsPreservesExistingHistory() {
+        val existingItems = listOf(
+            ThreadItem.UserMessage(id = "item-1", text = "user"),
+            ThreadItem.Reasoning(id = "item-2", summary = "thinking", contentText = "thinking"),
+            ThreadItem.CommandExecution(
+                id = "item-3",
+                command = "rg \"tool call\"",
+                status = dev.codex.mobile.core.model.ThreadItemStatus.Completed,
+            ),
+        )
+        val snapshotItems = listOf(
+            ThreadItem.UserMessage(id = "item-1", text = "user"),
+            ThreadItem.Reasoning(id = "item-2", summary = "thinking harder", contentText = "thinking harder"),
+            ThreadItem.AgentMessage(id = "item-4", text = "answer"),
+        )
+
+        val mergedItems = mergeThreadItems(
+            existingItems = existingItems,
+            snapshotItems = snapshotItems,
+            snapshotIsAuthoritative = true,
+        )
+
+        assertEquals(
+            listOf(
+                ThreadItem.UserMessage(id = "item-1", text = "user"),
+                ThreadItem.Reasoning(id = "item-2", summary = "thinking harder", contentText = "thinking harder"),
+                ThreadItem.CommandExecution(
+                    id = "item-3",
+                    command = "rg \"tool call\"",
+                    status = dev.codex.mobile.core.model.ThreadItemStatus.Completed,
+                ),
+                ThreadItem.AgentMessage(id = "item-4", text = "answer"),
+            ),
+            mergedItems,
+        )
+    }
+
+    @Test
+    fun authoritativeSnapshotThatContainsKnownTechnicalItemsReplacesCache() {
+        val existingItems = listOf(
+            ThreadItem.UserMessage(id = "item-1", text = "user"),
+            ThreadItem.WebSearch(id = "item-2", query = "stale"),
+            ThreadItem.AgentMessage(id = "item-3", text = "answer"),
+        )
+        val snapshotItems = listOf(
+            ThreadItem.UserMessage(id = "item-1", text = "user"),
+            ThreadItem.WebSearch(id = "item-2", query = "fresh"),
+            ThreadItem.CommandExecution(
+                id = "item-4",
+                command = "rg \"tool call\"",
+                status = dev.codex.mobile.core.model.ThreadItemStatus.Completed,
+            ),
+            ThreadItem.AgentMessage(id = "item-5", text = "answer"),
         )
 
         val mergedItems = mergeThreadItems(

@@ -1945,6 +1945,12 @@ internal class AppServerCodexRepository(
         repositoryState.update { current ->
             val existingDetail = current.threadDetails[detail.summary.id]
             val cachedItems = current.threadItemCache[detail.summary.id].orEmpty()
+            val existingItems = if (cachedItems.isNotEmpty()) cachedItems else existingDetail?.items.orEmpty()
+            val snapshotIsAuthoritative = shouldUseAuthoritativeThreadSnapshot(
+                snapshotItems = detail.items,
+                snapshotStatus = detail.summary.status,
+                activeTurnId = activeTurnId,
+            )
             val mergedSummary = detail.summary
                 .withThreadSettings(
                     settings = sessionSettings?.toPersistedThreadSettings(
@@ -1968,16 +1974,17 @@ internal class AppServerCodexRepository(
                         summary.copy(status = status)
                     }
             }
+            val mergedItems = mergeThreadItems(
+                existingItems = existingItems,
+                snapshotItems = detail.items,
+                snapshotIsAuthoritative = snapshotIsAuthoritative,
+            )
+            AppLog.action(
+                name = "thread_snapshot_merge",
+                detail = "thread=${detail.summary.id} existing=${existingItems.size} snapshot=${detail.items.size} merged=${mergedItems.size} existingTechnical=${existingItems.technicalItemCount()} snapshotTechnical=${detail.items.technicalItemCount()} authoritative=$snapshotIsAuthoritative",
+            )
             val mergedDetail = detail.copy(
-                items = mergeThreadItems(
-                    existingItems = if (cachedItems.isNotEmpty()) cachedItems else existingDetail?.items.orEmpty(),
-                    snapshotItems = detail.items,
-                    snapshotIsAuthoritative = shouldUseAuthoritativeThreadSnapshot(
-                        snapshotItems = detail.items,
-                        snapshotStatus = detail.summary.status,
-                        activeTurnId = activeTurnId,
-                    ),
-                ),
+                items = mergedItems,
                 activities = existingDetail?.activities.orEmpty(),
                 summary = mergedSummary,
             )
@@ -2145,8 +2152,12 @@ internal fun mergeThreadItems(
 ): List<ThreadItem> {
     if (existingItems.isEmpty()) return snapshotItems
     if (snapshotItems.isEmpty()) return existingItems
-    if (snapshotIsAuthoritative) return snapshotItems
-    if (existingItems.size > snapshotItems.size) return existingItems
+
+    // Some completed thread snapshots currently omit historical technical items.
+    // Preserve the richer locally observed transcript instead of erasing tool pills on reopen.
+    val preserveExistingTechnicalHistory = snapshotIsAuthoritative &&
+        snapshotItems.isMissingKnownTechnicalItems(existingItems)
+    if (snapshotIsAuthoritative && !preserveExistingTechnicalHistory) return snapshotItems
 
     val snapshotById = snapshotItems.associateBy { it.id }
     val existingIds = existingItems.map { it.id }.toSet()
@@ -2160,6 +2171,23 @@ internal fun mergeThreadItems(
             .forEach(::add)
     }
 }
+
+private fun List<ThreadItem>.isMissingKnownTechnicalItems(existingItems: List<ThreadItem>): Boolean {
+    val existingTechnicalIds = existingItems.technicalItemIds()
+    if (existingTechnicalIds.isEmpty()) return false
+    val snapshotTechnicalIds = technicalItemIds()
+    return !snapshotTechnicalIds.containsAll(existingTechnicalIds)
+}
+
+private fun List<ThreadItem>.technicalItemIds(): Set<String> = asSequence()
+    .filter(ThreadItem::isTechnicalItem)
+    .map(ThreadItem::id)
+    .toSet()
+
+private fun List<ThreadItem>.technicalItemCount(): Int = count(ThreadItem::isTechnicalItem)
+
+private fun ThreadItem.isTechnicalItem(): Boolean = this !is ThreadItem.UserMessage &&
+    this !is ThreadItem.AgentMessage
 
 internal fun shouldUseAuthoritativeThreadSnapshot(
     snapshotItems: List<ThreadItem>,
