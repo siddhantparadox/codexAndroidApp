@@ -73,6 +73,8 @@ dependencies {
     implementation(libs.google.play.services.code.scanner)
     implementation(libs.java.diff.utils)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.markdown.renderer)
+    implementation(libs.markdown.renderer.m3)
     implementation(libs.okhttp)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui.tooling.preview)

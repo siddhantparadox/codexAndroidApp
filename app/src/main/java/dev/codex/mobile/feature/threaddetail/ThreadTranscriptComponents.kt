@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Description
@@ -242,6 +243,7 @@ internal fun InlineApprovalCard(
 
 @Composable
 private fun UserBubble(entry: ThreadItem.UserMessage) {
+    val copyText: String = entry.copyableMessageText()
     BubbleRow(
         isUser = true,
         label = "You",
@@ -250,6 +252,12 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
         liveColor = MaterialTheme.colorScheme.primary,
         bubbleColor = MaterialTheme.colorScheme.primary,
         textColor = MaterialTheme.colorScheme.onPrimary,
+        headerAction = {
+            HeaderCopyAction(
+                copyText = copyText,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        },
     ) {
         val textParts: List<UserInputContent.Text> = entry.content.filterIsInstance<UserInputContent.Text>()
         val nonTextParts: List<UserInputContent> = entry.content.filterNot { item -> item is UserInputContent.Text }
@@ -261,6 +269,7 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
                     textStyle = MaterialTheme.typography.bodyLarge,
                     codeBackground = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
                     codeColor = MaterialTheme.colorScheme.onPrimary,
+                    linkColor = MaterialTheme.colorScheme.onPrimary,
                 )
             }
         } else {
@@ -272,6 +281,7 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
                     textStyle = MaterialTheme.typography.bodyLarge,
                     codeBackground = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
                     codeColor = MaterialTheme.colorScheme.onPrimary,
+                    linkColor = MaterialTheme.colorScheme.onPrimary,
                 )
             }
         }
@@ -290,6 +300,7 @@ private fun AgentBubble(
     entry: ThreadItem.AgentMessage,
     isLive: Boolean,
 ) {
+    val copyText: String = entry.text.trim()
     val bubbleColor: Color = if (entry.phase == "commentary") {
         MaterialTheme.colorScheme.surfaceVariant
     } else {
@@ -303,6 +314,12 @@ private fun AgentBubble(
         liveColor = MaterialTheme.colorScheme.primary,
         bubbleColor = bubbleColor,
         textColor = MaterialTheme.colorScheme.onSurface,
+        headerAction = {
+            HeaderCopyAction(
+                copyText = copyText,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        },
     ) {
         if (isLive) {
             LiveAccentLine(color = MaterialTheme.colorScheme.primary)
@@ -314,6 +331,7 @@ private fun AgentBubble(
             textStyle = MaterialTheme.typography.bodyLarge,
             codeBackground = bubbleColor.copy(alpha = 0.85f),
             codeColor = MaterialTheme.colorScheme.onSurface,
+            linkColor = MaterialTheme.colorScheme.primary,
         )
     }
 }
@@ -328,6 +346,7 @@ private fun PendingAgentBubble() {
         liveColor = MaterialTheme.colorScheme.primary,
         bubbleColor = MaterialTheme.colorScheme.surfaceVariant,
         textColor = MaterialTheme.colorScheme.onSurface,
+        headerAction = null,
     ) {
         LiveAccentLine(color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
@@ -354,6 +373,7 @@ private fun BubbleRow(
     liveColor: Color,
     bubbleColor: Color,
     textColor: Color,
+    headerAction: (@Composable (() -> Unit))?,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Row(
@@ -361,28 +381,65 @@ private fun BubbleRow(
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
     ) {
         Column(
-            modifier = Modifier.widthIn(max = 340.dp),
+            modifier = Modifier
+                .fillMaxWidth(ThreadTranscriptBubbleWidthFraction)
+                .widthIn(max = ThreadTranscriptBubbleMaxWidth),
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = label.uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                liveLabel?.let { live ->
-                    LiveStatusBadge(
-                        label = live,
-                        color = liveColor,
+            if (isUser) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = label.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                } ?: supportingLabel?.let { tag ->
-                    StatusChip(
-                        label = tag,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+                    liveLabel?.let { live ->
+                        LiveStatusBadge(
+                            label = live,
+                            color = liveColor,
+                        )
+                    } ?: supportingLabel?.let { tag ->
+                        StatusChip(
+                            label = tag,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    headerAction?.invoke()
+                }
+            } else {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = label.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        liveLabel?.let { live ->
+                            LiveStatusBadge(
+                                label = live,
+                                color = liveColor,
+                            )
+                        } ?: supportingLabel?.let { tag ->
+                            StatusChip(
+                                label = tag,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                    headerAction?.let { action ->
+                        Spacer(modifier = Modifier.width(CodexSpacing.microGap))
+                        action()
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(CodexSpacing.microGap))
@@ -392,8 +449,8 @@ private fun BubbleRow(
             ) {
                 Column(
                     modifier = Modifier.padding(
-                        horizontal = CodexSpacing.bubbleHorizontal,
-                        vertical = CodexSpacing.bubbleVertical,
+                        horizontal = ThreadBubbleHorizontalPadding,
+                        vertical = ThreadBubbleVerticalPadding,
                     ),
                 ) {
                     content()
@@ -427,6 +484,25 @@ private fun NonTextUserInputs(
                 isUser = isUser,
             )
         }
+    }
+}
+
+@Composable
+private fun HeaderCopyAction(
+    copyText: String,
+    tint: Color,
+) {
+    if (copyText.isBlank()) return
+
+    val copyTextToClipboard: (String) -> Unit = rememberThreadClipboardCopy()
+
+    DisableSelection {
+        TranscriptCopyIconButton(
+            tint = tint,
+            onClick = {
+                copyTextToClipboard(copyText)
+            },
+        )
     }
 }
 
@@ -468,5 +544,17 @@ private fun activityContent(emphasis: ThreadActivityEmphasis): Color = when (emp
     ThreadActivityEmphasis.Warning -> Color(0xFFD59734)
     ThreadActivityEmphasis.Error -> MaterialTheme.colorScheme.error
     ThreadActivityEmphasis.Neutral -> MaterialTheme.colorScheme.onSurface
+}
+
+private fun ThreadItem.UserMessage.copyableMessageText(): String {
+    val textParts: List<String> = content
+        .filterIsInstance<UserInputContent.Text>()
+        .map(UserInputContent.Text::text)
+        .filter(String::isNotBlank)
+    return when {
+        textParts.isNotEmpty() -> textParts.joinToString(separator = "\n\n")
+        text.isNotBlank() -> text.trim()
+        else -> ""
+    }
 }
 

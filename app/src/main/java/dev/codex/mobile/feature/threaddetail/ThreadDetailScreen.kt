@@ -251,9 +251,9 @@ fun ThreadDetailScreen(
                     .fillMaxSize()
                     .imePadding(),
                 contentPadding = PaddingValues(
-                    start = CodexSpacing.screenHorizontal,
+                    start = ThreadTranscriptHorizontalPadding,
                     top = CodexSpacing.screenTop,
-                    end = CodexSpacing.screenHorizontal,
+                    end = ThreadTranscriptHorizontalPadding,
                     bottom = transcriptBottomPadding,
                 ),
                 verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
