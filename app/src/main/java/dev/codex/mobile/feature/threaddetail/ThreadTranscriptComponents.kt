@@ -243,7 +243,13 @@ internal fun InlineApprovalCard(
 
 @Composable
 private fun UserBubble(entry: ThreadItem.UserMessage) {
-    val copyText: String = entry.copyableMessageText()
+    val copyText: String = remember(entry) { entry.copyableMessageText() }
+    val textParts: List<UserInputContent.Text> = remember(entry.content) {
+        entry.content.filterIsInstance<UserInputContent.Text>()
+    }
+    val nonTextParts: List<UserInputContent> = remember(entry.content) {
+        entry.content.filterNot { item -> item is UserInputContent.Text }
+    }
     BubbleRow(
         isUser = true,
         label = "You",
@@ -259,8 +265,6 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
             )
         },
     ) {
-        val textParts: List<UserInputContent.Text> = entry.content.filterIsInstance<UserInputContent.Text>()
-        val nonTextParts: List<UserInputContent> = entry.content.filterNot { item -> item is UserInputContent.Text }
         if (textParts.isEmpty()) {
             if (nonTextParts.isEmpty()) {
                 ThreadRichText(
@@ -300,7 +304,7 @@ private fun AgentBubble(
     entry: ThreadItem.AgentMessage,
     isLive: Boolean,
 ) {
-    val copyText: String = entry.text.trim()
+    val copyText: String = remember(entry.text) { entry.text.trim() }
     val bubbleColor: Color = if (entry.phase == "commentary") {
         MaterialTheme.colorScheme.surfaceVariant
     } else {

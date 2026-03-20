@@ -1,7 +1,6 @@
 package dev.codex.mobile.feature.threaddetail
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -148,7 +147,6 @@ internal fun TechnicalPillStrip(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .animateContentSize()
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
             ) {

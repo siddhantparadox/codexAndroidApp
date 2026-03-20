@@ -55,6 +55,12 @@ import dev.codex.mobile.core.designsystem.theme.codeInline
 import kotlinx.coroutines.launch
 
 private val WindowsAbsolutePathRegex: Regex = Regex("^[A-Za-z]:[/\\\\].*")
+private val MarkdownBlockSyntaxRegex: Regex = Regex(
+    pattern = """(?m)^(#{1,6}\s|>\s|[-*+]\s|\d+\.\s|```|~~~|\|.*\|$)""",
+)
+private val MarkdownInlineSyntaxRegex: Regex = Regex(
+    pattern = """(\[[^]]+]\([^)]+\)|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|~~[^~\n]+~~)""",
+)
 
 @Composable
 internal fun ThreadRichText(
@@ -67,6 +73,18 @@ internal fun ThreadRichText(
     linkColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     if (text.isBlank()) return
+
+    if (!shouldUseMarkdownRenderer(text)) {
+        SelectionContainer {
+            Text(
+                text = text,
+                style = textStyle,
+                color = textColor,
+                modifier = modifier.fillMaxWidth(),
+            )
+        }
+        return
+    }
 
     val copyTextToClipboard: (String) -> Unit = rememberThreadClipboardCopy()
     val platformUriHandler: UriHandler = LocalUriHandler.current
@@ -362,4 +380,11 @@ internal fun isTranscriptLocalLink(uri: String): Boolean {
     if (uri.startsWith("/")) return true
     if (uri.startsWith("./") || uri.startsWith("../")) return true
     return WindowsAbsolutePathRegex.matches(uri)
+}
+
+internal fun shouldUseMarkdownRenderer(text: String): Boolean {
+    if (text.isBlank()) return false
+    if ("```" in text || "~~~" in text) return true
+    return MarkdownBlockSyntaxRegex.containsMatchIn(text) ||
+        MarkdownInlineSyntaxRegex.containsMatchIn(text)
 }

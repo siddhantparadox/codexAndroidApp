@@ -135,26 +135,47 @@ fun ThreadDetailScreen(
                 )
             }
         } else {
-            val visibleItems = detail.items.filter(::shouldRenderTranscriptItem)
-            val showPendingAgentPlaceholder = shouldShowPendingAgentPlaceholder(
-                status = detail.summary.status,
-                items = visibleItems,
-                activeItemIds = uiState.activeItemIds,
-                approvals = uiState.approvals,
-                userInputRequests = uiState.userInputRequests,
-                dynamicToolRequests = uiState.dynamicToolRequests,
-            )
-            val transcriptRows = buildTranscriptRows(
-                items = visibleItems,
-                approvals = uiState.approvals,
-                userInputRequests = uiState.userInputRequests,
-                dynamicToolRequests = uiState.dynamicToolRequests,
-                showPendingAgentPlaceholder = showPendingAgentPlaceholder,
-            )
-            val waitingOnUnavailableApproval =
+            val visibleItems = remember(detail.items) {
+                detail.items.filter(::shouldRenderTranscriptItem)
+            }
+            val showPendingAgentPlaceholder = remember(
+                detail.summary.status,
+                visibleItems,
+                uiState.activeItemIds,
+                uiState.approvals,
+                uiState.userInputRequests,
+                uiState.dynamicToolRequests,
+            ) {
+                shouldShowPendingAgentPlaceholder(
+                    status = detail.summary.status,
+                    items = visibleItems,
+                    activeItemIds = uiState.activeItemIds,
+                    approvals = uiState.approvals,
+                    userInputRequests = uiState.userInputRequests,
+                    dynamicToolRequests = uiState.dynamicToolRequests,
+                )
+            }
+            val transcriptRows = remember(
+                visibleItems,
+                uiState.approvals,
+                uiState.userInputRequests,
+                uiState.dynamicToolRequests,
+                showPendingAgentPlaceholder,
+            ) {
+                buildTranscriptRows(
+                    items = visibleItems,
+                    approvals = uiState.approvals,
+                    userInputRequests = uiState.userInputRequests,
+                    dynamicToolRequests = uiState.dynamicToolRequests,
+                    showPendingAgentPlaceholder = showPendingAgentPlaceholder,
+                )
+            }
+            val waitingOnUnavailableApproval = remember(detail.summary.status, uiState.approvals) {
                 detail.summary.status.isWaitingOnApproval && uiState.approvals.isEmpty()
-            val waitingOnUnavailableUserInput =
+            }
+            val waitingOnUnavailableUserInput = remember(detail.summary.status, uiState.userInputRequests) {
                 detail.summary.status.isWaitingOnUserInput && uiState.userInputRequests.isEmpty()
+            }
             val activityRowCount = if (detail.activities.isEmpty()) 0 else 1
             val transcriptRowCount = if (transcriptRows.isEmpty()) 1 else transcriptRows.size
             val pendingRequestUnavailableRowCount =
@@ -258,25 +279,35 @@ fun ThreadDetailScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(CodexSpacing.sectionGap),
             ) {
-                item {
+                item(
+                    key = "thread-header",
+                    contentType = "thread-header",
+                ) {
                     ThreadDetailHeader(
                         summary = detail.summary,
                         onNavigateBack = onNavigateBack,
                     )
                 }
                 if (detail.activities.isNotEmpty()) {
-                    item {
+                    item(
+                        key = "thread-activity",
+                        contentType = "thread-activity",
+                    ) {
                         ThreadActivityPanel(activities = detail.activities)
                     }
                 }
                 if (transcriptRows.isEmpty()) {
-                    item {
+                    item(
+                        key = "empty-transcript",
+                        contentType = "empty-transcript",
+                    ) {
                         EmptyTranscriptState()
                     }
                 } else {
                     items(
                         items = transcriptRows,
                         key = { row -> row.id },
+                        contentType = { row -> transcriptRowContentType(row) },
                     ) { row ->
                         ThreadTranscriptRowView(
                             row = row,
@@ -305,7 +336,10 @@ fun ThreadDetailScreen(
                     }
                 }
                 if (waitingOnUnavailableApproval || waitingOnUnavailableUserInput) {
-                    item(key = "pending-request-unavailable") {
+                    item(
+                        key = "pending-request-unavailable",
+                        contentType = "pending-request-unavailable",
+                    ) {
                         PendingRequestUnavailableCard(
                             waitingOnApproval = waitingOnUnavailableApproval,
                             waitingOnUserInput = waitingOnUnavailableUserInput,
@@ -597,6 +631,16 @@ private fun androidx.compose.foundation.lazy.LazyListState.isItemFullyVisible(in
 private fun shouldRenderTranscriptItem(item: ThreadItem): Boolean = when (item) {
     is ThreadItem.Reasoning -> item.summary.isNotBlank() || item.contentText.isNotBlank()
     else -> true
+}
+
+private fun transcriptRowContentType(row: TranscriptRow): String = when (row) {
+    is TranscriptRow.UserMessage -> "user-message"
+    is TranscriptRow.AgentMessage -> "agent-message"
+    is TranscriptRow.TechnicalStrip -> "technical-strip"
+    is TranscriptRow.ApprovalCard -> "approval-card"
+    is TranscriptRow.UserInputRequestCard -> "user-input-request-card"
+    is TranscriptRow.DynamicToolRequestCard -> "dynamic-tool-request-card"
+    TranscriptRow.PendingAgentPlaceholder -> "pending-agent-placeholder"
 }
 
 private fun dev.codex.mobile.core.model.ComposerReasoningEffort.displayLabel(): String = when (this) {

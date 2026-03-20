@@ -22,4 +22,18 @@ class ThreadRichTextTest {
         assertFalse(isTranscriptLocalLink("mailto:test@example.com"))
         assertFalse(isTranscriptLocalLink("codex://thread/thread-123"))
     }
+
+    @Test
+    fun plainParagraphsUseFastTextPath() {
+        assertFalse(shouldUseMarkdownRenderer("This is a normal Codex reply with no markdown syntax."))
+        assertFalse(shouldUseMarkdownRenderer("Two plain paragraphs.\n\nStill just text."))
+    }
+
+    @Test
+    fun markdownContentUsesMarkdownRenderer() {
+        assertTrue(shouldUseMarkdownRenderer("```kotlin\nprintln(\"hi\")\n```"))
+        assertTrue(shouldUseMarkdownRenderer("- first\n- second"))
+        assertTrue(shouldUseMarkdownRenderer("[Android docs](https://developer.android.com)"))
+        assertTrue(shouldUseMarkdownRenderer("Use `adb logcat` to inspect logs."))
+    }
 }
