@@ -65,6 +65,8 @@ import dev.codex.mobile.core.util.relativeTimeLabel
 import java.text.NumberFormat
 import java.util.Locale
 
+private const val DashboardRecentThreadPreviewCount: Int = 3
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -84,6 +86,8 @@ fun DashboardScreen(
         onOpenThreads = onOpenThreads,
         onOpenHostConnection = onOpenHostConnection,
         onOpenThread = onOpenThread,
+        onOpenUsageWrapped = onOpenUsageWrapped,
+        onSyncNow = viewModel::syncNow,
         onOpenUsage = {
             isUsageSheetVisible = true
             viewModel.refreshUsageWrapped()
@@ -121,6 +125,8 @@ private fun DashboardContent(
     onOpenThreads: () -> Unit,
     onOpenHostConnection: () -> Unit,
     onOpenThread: (String) -> Unit,
+    onOpenUsageWrapped: () -> Unit,
+    onSyncNow: () -> Unit,
     onOpenUsage: () -> Unit,
     onOpenAccount: () -> Unit,
     modifier: Modifier = Modifier,
@@ -146,31 +152,29 @@ private fun DashboardContent(
             onClick = onOpenHostConnection,
         )
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
         ) {
             ActiveThreadPanel(
                 thread = uiState.activeThread,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.42f),
-                onClick = onOpenThread,
+                onOpenThread = onOpenThread,
+                onOpenThreads = onOpenThreads,
+                modifier = Modifier.fillMaxWidth(),
             )
             RecentThreadsPanel(
                 threads = uiState.recentThreads,
+                syncedThreadCount = uiState.syncedThreadCount,
+                attentionCount = uiState.attentionCount,
                 onOpenThread = onOpenThread,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.58f),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            DashboardTodayCard(
+                today = uiState.today,
+                onClick = onOpenUsageWrapped,
+                onSyncNow = onSyncNow,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
-        DashboardFooter(
-            syncedThreadCount = uiState.syncedThreadCount,
-            attentionCount = uiState.attentionCount,
-            onOpenThreads = onOpenThreads,
-        )
     }
 }
 
@@ -332,7 +336,8 @@ private fun ConnectionStrip(
 @Composable
 private fun ActiveThreadPanel(
     thread: ThreadSummary?,
-    onClick: (String) -> Unit,
+    onOpenThread: (String) -> Unit,
+    onOpenThreads: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (thread == null) {
@@ -340,7 +345,6 @@ private fun ActiveThreadPanel(
             modifier = modifier.fillMaxWidth(),
         ) {
             Column(
-                modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
             ) {
                 Text(
@@ -356,15 +360,12 @@ private fun ActiveThreadPanel(
                     text = "Open Threads to resume a conversation or start a new one from the connected desktop.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = "Usage stays in the header sheet while the dashboard focuses on active work.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
+                )
+                CompactDashboardAction(
+                    label = "Open Threads",
+                    onClick = onOpenThreads,
                 )
             }
         }
@@ -374,10 +375,9 @@ private fun ActiveThreadPanel(
     CodexCard(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onClick(thread.id) },
+            .clickable { onOpenThread(thread.id) },
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap),
         ) {
             Row(
@@ -422,7 +422,6 @@ private fun ActiveThreadPanel(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = when {
                     thread.status.isWaitingOnApproval -> "Approval is blocking the current turn."
@@ -441,6 +440,8 @@ private fun ActiveThreadPanel(
 @Composable
 private fun RecentThreadsPanel(
     threads: List<ThreadSummary>,
+    syncedThreadCount: Int,
+    attentionCount: Int,
     onOpenThread: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -448,10 +449,20 @@ private fun RecentThreadsPanel(
         modifier = modifier.fillMaxWidth(),
     ) {
         SectionHeader(title = "Recent threads")
+        Spacer(modifier = Modifier.height(CodexSpacing.microGap))
+        Text(
+            text = buildFooterSummary(
+                syncedThreadCount = syncedThreadCount,
+                attentionCount = attentionCount,
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
         Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
         if (threads.isEmpty()) {
             Column(
-                modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
             ) {
                 Text(
@@ -469,16 +480,17 @@ private fun RecentThreadsPanel(
             return@CodexCard
         }
 
+        val visibleThreads: List<ThreadSummary> = threads.take(DashboardRecentThreadPreviewCount)
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
         ) {
-            threads.forEachIndexed { index, thread ->
+            visibleThreads.forEachIndexed { index, thread ->
                 RecentThreadRow(
                     thread = thread,
                     onClick = { onOpenThread(thread.id) },
                 )
-                if (index != threads.lastIndex) {
+                if (index != visibleThreads.lastIndex) {
                     Spacer(modifier = Modifier.height(CodexSpacing.microGap))
                 }
             }
@@ -526,6 +538,34 @@ private fun RecentThreadRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+@Composable
+private fun CompactDashboardAction(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(CodexSpacing.tightGap),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
@@ -798,39 +838,6 @@ private fun MetricLine(
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun DashboardFooter(
-    syncedThreadCount: Int,
-    attentionCount: Int,
-    onOpenThreads: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = buildFooterSummary(
-                syncedThreadCount = syncedThreadCount,
-                attentionCount = attentionCount,
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = "View all",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable(onClick = onOpenThreads),
         )
     }
 }
