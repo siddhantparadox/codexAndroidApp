@@ -39,6 +39,7 @@ internal fun LiveStatusBadge(
     label: String,
     color: Color,
     modifier: Modifier = Modifier,
+    animate: Boolean = true,
 ) {
     Surface(
         modifier = modifier,
@@ -55,7 +56,10 @@ internal fun LiveStatusBadge(
                 style = MaterialTheme.typography.codeInline,
                 color = color,
             )
-            LiveDots(color = color)
+            LiveDots(
+                color = color,
+                animate = animate,
+            )
         }
     }
 }
@@ -65,7 +69,17 @@ internal fun LivePulseDot(
     color: Color,
     modifier: Modifier = Modifier,
     size: Dp = 7.dp,
+    animate: Boolean = true,
 ) {
+    if (!animate) {
+        Box(
+            modifier = modifier
+                .size(size)
+                .background(color = color, shape = CircleShape),
+        )
+        return
+    }
+
     val transition = rememberInfiniteTransition(label = "live_pulse_dot")
     val alpha by transition.animateFloat(
         initialValue = 0.52f,
@@ -102,7 +116,21 @@ internal fun LivePulseDot(
 internal fun LiveAccentLine(
     color: Color,
     modifier: Modifier = Modifier,
+    animate: Boolean = true,
 ) {
+    if (!animate) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(3.dp)
+                .background(
+                    color = color.copy(alpha = 0.18f),
+                    shape = RoundedCornerShape(999.dp),
+                ),
+        )
+        return
+    }
+
     val transition = rememberInfiniteTransition(label = "live_accent_line")
     val offsetProgress by transition.animateFloat(
         initialValue = -0.45f,
@@ -148,7 +176,12 @@ internal fun LiveAccentLine(
 internal fun liveContainerColor(
     accent: Color,
     selected: Boolean,
+    animate: Boolean = true,
 ): Color {
+    if (!animate) {
+        return accent.copy(alpha = if (selected) 0.2f else 0.14f)
+    }
+
     val transition = rememberInfiniteTransition(label = "live_container_color")
     val animatedAlpha by transition.animateFloat(
         initialValue = if (selected) 0.16f else 0.1f,
@@ -165,7 +198,20 @@ internal fun liveContainerColor(
 @Composable
 private fun LiveDots(
     color: Color,
+    animate: Boolean,
 ) {
+    if (!animate) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            repeat(3) {
+                LiveDot(color = color, alpha = 0.78f)
+            }
+        }
+        return
+    }
+
     val transition = rememberInfiniteTransition(label = "live_dots")
     val dotOneAlpha by transition.animateFloat(
         initialValue = 0.28f,

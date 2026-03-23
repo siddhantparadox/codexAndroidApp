@@ -91,6 +91,9 @@ fun ThreadDetailScreen(
     var composerSheetContent by remember(detail?.summary?.id) {
         mutableStateOf<ThreadComposerSheetContent?>(null)
     }
+    var selectedTechnicalItem by remember(detail?.summary?.id) {
+        mutableStateOf<ThreadItem?>(null)
+    }
     var reviewedDiff by remember(detail?.summary?.id) {
         mutableStateOf<FileChangeEntry?>(null)
     }
@@ -189,6 +192,7 @@ fun ThreadDetailScreen(
             } else {
                 128.dp
             }
+            val transcriptEffectsEnabled: Boolean = !listState.isScrollInProgress
             val isNearBottom: Boolean by remember(listState, totalTranscriptRows) {
                 derivedStateOf { listState.isNearBottom(totalTranscriptRows) }
             }
@@ -312,6 +316,8 @@ fun ThreadDetailScreen(
                         ThreadTranscriptRowView(
                             row = row,
                             activeItemIds = uiState.activeItemIds,
+                            selectionEnabled = transcriptEffectsEnabled,
+                            animationsEnabled = transcriptEffectsEnabled,
                             autoRevealExpandedContent = followMode,
                             onDecision = viewModel::resolveApproval,
                             onSubmitUserInput = viewModel::respondToUserInput,
@@ -329,8 +335,8 @@ fun ThreadDetailScreen(
                                     response = ThreadDynamicToolResponse.Cancel,
                                 )
                             },
-                            onReviewDiff = { change ->
-                                reviewedDiff = change
+                            onOpenTechnicalItemDetail = { item ->
+                                selectedTechnicalItem = item
                             },
                         )
                     }
@@ -429,6 +435,22 @@ fun ThreadDetailScreen(
                 onPickPhoto = {
                     composerSheetContent = null
                     photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
+            )
+        }
+    }
+
+    val visibleTechnicalItem: ThreadItem? = selectedTechnicalItem
+    if (visibleTechnicalItem != null) {
+        ModalBottomSheet(
+            onDismissRequest = { selectedTechnicalItem = null },
+        ) {
+            ThreadTechnicalItemDetailSheetContent(
+                item = visibleTechnicalItem,
+                activeItemIds = uiState.activeItemIds,
+                onReviewDiff = { change ->
+                    selectedTechnicalItem = null
+                    reviewedDiff = change
                 },
             )
         }

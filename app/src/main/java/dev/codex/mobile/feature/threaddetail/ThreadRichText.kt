@@ -67,6 +67,7 @@ internal fun ThreadRichText(
     text: String,
     textColor: Color,
     modifier: Modifier = Modifier,
+    selectionEnabled: Boolean = true,
     textStyle: TextStyle = MaterialTheme.typography.bodyLarge,
     codeBackground: Color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.74f),
     codeColor: Color = MaterialTheme.colorScheme.onSurface,
@@ -75,7 +76,7 @@ internal fun ThreadRichText(
     if (text.isBlank()) return
 
     if (!shouldUseMarkdownRenderer(text)) {
-        SelectionContainer {
+        ThreadSelectableContent(enabled = selectionEnabled) {
             Text(
                 text = text,
                 style = textStyle,
@@ -100,7 +101,7 @@ internal fun ThreadRichText(
     }
 
     CompositionLocalProvider(LocalUriHandler provides transcriptUriHandler) {
-        SelectionContainer {
+        ThreadSelectableContent(enabled = selectionEnabled) {
             Markdown(
                 markdownState = markdownState,
                 modifier = modifier.fillMaxWidth(),
@@ -180,6 +181,18 @@ internal fun ThreadRichText(
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun ThreadSelectableContent(
+    enabled: Boolean,
+    content: @Composable () -> Unit,
+) {
+    if (enabled) {
+        SelectionContainer(content = content)
+    } else {
+        content()
     }
 }
 

@@ -52,29 +52,39 @@ import dev.codex.mobile.core.model.headline
 internal fun ThreadTranscriptRowView(
     row: TranscriptRow,
     activeItemIds: Set<String>,
+    selectionEnabled: Boolean,
+    animationsEnabled: Boolean,
     autoRevealExpandedContent: Boolean,
     onDecision: (String, ApprovalDecision) -> Unit,
     onSubmitUserInput: (String, ThreadUserInputResponse) -> Unit,
     onChooseDynamicTool: (ThreadDynamicToolRequest) -> Unit,
     onCancelDynamicTool: (String) -> Unit,
-    onReviewDiff: (dev.codex.mobile.core.model.FileChangeEntry) -> Unit,
+    onOpenTechnicalItemDetail: (ThreadItem) -> Unit,
 ) {
     when (row) {
-        is TranscriptRow.UserMessage -> UserBubble(row.item)
+        is TranscriptRow.UserMessage -> UserBubble(
+            entry = row.item,
+            selectionEnabled = selectionEnabled,
+        )
         is TranscriptRow.AgentMessage -> AgentBubble(
             entry = row.item,
             isLive = row.item.id in activeItemIds,
+            selectionEnabled = selectionEnabled,
+            animationsEnabled = animationsEnabled,
         )
-        TranscriptRow.PendingAgentPlaceholder -> PendingAgentBubble()
+        TranscriptRow.PendingAgentPlaceholder -> PendingAgentBubble(
+            animationsEnabled = animationsEnabled,
+        )
         is TranscriptRow.TechnicalStrip -> TechnicalPillStrip(
             items = row.items,
             approvals = row.approvals,
             userInputRequests = row.userInputRequests,
             activeItemIds = activeItemIds,
+            animationsEnabled = animationsEnabled,
             autoRevealExpandedContent = autoRevealExpandedContent,
+            onOpenFullContent = onOpenTechnicalItemDetail,
             onDecision = onDecision,
             onSubmitUserInput = onSubmitUserInput,
-            onReviewDiff = onReviewDiff,
         )
 
         is TranscriptRow.ApprovalCard -> InlineApprovalCard(
@@ -242,7 +252,10 @@ internal fun InlineApprovalCard(
 }
 
 @Composable
-private fun UserBubble(entry: ThreadItem.UserMessage) {
+private fun UserBubble(
+    entry: ThreadItem.UserMessage,
+    selectionEnabled: Boolean,
+) {
     val copyText: String = remember(entry) { entry.copyableMessageText() }
     val textParts: List<UserInputContent.Text> = remember(entry.content) {
         entry.content.filterIsInstance<UserInputContent.Text>()
@@ -270,6 +283,7 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
                 ThreadRichText(
                     text = entry.text,
                     textColor = MaterialTheme.colorScheme.onPrimary,
+                    selectionEnabled = selectionEnabled,
                     textStyle = MaterialTheme.typography.bodyLarge,
                     codeBackground = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
                     codeColor = MaterialTheme.colorScheme.onPrimary,
@@ -282,6 +296,7 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
                 ThreadRichText(
                     text = textPart.text,
                     textColor = MaterialTheme.colorScheme.onPrimary,
+                    selectionEnabled = selectionEnabled,
                     textStyle = MaterialTheme.typography.bodyLarge,
                     codeBackground = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.14f),
                     codeColor = MaterialTheme.colorScheme.onPrimary,
@@ -303,6 +318,8 @@ private fun UserBubble(entry: ThreadItem.UserMessage) {
 private fun AgentBubble(
     entry: ThreadItem.AgentMessage,
     isLive: Boolean,
+    selectionEnabled: Boolean,
+    animationsEnabled: Boolean,
 ) {
     val copyText: String = remember(entry.text) { entry.text.trim() }
     val bubbleColor: Color = if (entry.phase == "commentary") {
@@ -324,14 +341,19 @@ private fun AgentBubble(
                 tint = MaterialTheme.colorScheme.primary,
             )
         },
+        animationsEnabled = animationsEnabled,
     ) {
         if (isLive) {
-            LiveAccentLine(color = MaterialTheme.colorScheme.primary)
+            LiveAccentLine(
+                color = MaterialTheme.colorScheme.primary,
+                animate = animationsEnabled,
+            )
             Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
         }
         ThreadRichText(
             text = entry.text,
             textColor = MaterialTheme.colorScheme.onSurface,
+            selectionEnabled = selectionEnabled,
             textStyle = MaterialTheme.typography.bodyLarge,
             codeBackground = bubbleColor.copy(alpha = 0.85f),
             codeColor = MaterialTheme.colorScheme.onSurface,
@@ -341,7 +363,9 @@ private fun AgentBubble(
 }
 
 @Composable
-private fun PendingAgentBubble() {
+private fun PendingAgentBubble(
+    animationsEnabled: Boolean,
+) {
     BubbleRow(
         isUser = false,
         label = "Codex",
@@ -351,14 +375,21 @@ private fun PendingAgentBubble() {
         bubbleColor = MaterialTheme.colorScheme.surfaceVariant,
         textColor = MaterialTheme.colorScheme.onSurface,
         headerAction = null,
+        animationsEnabled = animationsEnabled,
     ) {
-        LiveAccentLine(color = MaterialTheme.colorScheme.primary)
+        LiveAccentLine(
+            color = MaterialTheme.colorScheme.primary,
+            animate = animationsEnabled,
+        )
         Spacer(modifier = Modifier.height(CodexSpacing.compactGap))
         Row(
             horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            LivePulseDot(color = MaterialTheme.colorScheme.primary)
+            LivePulseDot(
+                color = MaterialTheme.colorScheme.primary,
+                animate = animationsEnabled,
+            )
             Text(
                 text = "Thinking…",
                 style = MaterialTheme.typography.bodyMedium,
@@ -378,6 +409,7 @@ private fun BubbleRow(
     bubbleColor: Color,
     textColor: Color,
     headerAction: (@Composable (() -> Unit))?,
+    animationsEnabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Row(
@@ -404,6 +436,7 @@ private fun BubbleRow(
                         LiveStatusBadge(
                             label = live,
                             color = liveColor,
+                            animate = animationsEnabled,
                         )
                     } ?: supportingLabel?.let { tag ->
                         StatusChip(
@@ -432,6 +465,7 @@ private fun BubbleRow(
                             LiveStatusBadge(
                                 label = live,
                                 color = liveColor,
+                                animate = animationsEnabled,
                             )
                         } ?: supportingLabel?.let { tag ->
                             StatusChip(

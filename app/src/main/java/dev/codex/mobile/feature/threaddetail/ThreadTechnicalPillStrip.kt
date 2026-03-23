@@ -1,10 +1,5 @@
 package dev.codex.mobile.feature.threaddetail
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,10 +15,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.CallSplit
 import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
@@ -110,18 +107,24 @@ internal fun TechnicalPillStrip(
     approvals: List<ApprovalItem>,
     userInputRequests: List<ThreadUserInputRequest>,
     activeItemIds: Set<String>,
+    animationsEnabled: Boolean,
     autoRevealExpandedContent: Boolean,
+    onOpenFullContent: (ThreadItem) -> Unit,
     onDecision: (String, ApprovalDecision) -> Unit,
     onSubmitUserInput: (String, ThreadUserInputResponse) -> Unit,
-    onReviewDiff: (FileChangeEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
 
     val stripKey: String = remember(items) { items.joinToString(separator = "|") { item -> item.id } }
     var expandedItemId: String? by remember(stripKey) { mutableStateOf(null) }
+    val presentationsByItemId: Map<String, TechnicalPillPresentation> = remember(items) {
+        items.associate { item -> item.id to technicalPresentation(item) }
+    }
     val selectedItem: ThreadItem? = items.firstOrNull { item -> item.id == expandedItemId }
-    val selectedPresentation: TechnicalPillPresentation? = selectedItem?.let(::technicalPresentation)
+    val selectedPresentation: TechnicalPillPresentation? = selectedItem?.let { item ->
+        presentationsByItemId[item.id]
+    }
     val selectedItemIsLive: Boolean = selectedItem?.isLive(activeItemIds) == true
     val detailBringIntoViewRequester: BringIntoViewRequester = remember(stripKey) { BringIntoViewRequester() }
 
@@ -156,11 +159,12 @@ internal fun TechnicalPillStrip(
                     verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
                 ) {
                     items.forEach { item ->
-                        val presentation: TechnicalPillPresentation = technicalPresentation(item)
+                        val presentation: TechnicalPillPresentation = presentationsByItemId.getValue(item.id)
                         TechnicalPill(
                             presentation = presentation,
                             isLive = item.isLive(activeItemIds),
                             selected = item.id == expandedItemId,
+                            animationsEnabled = animationsEnabled,
                             onClick = {
                                 expandedItemId = if (expandedItemId == item.id) null else item.id
                             },
@@ -168,20 +172,15 @@ internal fun TechnicalPillStrip(
                     }
                 }
 
-                AnimatedVisibility(
-                    visible = selectedItem != null && selectedPresentation != null,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically(),
-                ) {
-                    if (selectedItem != null && selectedPresentation != null) {
-                        TechnicalPillDetailPanel(
-                            item = selectedItem,
-                            presentation = selectedPresentation,
-                            isLive = selectedItemIsLive,
-                            onReviewDiff = onReviewDiff,
-                            modifier = Modifier.bringIntoViewRequester(detailBringIntoViewRequester),
-                        )
-                    }
+                if (selectedItem != null && selectedPresentation != null) {
+                    TechnicalPillInspector(
+                        item = selectedItem,
+                        presentation = selectedPresentation,
+                        isLive = selectedItemIsLive,
+                        animationsEnabled = animationsEnabled,
+                        onOpenFullContent = onOpenFullContent,
+                        modifier = Modifier.bringIntoViewRequester(detailBringIntoViewRequester),
+                    )
                 }
             }
         }
@@ -207,6 +206,7 @@ private fun TechnicalPill(
     presentation: TechnicalPillPresentation,
     isLive: Boolean,
     selected: Boolean,
+    animationsEnabled: Boolean,
     onClick: () -> Unit,
 ) {
     val palette: TechnicalPillPalette = technicalPalette(presentation.family)
@@ -214,6 +214,7 @@ private fun TechnicalPill(
         isLive -> liveContainerColor(
             accent = palette.accent,
             selected = selected,
+            animate = animationsEnabled,
         )
         selected -> palette.accent.copy(alpha = 0.18f)
         else -> palette.container
@@ -245,7 +246,10 @@ private fun TechnicalPill(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (isLive) {
-            LivePulseDot(color = dotColor)
+            LivePulseDot(
+                color = dotColor,
+                animate = animationsEnabled,
+            )
         } else {
             Box(
                 modifier = Modifier
@@ -266,11 +270,12 @@ private fun TechnicalPill(
 }
 
 @Composable
-private fun TechnicalPillDetailPanel(
+private fun TechnicalPillInspector(
     item: ThreadItem,
     presentation: TechnicalPillPresentation,
     isLive: Boolean,
-    onReviewDiff: (FileChangeEntry) -> Unit,
+    animationsEnabled: Boolean,
+    onOpenFullContent: (ThreadItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val palette: TechnicalPillPalette = technicalPalette(presentation.family)
@@ -285,95 +290,100 @@ private fun TechnicalPillDetailPanel(
             verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
         ) {
             if (isLive) {
-                LiveAccentLine(color = palette.accent)
+                LiveAccentLine(
+                    color = palette.accent,
+                    animate = animationsEnabled,
+                )
             }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(CodexSpacing.listGap),
+                verticalAlignment = Alignment.Top,
             ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(CodexSpacing.listGap),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = palette.accent.copy(alpha = 0.14f),
-                                shape = CircleShape,
-                            )
-                            .padding(6.dp),
-                    ) {
-                        Icon(
-                            imageVector = presentation.icon,
-                            contentDescription = null,
-                            tint = palette.accent,
-                            modifier = Modifier.size(16.dp),
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = palette.accent.copy(alpha = 0.14f),
+                            shape = CircleShape,
                         )
-                    }
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
+                        .padding(6.dp),
+                ) {
+                    Icon(
+                        imageVector = presentation.icon,
+                        contentDescription = null,
+                        tint = palette.accent,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
-                            verticalAlignment = Alignment.CenterVertically,
+                        Surface(
+                            color = palette.accent.copy(alpha = 0.14f),
+                            shape = CircleShape,
                         ) {
-                            Surface(
-                                color = palette.accent.copy(alpha = 0.14f),
-                                shape = CircleShape,
-                            ) {
-                                Text(
-                                    text = presentation.badge,
-                                    style = MaterialTheme.typography.codeInline,
-                                    color = palette.accent,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-                                )
-                            }
-                            when {
-                                isLive -> LiveStatusBadge(
-                                    label = loadingLabelForItem(item),
-                                    color = palette.accent,
-                                )
-
-                                presentation.status != null -> StatusChip(
-                                    label = technicalStatusLabel(presentation.status),
-                                    color = technicalStatusColor(presentation.status),
-                                )
-
-                                presentation.statusLabel != null -> StatusChip(
-                                    label = presentation.statusLabel,
-                                    color = palette.accent,
-                                )
-                            }
+                            Text(
+                                text = presentation.badge,
+                                style = MaterialTheme.typography.codeInline,
+                                color = palette.accent,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                            )
                         }
+                        when {
+                            isLive -> LiveStatusBadge(
+                                label = loadingLabelForItem(item),
+                                color = palette.accent,
+                                animate = animationsEnabled,
+                            )
+
+                            presentation.status != null -> StatusChip(
+                                label = technicalStatusLabel(presentation.status),
+                                color = technicalStatusColor(presentation.status),
+                            )
+
+                            presentation.statusLabel != null -> StatusChip(
+                                label = presentation.statusLabel,
+                                color = palette.accent,
+                            )
+                        }
+                    }
+                    Text(
+                        text = presentation.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (presentation.preview.isNotBlank() && presentation.preview != presentation.title) {
                         Text(
-                            text = presentation.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 3,
+                            text = presentation.preview,
+                            style = MaterialTheme.typography.denseSupportingText,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        if (presentation.preview.isNotBlank() && presentation.preview != presentation.title) {
-                            Text(
-                                text = presentation.preview,
-                                style = MaterialTheme.typography.denseSupportingText,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
                     }
                 }
             }
 
             HorizontalDivider(color = palette.border)
-            TechnicalItemDetail(
-                item = item,
-                isLive = isLive,
-                onReviewDiff = onReviewDiff,
+            Text(
+                text = "Open the full detail sheet to inspect formatted output and longer content.",
+                style = MaterialTheme.typography.denseSupportingText,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TechnicalPrimaryActionButton(
+                label = "Show full content",
+                accent = palette.accent,
+                onClick = {
+                    onOpenFullContent(item)
+                },
             )
         }
     }
@@ -383,6 +393,8 @@ private fun TechnicalPillDetailPanel(
 private fun TechnicalItemDetail(
     item: ThreadItem,
     isLive: Boolean,
+    selectionEnabled: Boolean,
+    animationsEnabled: Boolean,
     onReviewDiff: (FileChangeEntry) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap)) {
@@ -391,6 +403,7 @@ private fun TechnicalItemDetail(
                 ThreadRichText(
                     text = item.text,
                     textColor = MaterialTheme.colorScheme.onSurface,
+                    selectionEnabled = selectionEnabled,
                     textStyle = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -402,6 +415,7 @@ private fun TechnicalItemDetail(
                         ThreadRichText(
                             text = section,
                             textColor = MaterialTheme.colorScheme.onSurface,
+                            selectionEnabled = selectionEnabled,
                             textStyle = MaterialTheme.typography.bodySmall,
                         )
                     }
@@ -409,8 +423,8 @@ private fun TechnicalItemDetail(
                     TechnicalSectionTitle("Raw reasoning")
                     CodeBlock(
                         text = item.contentText,
-                        maxLines = 14,
                         showLiveCaret = isLive,
+                        animationsEnabled = animationsEnabled,
                     )
                 }
             }
@@ -428,6 +442,7 @@ private fun TechnicalItemDetail(
                     CodeBlock(
                         text = output,
                         showLiveCaret = isLive,
+                        animationsEnabled = animationsEnabled,
                     )
                 }
                 if (item.interactions.isNotEmpty()) {
@@ -435,8 +450,8 @@ private fun TechnicalItemDetail(
                     item.interactions.forEach { interaction ->
                         CodeBlock(
                             text = interaction,
-                            maxLines = 8,
                             showLiveCaret = isLive,
+                            animationsEnabled = animationsEnabled,
                         )
                     }
                 }
@@ -454,6 +469,7 @@ private fun TechnicalItemDetail(
                     CodeBlock(
                         text = output,
                         showLiveCaret = isLive,
+                        animationsEnabled = animationsEnabled,
                     )
                 }
             }
@@ -486,6 +502,7 @@ private fun TechnicalItemDetail(
                             is ToolContentItem.Text -> ThreadRichText(
                                 text = contentItem.text,
                                 textColor = MaterialTheme.colorScheme.onSurface,
+                                selectionEnabled = selectionEnabled,
                                 textStyle = MaterialTheme.typography.bodySmall,
                             )
 
@@ -505,6 +522,7 @@ private fun TechnicalItemDetail(
                     ThreadRichText(
                         text = prompt,
                         textColor = MaterialTheme.colorScheme.onSurface,
+                        selectionEnabled = selectionEnabled,
                         textStyle = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -528,6 +546,7 @@ private fun TechnicalItemDetail(
                     ThreadRichText(
                         text = revisedPrompt,
                         textColor = MaterialTheme.colorScheme.onSurface,
+                        selectionEnabled = selectionEnabled,
                         textStyle = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -537,6 +556,7 @@ private fun TechnicalItemDetail(
                 ThreadRichText(
                     text = item.review,
                     textColor = MaterialTheme.colorScheme.onSurface,
+                    selectionEnabled = selectionEnabled,
                     textStyle = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -557,6 +577,119 @@ private fun TechnicalItemDetail(
             is ThreadItem.AgentMessage,
             -> Unit
         }
+    }
+}
+
+@Composable
+internal fun ThreadTechnicalItemDetailSheetContent(
+    item: ThreadItem,
+    activeItemIds: Set<String>,
+    onReviewDiff: (FileChangeEntry) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val presentation: TechnicalPillPresentation = remember(item) { technicalPresentation(item) }
+    val isLive: Boolean = item.isLive(activeItemIds)
+    val palette: TechnicalPillPalette = technicalPalette(presentation.family)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(
+                start = CodexSpacing.screenHorizontal,
+                top = CodexSpacing.compactGap,
+                end = CodexSpacing.screenHorizontal,
+                bottom = CodexSpacing.screenBottom,
+            ),
+        verticalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+    ) {
+        if (isLive) {
+            LiveAccentLine(
+                color = palette.accent,
+                animate = false,
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(CodexSpacing.listGap),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = palette.accent.copy(alpha = 0.14f),
+                        shape = CircleShape,
+                    )
+                    .padding(8.dp),
+            ) {
+                Icon(
+                    imageVector = presentation.icon,
+                    contentDescription = null,
+                    tint = palette.accent,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(CodexSpacing.microGap),
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(CodexSpacing.compactGap),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        color = palette.accent.copy(alpha = 0.14f),
+                        shape = CircleShape,
+                    ) {
+                        Text(
+                            text = presentation.badge,
+                            style = MaterialTheme.typography.codeInline,
+                            color = palette.accent,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                        )
+                    }
+                    when {
+                        isLive -> LiveStatusBadge(
+                            label = loadingLabelForItem(item),
+                            color = palette.accent,
+                            animate = false,
+                        )
+
+                        presentation.status != null -> StatusChip(
+                            label = technicalStatusLabel(presentation.status),
+                            color = technicalStatusColor(presentation.status),
+                        )
+
+                        presentation.statusLabel != null -> StatusChip(
+                            label = presentation.statusLabel,
+                            color = palette.accent,
+                        )
+                    }
+                }
+                Text(
+                    text = presentation.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (presentation.preview.isNotBlank() && presentation.preview != presentation.title) {
+                    Text(
+                        text = presentation.preview,
+                        style = MaterialTheme.typography.denseSupportingText,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(color = palette.border)
+        TechnicalItemDetail(
+            item = item,
+            isLive = isLive,
+            selectionEnabled = true,
+            animationsEnabled = false,
+            onReviewDiff = onReviewDiff,
+        )
     }
 }
 
@@ -587,10 +720,7 @@ private fun JsonSection(
     value: String,
 ) {
     TechnicalSectionTitle(label)
-    CodeBlock(
-        text = value,
-        maxLines = 12,
-    )
+    CodeBlock(text = value)
 }
 
 @Composable
@@ -598,6 +728,7 @@ private fun CodeBlock(
     text: String,
     maxLines: Int = Int.MAX_VALUE,
     showLiveCaret: Boolean = false,
+    animationsEnabled: Boolean = true,
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f),
@@ -618,6 +749,7 @@ private fun CodeBlock(
                 LiveStatusBadge(
                     label = "Streaming",
                     color = MaterialTheme.colorScheme.primary,
+                    animate = animationsEnabled,
                 )
             }
         }
@@ -662,6 +794,26 @@ private fun AgentStateRow(state: CollabAgentState) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TechnicalPrimaryActionButton(
+    label: String,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        color = accent.copy(alpha = 0.12f),
+        contentColor = accent,
+        shape = MaterialTheme.shapes.small,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+        )
     }
 }
 
