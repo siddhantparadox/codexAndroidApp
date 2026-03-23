@@ -216,6 +216,27 @@ class DemoCodexRepository : CodexRepository {
         }
     }
 
+    override suspend fun clearActiveHost() {
+        AppLog.action(name = "clear_active_host", detail = "demo")
+        store.update { current ->
+            current.copy(
+                hosts = current.hosts.map { host -> host.copy(isActive = false) },
+                connection = ConnectionState(phase = ConnectionPhase.Idle),
+                account = AccountState(),
+                rateLimits = AccountRateLimits(),
+                usageWrapped = UsageWrappedState(),
+                threads = emptyList(),
+                threadDetails = emptyMap(),
+                activeItemIdsByThread = emptyMap(),
+                approvals = emptyList(),
+                userInputRequests = emptyList(),
+                composerCatalog = ComposerCatalog(),
+                unreadThreadResultDigests = emptyMap(),
+                inAppThreadNotifications = emptyList(),
+            )
+        }
+    }
+
     override suspend fun renameHost(hostId: String, name: String): Boolean {
         val updatedHosts = renameHostProfile(
             currentHosts = store.value.hosts,
@@ -372,6 +393,19 @@ class DemoCodexRepository : CodexRepository {
         delay(180)
         store.update { current ->
             current.copy(usageWrapped = demoUsageWrappedState())
+        }
+    }
+
+    override suspend fun ensureActiveHostConnection() {
+        val activeHost = store.value.hosts.firstOrNull { host -> host.isActive } ?: return
+        store.update { current ->
+            current.copy(
+                connection = ConnectionState(
+                    activeHostId = activeHost.id,
+                    phase = ConnectionPhase.Connected,
+                    message = "ws://${activeHost.address}:${activeHost.port}",
+                ),
+            )
         }
     }
 

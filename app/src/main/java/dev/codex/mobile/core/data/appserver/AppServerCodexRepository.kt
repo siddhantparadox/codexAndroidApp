@@ -249,6 +249,22 @@ internal class AppServerCodexRepository(
         reconnectToActiveHost()
     }
 
+    override suspend fun clearActiveHost() {
+        AppLog.action(
+            name = "clear_active_host",
+            detail = repositoryState.value.connection.activeHostId.orEmpty(),
+        )
+        repositoryState.update { current ->
+            current.copy(
+                hosts = current.hosts.map { host ->
+                    host.copy(isActive = false)
+                },
+            )
+        }
+        persistLocalState()
+        reconnectToActiveHost()
+    }
+
     override suspend fun renameHost(hostId: String, name: String): Boolean {
         val updatedHosts = renameHostProfile(
             currentHosts = repositoryState.value.hosts,
@@ -478,6 +494,23 @@ internal class AppServerCodexRepository(
                     notification.id == notificationId
                 },
             )
+        }
+    }
+
+    override suspend fun ensureActiveHostConnection() {
+        val currentState: RepositoryState = repositoryState.value
+        val activeHost: HostProfile = currentState.hosts.firstOrNull { host -> host.isActive } ?: return
+        val connection: ConnectionState = currentState.connection
+        if (connection.phase == ConnectionPhase.Connecting || connection.phase == ConnectionPhase.Reconnecting) {
+            return
+        }
+        val shouldReconnect: Boolean = session == null ||
+            connection.activeHostId != activeHost.id ||
+            connection.phase == ConnectionPhase.Disconnected ||
+            connection.phase == ConnectionPhase.Error ||
+            connection.phase == ConnectionPhase.Idle
+        if (shouldReconnect) {
+            reconnectToActiveHost()
         }
     }
 
@@ -1235,15 +1268,11 @@ internal class AppServerCodexRepository(
             current.copy(
                 connection = ConnectionState(
                     activeHostId = activeHostId,
-                    phase = if (event.isError) ConnectionPhase.Reconnecting else ConnectionPhase.Disconnected,
-                    message = if (event.isError) {
-                        desktopConnectionMessage(
-                            hostName = hostName,
-                            phase = ConnectionPhase.Reconnecting,
-                        )
-                    } else {
-                        event.message ?: "Disconnected."
-                    },
+                    phase = ConnectionPhase.Reconnecting,
+                    message = desktopConnectionMessage(
+                        hostName = hostName,
+                        phase = ConnectionPhase.Reconnecting,
+                    ),
                 ),
                 approvals = emptyList(),
                 userInputRequests = emptyList(),
@@ -1254,14 +1283,10 @@ internal class AppServerCodexRepository(
                 lastResultTurnIdByThread = emptyMap(),
             )
         }
-        if (event.isError) {
-            scheduleReconnectToActiveHost(
-                expectedHostId = activeHostId,
-                trigger = "transport_closed:${event.message.orEmpty()}",
-            )
-        } else {
-            reconnectAttemptCount = 0
-        }
+        scheduleReconnectToActiveHost(
+            expectedHostId = activeHostId,
+            trigger = "transport_closed:${event.message.orEmpty()} error=${event.isError}",
+        )
     }
 
     private fun scheduleReconnectToActiveHost(

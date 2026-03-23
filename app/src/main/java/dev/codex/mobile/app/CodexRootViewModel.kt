@@ -27,6 +27,8 @@ internal data class CodexRootUiState(
     val themePreference: ThemePreference = ThemePreference.System,
     val pendingApprovals: Int = 0,
     val alerts: List<InAppAlert> = emptyList(),
+    val activeHostId: String? = null,
+    val activeHostName: String? = null,
 )
 
 private data class RootAlertPrimaryInputs(
@@ -84,6 +86,8 @@ class CodexRootViewModel(
         CodexRootUiState(
             themePreference = primary.preferences.themePreference,
             pendingApprovals = secondary.approvals.size,
+            activeHostId = primary.hosts.firstOrNull { host -> host.isActive }?.id,
+            activeHostName = primary.hosts.firstOrNull { host -> host.isActive }?.name,
             alerts = buildRootInAppAlerts(
                 preferences = primary.preferences,
                 hosts = primary.hosts,

@@ -206,6 +206,8 @@ private class FakeCodexRepository(
 
     override suspend fun setActiveHost(hostId: String) = Unit
 
+    override suspend fun clearActiveHost() = Unit
+
     override suspend fun renameHost(hostId: String, name: String): Boolean = false
 
     override suspend fun removeHost(hostId: String): Boolean = false
@@ -230,6 +232,8 @@ private class FakeCodexRepository(
     override suspend fun refreshThreads() = Unit
 
     override suspend fun refreshUsageWrapped() = Unit
+
+    override suspend fun ensureActiveHostConnection() = Unit
 
     override suspend fun dismissInAppThreadNotification(notificationId: String) {
         dismissedNotificationIds += notificationId

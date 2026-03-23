@@ -1,3 +1,14 @@
 <resources>
     <string name="app_name">Codex Mobile</string>
+    <string name="connection_service_channel_name">Desktop connection</string>
+    <string name="connection_service_channel_description">Keeps the active desktop connection alive in the background.</string>
+    <string name="connection_service_generic_host">desktop</string>
+    <string name="connection_service_title_connected">Connected to %1$s</string>
+    <string name="connection_service_title_connecting">Connecting to %1$s</string>
+    <string name="connection_service_title_reconnecting">Reconnecting to %1$s</string>
+    <string name="connection_service_body_connected">Keeping your Codex desktop session alive.</string>
+    <string name="connection_service_body_connecting">Establishing the desktop connection.</string>
+    <string name="connection_service_body_reconnecting">Trying to restore the desktop connection.</string>
+    <string name="connection_service_action_open_app">Open app</string>
+    <string name="connection_service_action_disconnect">Disconnect</string>
 </resources>

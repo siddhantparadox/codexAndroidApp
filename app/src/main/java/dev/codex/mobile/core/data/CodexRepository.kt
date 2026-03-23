@@ -62,6 +62,8 @@ interface CodexRepository {
 
     suspend fun setActiveHost(hostId: String)
 
+    suspend fun clearActiveHost()
+
     suspend fun renameHost(hostId: String, name: String): Boolean
 
     suspend fun removeHost(hostId: String): Boolean
@@ -84,6 +86,8 @@ interface CodexRepository {
     suspend fun refreshThreads()
 
     suspend fun refreshUsageWrapped()
+
+    suspend fun ensureActiveHostConnection()
 
     suspend fun dismissInAppThreadNotification(notificationId: String)
 
