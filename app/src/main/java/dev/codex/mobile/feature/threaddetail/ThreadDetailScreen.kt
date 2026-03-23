@@ -60,6 +60,7 @@ import dev.codex.mobile.core.model.ThreadItem
 import dev.codex.mobile.core.model.ThreadStatus
 import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.ThreadSummary
+import dev.codex.mobile.core.model.displayTitle
 import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.core.model.isWaitingOnApproval
 import dev.codex.mobile.core.model.isWaitingOnUserInput
@@ -616,7 +617,7 @@ private fun ThreadDetailHeader(
     }
 }
 
-private fun threadTitle(summary: ThreadSummary): String = summary.name?.takeIf { it.isNotBlank() } ?: "Untitled thread"
+private fun threadTitle(summary: ThreadSummary): String = summary.displayTitle()
 
 private fun threadMetaLabel(summary: ThreadSummary): String = summary.displayMetaLabel()
 

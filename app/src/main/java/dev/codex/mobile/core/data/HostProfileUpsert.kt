@@ -18,10 +18,12 @@ internal fun upsertHostProfile(
     desktopId: String?,
     activate: Boolean,
 ): HostProfileUpsertResult {
-    val existingHost = currentHosts.firstOrNull { host ->
-        (desktopId != null && host.desktopId == desktopId) ||
-            (host.address == address && host.port == port)
-    }
+    val existingHost: HostProfile? = currentHosts.findHostProfileMatch(
+        name = name,
+        address = address,
+        port = port,
+        desktopId = desktopId,
+    )
     val hostId = existingHost?.id ?: generatedId
     val updatedHost = HostProfile(
         id = hostId,
@@ -42,4 +44,39 @@ internal fun upsertHostProfile(
         hosts = updatedHosts,
         hostId = hostId,
     )
+}
+
+private fun List<HostProfile>.findHostProfileMatch(
+    name: String,
+    address: String,
+    port: Int,
+    desktopId: String?,
+): HostProfile? {
+    val trimmedDesktopId: String? = desktopId?.trim()?.takeIf(String::isNotEmpty)
+    val normalizedName: String = name.trim()
+
+    val desktopIdentityMatch: HostProfile? = trimmedDesktopId?.let { resolvedDesktopId ->
+        firstOrNull { host ->
+            host.desktopId == resolvedDesktopId || host.id == resolvedDesktopId
+        }
+    }
+    if (desktopIdentityMatch != null) {
+        return desktopIdentityMatch
+    }
+
+    val endpointMatch: HostProfile? = firstOrNull { host ->
+        host.address == address && host.port == port
+    }
+    if (endpointMatch != null) {
+        return endpointMatch
+    }
+
+    if (normalizedName.isBlank()) {
+        return null
+    }
+
+    val sameNameMatches: List<HostProfile> = filter { host ->
+        host.port == port && host.name.trim().equals(other = normalizedName, ignoreCase = true)
+    }
+    return sameNameMatches.singleOrNull()
 }

@@ -38,7 +38,7 @@ internal fun JsonObject.toThreadTurnResult(
 
     return ThreadTurnResult(
         threadId = string("id").orEmpty(),
-        threadTitle = string("name")?.takeIf { it.isNotBlank() } ?: "Untitled thread",
+        threadTitle = displayThreadTitle(),
         digest = digest,
     )
 }
@@ -186,3 +186,18 @@ private fun String.singleLinePreview(maxLength: Int = 120): String = lineSequenc
             collapsed.take(maxLength - 1).trimEnd() + "…"
         }
     }
+
+private fun JsonObject.displayThreadTitle(): String = string("name")
+    ?.singleLinePreview()
+    ?.takeIf(String::isNotBlank)
+    ?: string("preview")
+        ?.singleLinePreview()
+        ?.takeIf(String::isNotBlank)
+    ?: string("cwd")
+        ?.trim()
+        ?.trimEnd('/', '\\')
+        ?.substringAfterLast('/')
+        ?.substringAfterLast('\\')
+        ?.takeIf(String::isNotBlank)
+        ?.let { folderName -> "$folderName thread" }
+    ?: "Thread"

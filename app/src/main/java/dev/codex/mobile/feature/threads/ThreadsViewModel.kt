@@ -13,6 +13,7 @@ import dev.codex.mobile.core.model.ThreadStatusType
 import dev.codex.mobile.core.model.isActive
 import dev.codex.mobile.core.model.isConnected
 import dev.codex.mobile.core.model.isWaitingOnApproval
+import dev.codex.mobile.core.model.workspaceFolderName
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -41,6 +42,7 @@ data class ThreadsUiState(
     val refreshErrorMessage: String? = null,
     val unreadResultDigests: Map<String, ThreadResultDigest> = emptyMap(),
     val existingCwdOptions: List<ThreadCwdOption> = emptyList(),
+    val folderSections: List<ThreadFolderSection> = emptyList(),
     val threads: List<ThreadSummary> = emptyList(),
 )
 
@@ -57,6 +59,7 @@ private data class ThreadListingState(
     val createThreadUnavailableMessage: String = threadCreationUnavailableMessage(ConnectionPhase.Idle),
     val unreadResultDigests: Map<String, ThreadResultDigest> = emptyMap(),
     val existingCwdOptions: List<ThreadCwdOption> = emptyList(),
+    val folderSections: List<ThreadFolderSection> = emptyList(),
     val threads: List<ThreadSummary> = emptyList(),
 )
 
@@ -75,6 +78,19 @@ class ThreadsViewModel(
         query,
         selectedFilter,
     ) { threads, connection, unreadResultDigests, searchQuery, filter ->
+        val filteredThreads: List<ThreadSummary> = threads.filter { thread ->
+            val matchesQuery = threadMatchesSearchQuery(
+                thread = thread,
+                searchQuery = searchQuery,
+            )
+            val matchesFilter = when (filter) {
+                ThreadFilter.All -> true
+                ThreadFilter.Active -> thread.status.isActive
+                ThreadFilter.WaitingOnApproval -> thread.status.isWaitingOnApproval
+                ThreadFilter.SystemError -> thread.status.type == ThreadStatusType.SystemError
+            }
+            matchesQuery && matchesFilter
+        }
         ThreadListingState(
             canCreateThread = connection.isConnected,
             canRefresh = connection.isConnected,
@@ -82,18 +98,8 @@ class ThreadsViewModel(
             createThreadUnavailableMessage = threadCreationUnavailableMessage(connection.phase),
             unreadResultDigests = unreadResultDigests,
             existingCwdOptions = buildThreadCwdOptions(threads),
-            threads = threads.filter { thread ->
-                val matchesQuery = searchQuery.isBlank() ||
-                    thread.name.orEmpty().contains(searchQuery, ignoreCase = true) ||
-                    thread.preview.contains(searchQuery, ignoreCase = true)
-                val matchesFilter = when (filter) {
-                    ThreadFilter.All -> true
-                    ThreadFilter.Active -> thread.status.isActive
-                    ThreadFilter.WaitingOnApproval -> thread.status.isWaitingOnApproval
-                    ThreadFilter.SystemError -> thread.status.type == ThreadStatusType.SystemError
-                }
-                matchesQuery && matchesFilter
-            },
+            folderSections = buildThreadFolderSections(filteredThreads),
+            threads = filteredThreads,
         )
     }
 
@@ -115,6 +121,7 @@ class ThreadsViewModel(
             refreshErrorMessage = refresh.refreshErrorMessage,
             unreadResultDigests = listing.unreadResultDigests,
             existingCwdOptions = listing.existingCwdOptions,
+            folderSections = listing.folderSections,
             threads = listing.threads,
         )
     }.stateIn(
@@ -238,6 +245,17 @@ internal fun threadCreationUnavailableMessage(phase: ConnectionPhase): String = 
 internal fun threadRefreshUnavailableMessage(phase: ConnectionPhase): String = when (phase) {
     ConnectionPhase.Reconnecting -> "Reconnecting to your desktop. Thread updates will resume automatically."
     else -> "Connect to refresh threads."
+}
+
+internal fun threadMatchesSearchQuery(
+    thread: ThreadSummary,
+    searchQuery: String,
+): Boolean {
+    if (searchQuery.isBlank()) return true
+
+    return thread.name.orEmpty().contains(searchQuery, ignoreCase = true) ||
+        thread.preview.contains(searchQuery, ignoreCase = true) ||
+        thread.workspaceFolderName().orEmpty().contains(searchQuery, ignoreCase = true)
 }
 
 private fun currentEpochSeconds(): Long = System.currentTimeMillis() / 1_000

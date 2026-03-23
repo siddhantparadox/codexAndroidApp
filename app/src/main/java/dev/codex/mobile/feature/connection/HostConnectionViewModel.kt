@@ -83,7 +83,52 @@ class HostConnectionViewModel(
     }
 
     fun handleScannedBootstrap(rawValue: String) {
-        resolveBootstrap(rawValue)
+        val parsedBootstrap = parseConnectionBootstrap(rawValue)
+        parsedBootstrap.fold(
+            onSuccess = { bootstrap ->
+                val knownHost: HostProfile? = if (bootstrap.source == ConnectionBootstrapSource.QrCode) {
+                    findKnownBootstrapHost(
+                        hosts = uiState.value.hosts,
+                        bootstrap = bootstrap,
+                    )
+                } else {
+                    null
+                }
+                if (knownHost != null) {
+                    viewModelScope.launch {
+                        repository.saveHost(
+                            name = bootstrap.desktopName,
+                            address = bootstrap.host,
+                            port = bootstrap.port,
+                            desktopId = bootstrap.desktopId,
+                            activate = true,
+                        )
+                        formState.update { current ->
+                            current.copy(
+                                connectionCode = "",
+                                bootstrapError = null,
+                                pendingBootstrap = null,
+                            )
+                        }
+                    }
+                } else {
+                    formState.update { current ->
+                        current.copy(
+                            pendingBootstrap = bootstrap,
+                            bootstrapError = null,
+                        )
+                    }
+                }
+            },
+            onFailure = { error ->
+                formState.update { current ->
+                    current.copy(
+                        pendingBootstrap = null,
+                        bootstrapError = error.message ?: "Unable to read the desktop code.",
+                    )
+                }
+            },
+        )
     }
 
     fun dismissPendingBootstrap() {

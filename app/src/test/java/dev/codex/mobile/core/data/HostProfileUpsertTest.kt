@@ -75,4 +75,35 @@ class HostProfileUpsertTest {
         assertTrue(result.hosts.single { it.id == "desktop-b" }.isActive)
         assertTrue(result.hosts.single { it.id == "desktop-a" }.isActive.not())
     }
+
+    @Test
+    fun updatesUniqueSameNamedHostWhenDesktopIdentityWasMissing() {
+        val initialHosts = listOf(
+            HostProfile(
+                id = "legacy-host",
+                name = "SIDDHANT",
+                address = "10.0.0.94",
+                port = 4500,
+                kind = HostKind.Desktop,
+                isActive = true,
+            ),
+        )
+
+        val result = upsertHostProfile(
+            currentHosts = initialHosts,
+            generatedId = "SIDDHANT",
+            name = "SIDDHANT",
+            address = "192.168.1.223",
+            port = 4500,
+            kind = HostKind.Desktop,
+            desktopId = "SIDDHANT",
+            activate = true,
+        )
+
+        assertEquals("legacy-host", result.hostId)
+        assertEquals(1, result.hosts.size)
+        assertEquals("192.168.1.223", result.hosts.single().address)
+        assertEquals("SIDDHANT", result.hosts.single().desktopId)
+        assertTrue(result.hosts.single().isActive)
+    }
 }

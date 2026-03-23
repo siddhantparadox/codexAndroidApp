@@ -71,8 +71,6 @@ class ConnectionForegroundService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
         super.onTaskRemoved(rootIntent)
     }
 
